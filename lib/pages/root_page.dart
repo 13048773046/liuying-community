@@ -58,18 +58,29 @@ class _RootPageState extends State<RootPage> {
     // 短视频页：沉浸式全屏（TabBar 半透明悬浮显示，等效音乐端"透明悬浮导航"）
     final isShorts = _tab == 2;
     return Scaffold(
-      backgroundColor: isShorts ? const Color(AppTheme.bg) : const Color(AppTheme.bg),
+      backgroundColor: const Color(AppTheme.bg),
       body: Stack(
+        // 强制所有子组件撑满屏幕，底部导航必然贴底
+        fit: StackFit.expand,
         children: [
           // 内容区：五个页面常驻（音乐端三页常驻等价）
-          for (var i = 0; i < _pages.length; i++)
-            Offstage(
-              offstage: _tab != i,
-              child: TickerMode(
-                enabled: _tab == i,
-                child: _pages[i],
-              ),
+          // 非短视频页底部留白，避免悬浮导航遮挡列表最后一项
+          Padding(
+            padding: EdgeInsets.only(bottom: isShorts ? 0 : 78),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                for (var i = 0; i < _pages.length; i++)
+                  Offstage(
+                    offstage: _tab != i,
+                    child: TickerMode(
+                      enabled: _tab == i,
+                      child: _pages[i],
+                    ),
+                  ),
+              ],
             ),
+          ),
           // 底部导航（透明悬浮，短视频页透出内容）
           Align(
             alignment: Alignment.bottomCenter,

@@ -53,7 +53,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         _post = FeedItem.fromJson(pj);
         _liked = pj['liked'] ?? false;
         _faved = pj['faved'] ?? false;
-        _likeCount = (pj['likeCount'] ?? 0) as int;
+        _likeCount = ((pj['likeCount'] ?? 0) as num).toInt();
         _loading = false;
       });
       await _loadComments(refresh: true);
@@ -426,7 +426,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     final content = (c['content'] ?? '') as String;
     final images = (c['images'] ?? const []) as List;
     final sticker = (c['sticker'] ?? '') as String;
-    final created = (c['created'] ?? 0) as int;
+    final created = ((c['created'] ?? 0) as num).toInt();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(

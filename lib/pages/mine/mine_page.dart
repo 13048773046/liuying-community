@@ -281,9 +281,9 @@ class _MinePageState extends State<MinePage> {
     final title = (user['title'] ?? '') as String;
     final verified = (user['verified'] ?? false) as bool;
     final verifiedLabel = (user['verifiedLabel'] ?? '') as String;
-    final adminLevel = (user['adminLevel'] ?? 0) as int;
-    final level = (_level['level'] ?? user['level'] ?? 0) as int;
-    final exp = (_level['exp'] ?? 0) as int;
+    final adminLevel = ((user['adminLevel'] ?? 0) as num).toInt();
+    final level = ((_level['level'] ?? user['level'] ?? 0) as num).toInt();
+    final exp = ((_level['exp'] ?? 0) as num).toInt();
     final progress = (_level['progress'] ?? 0.0) as num;
     final next = _level['nextThreshold'];
     final today = DateTime.now().toString().split(' ')[0];
@@ -529,7 +529,7 @@ class _MinePageState extends State<MinePage> {
   Widget _taskTile(Map<String, dynamic> t) {
     final name = (t['name'] ?? '') as String;
     final desc = (t['desc'] ?? '') as String;
-    final reward = (t['rewardExp'] ?? 0) as int;
+    final reward = ((t['rewardExp'] ?? 0) as num).toInt();
     final status = (t['status'] ?? '') as String; // pending | done | claimed
     final claimed = status == 'claimed';
     final done = status == 'done';

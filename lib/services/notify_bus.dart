@@ -78,7 +78,7 @@ class NotifyBus {
       final j = jsonDecode(raw as String) as Map<String, dynamic>;
       final kind = (j['kind'] ?? '') as String;
       if (kind == 'hello' || kind == 'notification') {
-        _setUnread((j['unread'] ?? 0) as int);
+        _setUnread(((j['unread'] ?? 0) as num).toInt());
       }
       if (kind == 'notification' && j['notification'] != null) {
         onNotification.add(Map<String, dynamic>.from(j['notification'] as Map));

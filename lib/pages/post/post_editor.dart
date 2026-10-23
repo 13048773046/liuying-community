@@ -310,7 +310,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
                   itemBuilder: (_, i) {
                     final b = _boards[i];
                     final sel = b['id'] == _boardId;
-                    final depth = (b['_depth'] ?? 0) as int;
+                    final depth = ((b['_depth'] ?? 0) as num).toInt();
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: GestureDetector(

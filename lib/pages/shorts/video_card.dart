@@ -119,7 +119,7 @@ class _VideoCardState extends State<VideoCard> {
       if (!mounted) return;
       setState(() {
         _liked = r['liked'] == true;
-        _likeCount = (r['count'] ?? _likeCount) as int;
+        _likeCount = ((r['count'] ?? _likeCount) as num).toInt();
       });
     } catch (_) {}
   }
@@ -152,7 +152,7 @@ class _VideoCardState extends State<VideoCard> {
     try {
       final r = await ApiClient.reportShare(widget.item.id);
       if (!mounted) return;
-      setState(() => _shareCount = (r['count'] ?? _shareCount + 1) as int);
+      setState(() => _shareCount = ((r['count'] ?? _shareCount + 1) as num).toInt());
     } catch (_) {}
     // 系统分享（Android/iOS 平台通道）
     // TODO: 接入 share_plus 后打开系统分享面板

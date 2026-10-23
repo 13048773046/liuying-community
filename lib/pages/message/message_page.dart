@@ -185,7 +185,7 @@ class _MessagePageState extends State<MessagePage> {
       final title = (n['title'] ?? '') as String;
       final content = (n['content'] ?? '') as String;
       final fromName = (n['fromUserName'] ?? '') as String;
-      final created = (n['created'] ?? 0) as int;
+      final created = ((n['created'] ?? 0) as num).toInt();
       final isRead = (n['isRead'] ?? false) as bool;
       final icon = _notifIcon(type);
       return Container(
@@ -272,7 +272,7 @@ class _MessagePageState extends State<MessagePage> {
     return _official.map((m) {
       final content = (m['content'] ?? '') as String;
       final sender = (m['senderName'] ?? '') as String;
-      final created = (m['created'] ?? 0) as int;
+      final created = ((m['created'] ?? 0) as num).toInt();
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
         padding: const EdgeInsets.symmetric(vertical: 12),

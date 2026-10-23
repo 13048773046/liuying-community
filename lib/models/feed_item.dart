@@ -14,9 +14,9 @@ class Author {
       : id = (j['id'] ?? '') as String,
         name = (j['name'] ?? '') as String,
         avatar = (j['avatar'] ?? '') as String,
-        level = (j['level'] ?? 0) as int,
+        level = ((j['level'] ?? 0) as num).toInt(),
         frameId = (j['frameId'] ?? '') as String,
-        adminLevel = (j['adminLevel'] ?? 0) as int,
+        adminLevel = ((j['adminLevel'] ?? 0) as num).toInt(),
         adminName = (j['adminName'] ?? '') as String;
 
   bool get isAdmin => adminLevel > 0;
@@ -51,21 +51,21 @@ class FeedItem {
         images = ((j['images'] ?? []) as List).map((e) => e.toString()).toList(),
         video = (j['video'] ?? '') as String,
         cover = (j['cover'] ?? '') as String,
-        duration = (j['duration'] ?? 0) as int,
+        duration = ((j['duration'] ?? 0) as num).toInt(),
         boardId = (j['boardId'] ?? '') as String,
         tag = (j['tag'] ?? '') as String,
         topic = ((j['topic'] ?? []) as List).map((e) => e.toString()).toList(),
         mentions = ((j['mentions'] ?? []) as List)
             .map((e) => e.toString())
             .toList(),
-        likeCount = (j['likeCount'] ?? 0) as int,
-        commentCount = (j['commentCount'] ?? 0) as int,
-        shareCount = (j['shareCount'] ?? 0) as int,
+        likeCount = ((j['likeCount'] ?? 0) as num).toInt(),
+        commentCount = ((j['commentCount'] ?? 0) as num).toInt(),
+        shareCount = ((j['shareCount'] ?? 0) as num).toInt(),
         liked = (j['liked'] ?? false) as bool,
         faved = (j['faved'] ?? false) as bool,
         sticky = (j['sticky'] ?? false) as bool,
         featured = (j['featured'] ?? false) as bool,
-        created = (j['created'] ?? 0) as int,
+        created = ((j['created'] ?? 0) as num).toInt(),
         author = Author.fromJson((j['author'] ?? {}) as Map<String, dynamic>);
 
   bool get isVideo => type == 'video';
@@ -84,7 +84,7 @@ class FeedPage {
             .whereType<Map<String, dynamic>>()
             .map(FeedItem.fromJson)
             .toList(),
-        page: (j['page'] ?? 1) as int,
+        page: ((j['page'] ?? 1) as num).toInt(),
         hasMore: (j['hasMore'] ?? false) as bool,
       );
 }

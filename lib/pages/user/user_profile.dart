@@ -84,7 +84,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       if (!mounted) return;
       setState(() {
         _user!['following'] = j['following'] as bool;
-        _user!['followers'] = j['followers'] as int;
+        _user!['followers'] = (j['followers'] as num).toInt();
       });
     } catch (e) {
       if (!mounted) return;
@@ -167,9 +167,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final avatar = (u['avatar'] ?? '') as String;
     final title = (u['title'] ?? '') as String;
     final frameId = (u['frameId'] ?? '') as String;
-    final level = (u['level'] ?? 0) as int;
-    final followers = (u['followers'] ?? 0) as int;
-    final followings = (u['followings'] ?? 0) as int;
+    final level = ((u['level'] ?? 0) as num).toInt();
+    final followers = ((u['followers'] ?? 0) as num).toInt();
+    final followings = ((u['followings'] ?? 0) as num).toInt();
     final following = (u['following'] ?? false) as bool;
     return Column(
       children: [
