@@ -67,7 +67,7 @@ class _ShortsPageState extends State<ShortsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D12),
+      backgroundColor: const Color(AppTheme.bg),
       body: _items.isEmpty
           ? _buildLoading()
           : PageView.builder(
@@ -99,13 +99,13 @@ class _ShortsPageState extends State<ShortsPage> {
             height: 28,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: Color(0xFF7C4DFF),
+              color: Color(AppTheme.accent),
             ),
           ),
           const SizedBox(height: 14),
           Text(
             _loading ? '加载短视频…' : '暂时没有短视频',
-            style: const TextStyle(color: Color(0xFF9A9AA5), fontSize: 13),
+            style: const TextStyle(color: Color(AppTheme.textSecondary), fontSize: 13),
           ),
         ],
       ),

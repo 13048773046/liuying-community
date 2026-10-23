@@ -159,16 +159,13 @@ class _ShortsButtonInner extends StatelessWidget {
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(AppTheme.gradStart), Color(AppTheme.gradEnd)],
-            ),
+            // 纯薄荷绿圆钮（复刻音乐 AppTabBar 播放控制钮样式）
+            color: const Color(AppTheme.accent),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: const Color(AppTheme.accent).withOpacity(0.45),
-                blurRadius: 14,
+                color: const Color(AppTheme.accent).withOpacity(0.35),
+                blurRadius: 12,
                 spreadRadius: 1,
               ),
             ],

@@ -215,9 +215,13 @@ class _VideoCardState extends State<VideoCard> {
       );
     }
     // 封面兜底（视频初始化中 / 加载失败）
+    // cover=auto 时使用转码自动生成的首帧封面（community_video_*.jpg）
     if (widget.item.cover.isNotEmpty && !_failed) {
+      final cover = widget.item.cover == 'auto'
+          ? '${widget.item.video}.jpg'
+          : widget.item.cover;
       return CachedNetworkImage(
-        imageUrl: mediaUrl(widget.item.cover),
+        imageUrl: mediaUrl(cover),
         fit: BoxFit.cover,
         placeholder: (_, __) => const _MediaLoading(),
         errorWidget: (_, __, ___) => const _MediaLoading(),
@@ -233,10 +237,10 @@ class _VideoCardState extends State<VideoCard> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.refresh, color: Color(0xFF9A9AA5), size: 34),
+                Icon(Icons.refresh, color: Color(AppTheme.textSecondary), size: 34),
                 SizedBox(height: 8),
                 Text('视频加载失败，点击重试',
-                    style: TextStyle(color: Color(0xFF9A9AA5), fontSize: 12)),
+                    style: TextStyle(color: Color(AppTheme.textSecondary), fontSize: 12)),
               ],
             ),
           ),
@@ -337,7 +341,7 @@ class _VideoCardState extends State<VideoCard> {
                       Text(
                         '#$t',
                         style: const TextStyle(
-                          color: Color(0xFF9AA8FF),
+                          color: Color(AppTheme.lilac),
                           fontSize: 13,
                         ),
                       ),
@@ -427,7 +431,7 @@ class _MediaLoading extends StatelessWidget {
           height: 30,
           child: CircularProgressIndicator(
             strokeWidth: 2.5,
-            color: Color(0xFF7C4DFF),
+            color: Color(AppTheme.accent),
           ),
         ),
       ),
@@ -469,7 +473,7 @@ class _AvatarFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF3A3A46),
-      child: const Icon(Icons.person, color: Color(0xFF9A9AA5), size: 18),
+      child: const Icon(Icons.person, color: Color(AppTheme.textSecondary), size: 18),
     );
   }
 }
@@ -484,7 +488,7 @@ class _VerifiedBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF7C4DFF), Color(0xFF4A90E2)],
+          colors: [Color(AppTheme.accent), Color(AppTheme.sky)],
         ),
         borderRadius: BorderRadius.circular(7),
       ),
@@ -511,7 +515,7 @@ class _FollowButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
-          color: followed ? Colors.white.withOpacity(0.16) : const Color(0xFF7C4DFF),
+          color: followed ? Colors.white.withOpacity(0.16) : const Color(AppTheme.accent),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
@@ -554,8 +558,8 @@ class _ContentText extends StatelessWidget {
           text: m.group(0),
           style: TextStyle(
             color: isTopic
-                ? const Color(0xFF9AA8FF)
-                : const Color(0xFF7CC7FF),
+                ? const Color(AppTheme.lilac)
+                : const Color(AppTheme.sky),
             fontWeight: FontWeight.w600,
           ),
         ));

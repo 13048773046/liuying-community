@@ -159,7 +159,7 @@ class _LoginPageState extends State<LoginPage> {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: Color(0xFF6E6E7A)),
-      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF9A9AA5)),
+      prefixIcon: Icon(icon, size: 20, color: const Color(AppTheme.textSecondary)),
       filled: true,
       fillColor: const Color(AppTheme.card),
       contentPadding: const EdgeInsets.symmetric(vertical: 14),

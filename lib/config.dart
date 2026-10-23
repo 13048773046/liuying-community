@@ -14,24 +14,38 @@ String mediaUrl(String name) => '$kApiBase/media/$name';
 /// 头像 URL（可能为空串 → 用默认占位）
 String avatarUrl(String raw) => raw.isEmpty ? '' : raw;
 
-/// 流萤系列视觉
+/// 流萤系列视觉 —— 与流萤音乐 App（Theme.swift）完全一致
 class AppTheme {
-  /// 主色：萤火虫紫
-  static const int accent = 0xFF7C4DFF;
+  /// 主色：低饱和薄荷绿（深底上醒目但不刺眼，同音乐 Theme.accent）
+  static const int accent = 0xFF4CD9A5;
 
-  /// 深色背景（沉浸）
-  static const int bg = 0xFF0D0D12;
+  /// 深薄荷底（同音乐 Theme.accentSoft）
+  static const int accentSoft = 0xFF1C3A30;
 
-  /// 卡片底色
-  static const int card = 0xFF17171E;
+  /// 深黑背景（同音乐 Theme.background）
+  static const int bg = 0xFF121214;
 
-  /// 分隔线
-  static const int border = 0xFF26262E;
+  /// 深灰卡片（同音乐 Theme.card）
+  static const int card = 0xFF1C1C1F;
 
-  /// 次级文字
-  static const int textSecondary = 0xFF9A9AA5;
+  /// 卡片描边（同音乐 Theme.cardBorder）
+  static const int border = 0xFF2A2A2E;
 
-  /// 渐变起点 / 终点
-  static const int gradStart = 0xFF7C4DFF;
-  static const int gradEnd = 0xFF4A90E2;
+  /// 近白主文字（同音乐 Theme.textPrimary）
+  static const int textPrimary = 0xFFECECEC;
+
+  /// 次级文字（同音乐 Theme.textSecondary）
+  static const int textSecondary = 0xFF9C9CA0;
+
+  /// 暗灰文字（同音乐 Theme.textTertiary）
+  static const int textTertiary = 0xFF626266;
+
+  /// 辅助色：暗紫 / 暗蜜桃 / 暗蓝（同音乐 Theme）
+  static const int lilac = 0xFF8F84C7;
+  static const int peach = 0xFFC98870;
+  static const int sky = 0xFF6FA3C9;
+
+  /// 渐变起点 / 终点（薄荷绿系，用于按钮点缀）
+  static const int gradStart = 0xFF4CD9A5;
+  static const int gradEnd = 0xFF2FA97E;
 }

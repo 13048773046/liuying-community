@@ -34,7 +34,7 @@ class _HomePageState extends State<HomePage> {
     setState(() => _loading = true);
     try {
       final p = await ApiClient.feed(
-          type: 'post', page: refresh ? 1 : _page + 1, size: 10);
+          type: 'text', page: refresh ? 1 : _page + 1, size: 10);
       if (!mounted) return;
       setState(() {
         if (refresh) {
@@ -162,7 +162,7 @@ class _PostCard extends StatelessWidget {
                                 horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                  colors: [Color(0xFF7C4DFF), Color(0xFF4A90E2)]),
+                                  colors: [Color(AppTheme.accent), Color(AppTheme.sky)]),
                               borderRadius: BorderRadius.circular(5),
                             ),
                             child: const Text(
@@ -212,7 +212,7 @@ class _PostCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 const Text('📌 置顶',
                     style: TextStyle(
-                        color: Color(0xFF7CC7FF), fontSize: 11)),
+                        color: Color(AppTheme.sky), fontSize: 11)),
               ],
             ],
           ),
@@ -254,7 +254,7 @@ class _PostCard extends StatelessWidget {
         spans.add(TextSpan(
           text: m.group(0),
           style: const TextStyle(
-              color: Color(0xFF9AA8FF), fontWeight: FontWeight.w600),
+              color: Color(AppTheme.lilac), fontWeight: FontWeight.w600),
         ));
         last = m.end;
       }
