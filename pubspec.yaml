@@ -23,5 +23,10 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+# video_player_avfoundation 2.12+ 使用 Swift 6 语法，GitHub Actions macos-14
+# runner 的 Xcode 编译不过；锁 2.11.1（Swift 5）保证 iOS 打包稳定
+dependency_overrides:
+  video_player_avfoundation: 2.11.1
+
 flutter:
   uses-material-design: true
