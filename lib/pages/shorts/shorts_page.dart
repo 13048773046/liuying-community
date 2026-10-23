@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
+import '../post/post_editor.dart';
 import 'video_card.dart';
 
 class ShortsPage extends StatefulWidget {
@@ -69,6 +70,25 @@ class _ShortsPageState extends State<ShortsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
+      floatingActionButton: FloatingActionButton.small(
+        onPressed: () async {
+          final ok = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+                builder: (_) => const PostEditorPage(mode: 'video')),
+          );
+          if (ok == true) {
+            _items.clear();
+            _page = 0;
+            _hasMore = true;
+            _loadMore();
+          }
+        },
+        backgroundColor: const Color(AppTheme.card),
+        foregroundColor: const Color(AppTheme.accent),
+        shape: const CircleBorder(),
+        elevation: 0,
+        child: const Icon(Icons.add_a_photo_outlined, size: 20),
+      ),
       body: _items.isEmpty
           ? _buildLoading()
           : PageView.builder(

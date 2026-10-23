@@ -113,6 +113,82 @@ class ApiClient {
     return FeedPage.fromJson(j);
   }
 
+  // ---------- 上传（multipart） ----------
+
+  /// 上传图片（返回 {name}）
+  static Future<Map<String, dynamic>> uploadImage(String filePath) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-image'));
+    if (token != null && token!.isNotEmpty) {
+      req.headers['Authorization'] = 'Bearer $token';
+    }
+    req.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final r = await http.Response.fromStream(
+        await req.send().timeout(const Duration(seconds: 90)));
+    return _unwrap(r);
+  }
+
+  /// 上传视频（返回 {videoId, name, status}，异步转码）
+  static Future<Map<String, dynamic>> uploadVideo(String filePath) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-video'));
+    if (token != null && token!.isNotEmpty) {
+      req.headers['Authorization'] = 'Bearer $token';
+    }
+    req.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final r = await http.Response.fromStream(
+        await req.send().timeout(const Duration(seconds: 300)));
+    return _unwrap(r);
+  }
+
+  /// 视频状态（转码进度）
+  static Future<Map<String, dynamic>> videoStatus(String videoId) =>
+      get('/video/$videoId/status');
+
+  // ---------- 版块 / 话题 ----------
+
+  static Future<Map<String, dynamic>> boards() => get('/boards');
+  static Future<Map<String, dynamic>> topics() => get('/topics');
+
+  // ---------- 通知（互动 + 社区官方，官方与音乐完全分离） ----------
+
+  static Future<Map<String, dynamic>> notifications(
+          {String group = '', int page = 1, int size = 20}) =>
+      get('/notifications', query: {
+        if (group.isNotEmpty) 'group': group,
+        'page': '$page',
+        'size': '$size',
+      });
+
+  static Future<Map<String, dynamic>> notificationsUnread() =>
+      get('/notifications/unread');
+
+  static Future<void> markNotificationsRead({String? id}) async {
+    await post('/notifications/read', body: {if (id != null) 'id': id});
+  }
+
+  static Future<Map<String, dynamic>> officialMessages({double after = 0}) =>
+      get('/official-messages', query: {'after': '$after'});
+
+  static Future<void> markOfficialRead() async {
+    await post('/official-messages/read');
+  }
+
+  // ---------- 等级 / 签到 / 任务 ----------
+
+  static Future<Map<String, dynamic>> levelMe() => get('/level/me');
+  static Future<Map<String, dynamic>> levelRules() => get('/level/rules');
+  static Future<Map<String, dynamic>> signins() => get('/signins');
+  static Future<Map<String, dynamic>> signin() => post('/signin');
+  static Future<Map<String, dynamic>> tasks() => get('/tasks');
+  static Future<Map<String, dynamic>> claimTask(String id) =>
+      post('/tasks/$id/claim');
+
+  // ---------- 装扮（头像框） ----------
+
+  static Future<Map<String, dynamic>> frames() => get('/frames');
+  static Future<Map<String, dynamic>> myFrame() => get('/frame/mine');
+  static Future<Map<String, dynamic>> equipFrame(String frameId) =>
+      post('/frame/equip', body: {'frameId': frameId});
+
   // ---------- 互动（路由与后端一致：POST /post/{id}/like 等） ----------
 
   /// 点赞/取消赞（帖子与视频共用）
@@ -150,10 +226,14 @@ class ApiClient {
     return j;
   }
 
+  static Future<Map<String, dynamic>> postDetail(String postId) =>
+      get('/post/$postId');
+
   static Future<Map<String, dynamic>> addComment(String postId, String content,
-      {String? sticker}) async {
+      {String? sticker, List<String> images = const []}) async {
     return post('/post/$postId/comment', body: {
       'content': content,
+      'images': images,
       if (sticker != null) 'sticker': sticker,
     });
   }

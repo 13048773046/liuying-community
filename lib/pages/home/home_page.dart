@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
+import '../post/post_detail.dart';
+import '../post/post_editor.dart';
+import '../user/user_profile.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -60,10 +63,81 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// 发布菜单：发图文帖 / 发短视频
+  Future<void> _showPublishMenu() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(AppTheme.card),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: Text('发布内容',
+                  style: TextStyle(
+                      color: Color(AppTheme.textPrimary),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold)),
+            ),
+            _menuItem(Icons.article_outlined, '发布图文帖', () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const PostEditorPage(mode: 'text')))
+                  .then((ok) {
+                if (ok == true) _load(refresh: true);
+              });
+            }),
+            _menuItem(Icons.video_library_outlined, '发布短视频', () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const PostEditorPage(mode: 'video')))
+                  .then((ok) {
+                if (ok == true) _load(refresh: true);
+              });
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _menuItem(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(AppTheme.accent), size: 22),
+            const SizedBox(width: 12),
+            Text(label,
+                style: const TextStyle(
+                    color: Color(AppTheme.textPrimary), fontSize: 15)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showPublishMenu,
+        backgroundColor: const Color(AppTheme.accent),
+        foregroundColor: Colors.black,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.edit, size: 22),
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => _load(refresh: true),
@@ -106,7 +180,18 @@ class _HomePageState extends State<HomePage> {
                       );
                     }
                     if (i >= _items.length - 3) _load();
-                    return _PostCard(item: _items[i]);
+                    return _PostCard(
+                        item: _items[i],
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => PostDetailPage(
+                                    postId: _items[i].id))),
+                        onAuthorTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    UserProfilePage(uid: _items[i].author.id))));
                   },
                 ),
         ),
@@ -117,12 +202,17 @@ class _HomePageState extends State<HomePage> {
 
 class _PostCard extends StatelessWidget {
   final FeedItem item;
-  const _PostCard({required this.item});
+  final VoidCallback onTap;
+  final VoidCallback onAuthorTap;
+  const _PostCard({required this.item, required this.onTap, required this.onAuthorTap});
 
   @override
   Widget build(BuildContext context) {
     final a = item.author;
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -135,7 +225,10 @@ class _PostCard extends StatelessWidget {
           // 作者行
           Row(
             children: [
-              _avatar(a.avatar),
+              GestureDetector(
+                onTap: onAuthorTap,
+                child: _avatar(a.avatar),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -217,6 +310,7 @@ class _PostCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
       ),
     );
   }

@@ -17,6 +17,8 @@ dependencies:
   shared_preferences: ^2.3.2
   # 头像/封面/表情包图片缓存
   cached_network_image: ^3.4.1
+  # 选图/选视频（发帖、视频封面）
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

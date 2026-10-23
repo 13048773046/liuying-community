@@ -16,7 +16,7 @@ class Board {
       : id = (j['id'] ?? '') as String,
         name = (j['name'] ?? '') as String,
         icon = (j['icon'] ?? '') as String,
-        color = (j['color'] ?? '#7C4DFF') as String,
+        color = (j['color'] ?? '#4CD9A5') as String,
         children = ((j['children'] ?? []) as List)
             .whereType<Map<String, dynamic>>()
             .map(Board.fromJson)
