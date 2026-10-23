@@ -19,6 +19,8 @@ dependencies:
   cached_network_image: ^3.4.1
   # 选图/选视频（发帖、视频封面）
   image_picker: ^1.1.2
+  # WebSocket 实时通知
+  web_socket_channel: ^3.0.1
 
 dev_dependencies:
   flutter_test:

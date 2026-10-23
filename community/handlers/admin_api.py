@@ -437,6 +437,8 @@ def _crud_boards(self, c, u, api, method):
 
 
 def _handle_topics_admin(self, c, u, api, method):
+    if not (api == "/admin/topics" or api.startswith("/admin/topics/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True
@@ -471,6 +473,8 @@ def _handle_topics_admin(self, c, u, api, method):
 
 
 def _handle_banners_admin(self, c, u, api, method):
+    if not (api == "/admin/banners" or api.startswith("/admin/banners/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True
@@ -528,6 +532,8 @@ def _handle_banners_admin(self, c, u, api, method):
 
 
 def _handle_activities_admin(self, c, u, api, method):
+    if not (api == "/admin/activities" or api.startswith("/admin/activities/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True
@@ -590,6 +596,8 @@ def _handle_activities_admin(self, c, u, api, method):
 
 
 def _handle_sensitive_admin(self, c, u, api, method):
+    if not (api == "/admin/sensitive-words" or api.startswith("/admin/sensitive-words/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True
@@ -687,6 +695,8 @@ def _handle_users_admin(self, c, u, api, method):
 
 
 def _handle_members_admin(self, c, u, api, method):
+    if not (api == "/admin/members" or api.startswith("/admin/members/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True
@@ -729,6 +739,8 @@ def _handle_members_admin(self, c, u, api, method):
 
 
 def _handle_official_admin(self, c, u, api, method):
+    if not (api == "/admin/official" or api.startswith("/admin/official/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True
@@ -762,6 +774,8 @@ def _handle_official_admin(self, c, u, api, method):
 
 # ---------------- 头像框 / 表情包 ----------------
 def _handle_frames_admin(self, c, u, api, method):
+    if not (api == "/admin/frames" or api.startswith("/admin/frames/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True
@@ -817,6 +831,8 @@ def _handle_frames_admin(self, c, u, api, method):
 
 
 def _handle_emojis_admin(self, c, u, api, method):
+    if not (api == "/admin/emojis" or api.startswith("/admin/emojis/")):
+        return False
     adm = _auth(self, c, 1)
     if not adm:
         return True

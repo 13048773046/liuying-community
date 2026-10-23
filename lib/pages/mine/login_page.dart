@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../services/notify_bus.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -42,10 +43,11 @@ class _LoginPageState extends State<LoginPage> {
       if (tok.isEmpty) {
         throw ApiException(0, '登录未返回 token');
       }
-      // 存本地 + 注入全局
+      // 存本地 + 注入全局 + 拉起实时通知
       final sp = await SharedPreferences.getInstance();
       await sp.setString('community_token', tok);
       ApiClient.token = tok;
+      NotifyBus.shared.connect(tok);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {

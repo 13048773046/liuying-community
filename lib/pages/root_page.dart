@@ -4,8 +4,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
+import '../services/notify_bus.dart';
 import 'home/home_page.dart';
 import 'message/message_page.dart';
 import 'mine/mine_page.dart';
@@ -29,6 +31,27 @@ class _RootPageState extends State<RootPage> {
     MessagePage(),
     MinePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _connectWs();
+  }
+
+  /// 登录态恢复：拉起 WebSocket 实时通知
+  Future<void> _connectWs() async {
+    final sp = await SharedPreferences.getInstance();
+    final tok = sp.getString('community_token') ?? '';
+    if (tok.isNotEmpty) {
+      NotifyBus.shared.connect(tok);
+    }
+  }
+
+  @override
+  void dispose() {
+    NotifyBus.shared.disconnect();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +114,7 @@ class _AppTabBar extends StatelessWidget {
               _tabButton(Icons.home_outlined, Icons.home, '首页', 0),
               _tabButton(Icons.grid_view_outlined, Icons.grid_view, '版块', 1),
               const _ShortsCenterButton(),
-              _tabButton(Icons.notifications_none, Icons.notifications, '消息', 3),
+              _tabButtonWithBadge(Icons.notifications_none, Icons.notifications, '消息', 3),
               _tabButton(Icons.person_outline, Icons.person, '我的', 4),
             ],
           ),
@@ -114,6 +137,66 @@ class _AppTabBar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(selected ? activeIcon : icon, size: 22, color: color),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10.5,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 消息 tab：右上角未读红点（复刻音乐端消息小红点）
+  Widget _tabButtonWithBadge(
+      IconData icon, IconData activeIcon, String label, int index) {
+    final selected = selection == index;
+    final color = selected
+        ? const Color(AppTheme.accent)
+        : const Color(AppTheme.textSecondary);
+    return Expanded(
+      child: InkWell(
+        onTap: () => onChanged(index),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<int>(
+                valueListenable: NotifyBus.shared.unread,
+                builder: (_, n, __) => Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(selected ? activeIcon : icon, size: 22, color: color),
+                    if (n > 0)
+                      Positioned(
+                        right: -5,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 3, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4D6D),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 8),
+                          child: Text(
+                            n > 99 ? '99+' : '$n',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 8, height: 1.2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 2),
               Text(
                 label,

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../services/notify_bus.dart';
 import 'login_page.dart';
 
 class MinePage extends StatefulWidget {
@@ -50,6 +51,7 @@ class _MinePageState extends State<MinePage> {
           _loading = false;
         });
         await _loadExtras();
+        NotifyBus.shared.connect(tok);
         return;
       } catch (_) {
         ApiClient.token = null;
@@ -487,6 +489,7 @@ class _MinePageState extends State<MinePage> {
         GestureDetector(
           onTap: () async {
             ApiClient.token = null;
+            NotifyBus.shared.disconnect();
             final sp = await SharedPreferences.getInstance();
             await sp.remove('community_token');
             if (!mounted) return;

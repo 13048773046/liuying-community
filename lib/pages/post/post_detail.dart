@@ -11,6 +11,7 @@ import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../../widgets/image_box.dart';
+import '../../widgets/emoji_panel.dart';
 import '../user/user_profile.dart';
 
 class PostDetailPage extends StatefulWidget {
@@ -34,6 +35,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   final _commentCtrl = TextEditingController();
   File? _commentImage;
+  String? _commentSticker;
   final _picker = ImagePicker();
 
   @override
@@ -128,10 +130,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
         final j = await ApiClient.uploadImage(_commentImage!.path);
         imgs = [j['name'] as String];
       }
-      await ApiClient.addComment(widget.postId, text, images: imgs);
+      await ApiClient.addComment(widget.postId, text,
+          images: imgs, sticker: _commentSticker);
       if (!mounted) return;
       _commentCtrl.clear();
-      setState(() => _commentImage = null);
+      setState(() {
+        _commentImage = null;
+        _commentSticker = null;
+      });
       _toast('评论成功');
       await _loadComments(refresh: true);
     } catch (e) {
@@ -414,10 +420,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _commentTile(Map<String, dynamic> c) {
-    final name = (c['userName'] ?? (c['author']?['name'] ?? '用户')) as String;
-    final avatar = (c['avatar'] ?? '') as String;
+    final author = (c['author'] ?? const {}) as Map;
+    final name = (author['name'] ?? '用户') as String;
+    final avatar = (author['avatar'] ?? '') as String;
     final content = (c['content'] ?? '') as String;
     final images = (c['images'] ?? const []) as List;
+    final sticker = (c['sticker'] ?? '') as String;
     final created = (c['created'] ?? 0) as int;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -444,9 +452,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     style: const TextStyle(
                         color: Color(AppTheme.textSecondary), fontSize: 12)),
                 const SizedBox(height: 4),
-                Text(content,
-                    style: const TextStyle(
-                        color: Color(AppTheme.textPrimary), fontSize: 14, height: 1.4)),
+                if (sticker.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: CachedNetworkImageCompat(
+                        url: mediaUrl(sticker),
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.contain),
+                  )
+                else if (content.isNotEmpty)
+                  Text(content,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textPrimary), fontSize: 14, height: 1.4)),
                 if (images.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   ClipRRect(
@@ -515,6 +533,45 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       ),
                     ])
                   : const Icon(Icons.image_outlined,
+                      color: Color(AppTheme.textSecondary), size: 24),
+            ),
+            const SizedBox(width: 4),
+            // 表情包按钮（图片与表情互斥，与服务端校验一致）
+            GestureDetector(
+              onTap: () async {
+                final e = await showEmojiPanel(context);
+                if (e != null) {
+                  setState(() {
+                    _commentSticker = (e['image'] ?? '') as String;
+                    _commentImage = null;
+                  });
+                }
+              },
+              child: _commentSticker != null
+                  ? Stack(clipBehavior: Clip.none, children: [
+                      CachedNetworkImageCompat(
+                          url: mediaUrl(_commentSticker!),
+                          width: 34,
+                          height: 34,
+                          fit: BoxFit.contain),
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _commentSticker = null),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close,
+                                size: 10, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ])
+                  : const Icon(Icons.emoji_emotions_outlined,
                       color: Color(AppTheme.textSecondary), size: 24),
             ),
             const SizedBox(width: 8),

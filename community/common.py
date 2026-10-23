@@ -243,12 +243,25 @@ def add_exp(c, uid, amount):
 
 
 def notify(c, uid, ntype, title, content, from_uid="", from_name="", extra=None):
-    """写共享 notifications 表（互动通知两边可见）。extra: dict 附加字段。"""
+    """写共享 notifications 表（互动通知两边可见）+ WS 实时推送。extra: dict 附加字段。"""
     nid = uuid.uuid4().hex
     c.execute(
         "INSERT INTO notifications(id,user_id,type,title,content,from_user_id,from_user_name,is_read,created)"
         " VALUES(?,?,?,?,?,?,?,0,?)",
         (nid, uid, ntype, title, content, from_uid, from_name, time.time()))
+    # WS 实时推送（连接存在时；静默失败）
+    try:
+        from handlers import ws as H_WS
+        n = c.execute("SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0"
+                      " AND type!='official' AND is_deleted=0", (uid,)).fetchone()[0]
+        H_WS.ws_push(uid, {"kind": "notification",
+                           "notification": {"id": nid, "type": ntype, "title": title,
+                                             "content": content, "fromUserId": from_uid,
+                                             "fromUserName": from_name, "isRead": 0,
+                                             "created": time.time()},
+                           "unread": n})
+    except Exception:
+        pass
     return nid
 
 

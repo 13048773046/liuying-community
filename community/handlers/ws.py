@@ -168,13 +168,18 @@ def dispatch(self, c, u, api, method):
     if method != "GET":
         self._err(405, "method not allowed")
         return True
-    token = (u.query and urllib_parse_query(u.query).get("token") or "")
+    token = ""
+    if u.query:
+        _q = urllib_parse_query(u.query)
+        _v = _q.get("token")
+        if _v:
+            token = _v[0]
     auth = self.headers.get("Authorization", "")
     if not token:
         scheme, _, tok = auth.partition(" ")
         if scheme.lower() == "bearer":
             token = tok
-    uid = resolve_token(c, token) if token else None
+    uid = resolve_token(c, "Bearer " + token) if token else None
     if not uid:
         self._err(401, "unauthorized")
         return True
