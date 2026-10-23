@@ -11,6 +11,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
+import '../../config.dart';
 import '../../models/feed_item.dart';
 import 'video_card.dart';
 
