@@ -453,6 +453,16 @@ def _run(users, tokens, adm_tok):
         s = e.code
     check("分享落地页 302", s == 302)
 
+    # ===== 当前用户与关注动作（客户端对账路由） =====
+    s, r = req("GET", "/user/me", token=t1)
+    check("/user/me", s == 200 and r.get("user", {}).get("id"), r)
+    s, r = req("POST", "/user/%s/follow" % u2, token=t1)
+    check("关注用户", s == 200 and r.get("following") is True, r)
+    s, r = req("POST", "/user/%s/follow" % u2, token=t1)
+    check("重复关注=取关", s == 200 and r.get("following") is False, r)
+    s, r = req("GET", "/notifications", token=t1)
+    check("关注通知已入列", s == 200, r)
+
     print("用例执行完成。")
 
 

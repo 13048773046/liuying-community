@@ -666,12 +666,79 @@ def _handle_profile(self, c, u, api, method):
     return True
 
 
+# ---------------- 当前用户（/user/me）与关注动作 ----------------
+def _handle_me(self, c, u, api, method):
+    """GET /user/me → 当前登录用户完整资料（与 /user/{uid}/profile 同构）。"""
+    if api != "/user/me" or method != "GET":
+        return False
+    uid = _uid(c, self)
+    if not uid:
+        self._err(401, "未登录或登录已过期")
+        return True
+    pub = public_user(c, uid)
+    if not pub:
+        self._err(404, "用户不存在")
+        return True
+    followers = c.execute("SELECT COUNT(*) FROM follows WHERE following_id=?", (uid,)).fetchone()[0]
+    followings = c.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (uid,)).fetchone()[0]
+    pub["following"] = False
+    pub["followers"] = followers
+    pub["followings"] = followings
+    c.commit()
+    self._ok({"user": pub})
+    return True
+
+
+def _handle_follow(self, c, u, api, method):
+    """POST/DELETE /user/{uid}/follow → 关注/取关（写音乐 follows 表，零侵入互通）。"""
+    m = re.match(r"^/user/([\w\-]+)/follow$", api)
+    if not m:
+        return False
+    target = m.group(1)
+    uid = _uid(c, self)
+    if not uid:
+        self._err(401, "未登录或登录已过期")
+        return True
+    if uid == target:
+        self._err(400, "不能关注自己")
+        return True
+    if not public_user(c, target):
+        self._err(404, "用户不存在")
+        return True
+    exists = c.execute("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?",
+                       (uid, target)).fetchone()
+    if method == "DELETE" or (method == "POST" and exists):
+        c.execute("DELETE FROM follows WHERE follower_id=? AND following_id=?", (uid, target))
+        c.commit()
+        self._ok({"following": False,
+                  "followers": c.execute("SELECT COUNT(*) FROM follows WHERE following_id=?",
+                                         (target,)).fetchone()[0]})
+        return True
+    if method == "POST":
+        c.execute("INSERT OR IGNORE INTO follows(follower_id,following_id,created) VALUES(?,?,?)",
+                  (uid, target, time.time()))
+        try:
+            me = public_user(c, uid)
+            notify(c, target, "community_interact", "新关注",
+                   "%s 关注了你" % ((me or {}).get("name") or "一位新朋友"), from_uid=uid,
+                   from_name=(me or {}).get("name") or "")
+        except Exception:
+            pass  # 通知失败不影响关注结果
+        c.commit()
+        self._ok({"following": True,
+                  "followers": c.execute("SELECT COUNT(*) FROM follows WHERE following_id=?",
+                                         (target,)).fetchone()[0]})
+        return True
+    self._err(405, "仅支持 POST（关注）/ DELETE（取关）")
+    return True
+
+
 def dispatch(self, c, u, api, method):
     handlers = [_handle_boards, _handle_topics, _handle_level, _handle_frames,
                 _handle_emojis, _handle_prefs, _handle_signin, _handle_tasks,
                 _handle_report, _handle_block, _handle_notifications,
                 _handle_official, _handle_activities, _handle_chat,
-                _handle_profile]
+                _handle_profile, _handle_me, _handle_follow]
     for h in handlers:
         if h(self, c, u, api, method):
             return True

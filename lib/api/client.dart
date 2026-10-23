@@ -113,24 +113,24 @@ class ApiClient {
     return FeedPage.fromJson(j);
   }
 
-  // ---------- 互动 ----------
+  // ---------- 互动（路由与后端一致：POST /post/{id}/like 等） ----------
 
   /// 点赞/取消赞（帖子与视频共用）
   static Future<Map<String, dynamic>> toggleLike(String postId) =>
-      post('/like', body: {'postId': postId});
+      post('/post/$postId/like');
 
   /// 收藏/取消收藏（kind=fav 收藏 | later 稍后看）
   static Future<Map<String, dynamic>> toggleFav(String postId,
       {String kind = 'fav'}) =>
-      post('/fav', body: {'postId': postId, 'kind': kind});
+      post('/post/$postId/$kind');
 
   /// 分享计数上报（返回最新 count）
   static Future<Map<String, dynamic>> reportShare(String postId) =>
-      post('/share', body: {'postId': postId});
+      post('/post/$postId/share');
 
   /// 关注/取关（互通：写音乐 follows 表）
   static Future<Map<String, dynamic>> toggleFollow(String uid) =>
-      post('/follow', body: {'userId': uid});
+      post('/user/$uid/follow');
 
   /// 当前用户主页
   static Future<Map<String, dynamic>> myProfile() => get('/user/me');
@@ -143,8 +143,7 @@ class ApiClient {
 
   static Future<Map<String, dynamic>> comments(String postId,
       {int page = 1, int size = 20}) async {
-    final j = await get('/comments', query: {
-      'postId': postId,
+    final j = await get('/post/$postId/comments', query: {
       'page': '$page',
       'size': '$size',
     });
@@ -153,8 +152,7 @@ class ApiClient {
 
   static Future<Map<String, dynamic>> addComment(String postId, String content,
       {String? sticker}) async {
-    return post('/comment', body: {
-      'postId': postId,
+    return post('/post/$postId/comment', body: {
       'content': content,
       if (sticker != null) 'sticker': sticker,
     });
