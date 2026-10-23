@@ -1,0 +1,65 @@
+name: build-community
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ---------- Android APK ----------
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Build APK (release)
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-android-apk
+          path: build/app/outputs/flutter-apk/*.apk
+
+  # ---------- iOS 未签名 IPA（无开发者证书，可 sideload/自签） ----------
+  ios-unsigned-ipa:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (unsigned)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned ipa
+        run: |
+          APP=$(find build/ios/iphoneos -name "*.app" | head -1)
+          echo "App: $APP"
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r community-unsigned.ipa Payload
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-ios-unsigned-ipa
+          path: build/ios/ipa/community-unsigned.ipa

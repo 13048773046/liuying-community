@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>流萤社区 · 管理后台</title>
+<style>
+:root{
+  --bg:#0b1020; --panel:#121a33; --panel2:#0e1630; --line:#223052;
+  --fg:#e8eefc; --dim:#8fa3c8; --acc:#7c5cff; --acc2:#4fc3f7;
+  --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1200px 600px at 20% -10%,#1b2347 0%,var(--bg) 55%);color:var(--fg);font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh}
+a{color:var(--acc2)}
+.wrap{display:flex;min-height:100vh}
+.side{width:216px;flex:0 0 216px;background:var(--panel);border-right:1px solid var(--line);padding:16px 10px;position:sticky;top:0;height:100vh;overflow:auto}
+.logo{display:flex;align-items:center;gap:8px;padding:4px 10px 16px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.logo .ic{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.4)}
+.logo b{font-size:15px}
+.logo small{display:block;color:var(--dim);font-size:11px;font-weight:400}
+.nav a{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;color:var(--fg);text-decoration:none;margin-bottom:2px;font-size:13px}
+.nav a:hover{background:var(--panel2)}
+.nav a.on{background:linear-gradient(90deg,rgba(124,92,255,.22),transparent);color:#fff;border-left:2px solid var(--acc)}
+.nav .grp{color:var(--dim);font-size:11px;padding:10px 10px 4px;letter-spacing:1px}
+.main{flex:1;padding:20px 24px;max-width:1280px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.top h1{font-size:20px}
+.top .who{color:var(--dim);font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.card h3{font-size:14px;margin-bottom:12px;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat b{display:block;font-size:22px;margin:2px 0}
+.stat span{color:var(--dim);font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-weight:500;white-space:nowrap}
+td{word-break:break-all}
+tr:hover td{background:rgba(255,255,255,.02)}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px}
+.t-ok{background:rgba(52,211,153,.15);color:var(--ok)}
+.t-warn{background:rgba(251,191,36,.15);color:var(--warn)}
+.t-bad{background:rgba(248,113,113,.15);color:var(--bad)}
+.t-dim{background:rgba(143,163,200,.15);color:var(--dim)}
+.t-acc{background:rgba(124,92,255,.18);color:var(--acc2)}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);color:var(--fg);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin:2px}
+.btn:hover{border-color:var(--acc)}
+.btn.p{background:linear-gradient(135deg,var(--acc),var(--acc2));border:none;color:#fff}
+.btn.danger{color:var(--bad);border-color:rgba(248,113,113,.4)}
+.btn.mini{padding:3px 8px;font-size:12px}
+input,select,textarea{background:var(--panel2);border:1px solid var(--line);color:var(--fg);padding:7px 10px;border-radius:8px;font-size:13px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+label{display:inline-block;color:var(--dim);font-size:12px;margin:0 6px 0 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+.hide{display:none}
+.empty{color:var(--dim);text-align:center;padding:26px 0}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.reason{width:100%;resize:vertical;min-height:56px}
+img.mini{width:44px;height:44px;object-fit:cover;border-radius:8px}
+.badge{display:inline-block;padding:1px 8px;border-radius:12px;font-size:11px;background:rgba(124,92,255,.2);color:var(--acc2);margin-left:4px}
+#toast{position:fixed;right:18px;bottom:18px;z-index:99;display:flex;flex-direction:column;gap:8px}
+#toast div{background:var(--panel);border:1px solid var(--acc);border-radius:10px;padding:10px 16px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:in .25s}
+#toast div.err{border-color:var(--bad)}
+@keyframes in{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+.mask{position:fixed;inset:0;background:rgba(5,8,20,.7);display:flex;align-items:center;justify-content:center;z-index:50}
+.dlg{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(520px,92vw)}
+.dlg h4{margin-bottom:12px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#263356;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="side">
+    <div class="logo"><div class="ic">萤</div><div><b>流萤社区</b><small>管理后台 v1</small></div></div>
+    <nav class="nav" id="nav"></nav>
+  </aside>
+  <main class="main">
+    <div class="top"><h1 id="ttl"></h1><div class="who" id="who"></div></div>
+    <div id="view"></div>
+  </main>
+</div>
+<div id="toast"></div>
+<div id="dlgBox"></div>
+
+<script>
+const API = "/community/api";
+let TOK = localStorage.getItem("liuying_comm_admin") || "";
+let LVL = 0;
+
+const NAV = [
+  ["仪表盘", "dash", 1],["帖子审核", "audit", 2],["帖子管理", "posts", 2],
+  ["评论管理", "comments", 2],["举报处理", "reports", 2],
+  ["运营", "ops", 0],
+  ["版块管理", "boards", 1],["话题管理", "topics", 1],["Banner", "banners", 1],
+  ["活动管理", "activities", 1],["敏感词", "words", 1],
+  ["用户", "users", 0],
+  ["用户管理", "users", 1],["会员管理", "members", 1],
+  ["内容工具", "tools", 0],
+  ["官方通知", "official", 1],["头像框", "frames", 1],["表情包", "emojis", 1],
+  ["系统", "sys", 0],
+  ["管理员", "admins", 1],["令牌/日志", "system", 1],
+];
+
+function $(s, p){ return (p||document).querySelector(s); }
+function $$(s, p){ return Array.from((p||document).querySelectorAll(s)); }
+
+function toast(msg, err){
+  const d = document.createElement("div");
+  d.textContent = msg;
+  if(err) d.className = "err";
+  $("#toast").appendChild(d);
+  setTimeout(()=>d.remove(), 2600);
+}
+
+async function api(method, path, body){
+  const h = {"Content-Type":"application/json"};
+  if(TOK) h["X-Community-Admin-Token"] = TOK;
+  const opt = {method, headers:h};
+  if(body !== undefined) opt.body = JSON.stringify(body);
+  const r = await fetch(API + path, opt);
+  let j = {};
+  try{ j = await r.json(); }catch(e){}
+  if(r.status === 401 || r.status === 403){
+    if(r.status === 401){ toast("令牌失效，请重新登录", 1); showLogin(); }
+    throw new Error(j.error || "无权限");
+  }
+  if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
+  return j;
+}
+const q = (k,v)=>encodeURIComponent(k)+"="+encodeURIComponent(v);
+
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+function fmt(t){
+  if(!t) return "-";
+  const d = new Date(t*1000);
+  return d.toLocaleString("zh-CN",{hour12:false});
+}
+function auditTag(s){
+  return s===0?'<span class="tag t-warn">待审</span>':s===1?'<span class="tag t-ok">已通过</span>':s===2?'<span class="tag t-bad">已拒绝</span>':'<span class="tag t-dim">'+s+'</span>';
+}
+function typeTag(t){
+  return t==="video"?'<span class="tag t-acc">视频</span>':t==="poll"?'<span class="tag t-warn">投票</span>':'<span class="tag t-dim">图文</span>';
+}
+function short(s, n){
+  s = String(s||""); return s.length>(n||40)?s.slice(0,(n||40))+"…":s;
+}
+
+/* ---------------- 登录 ---------------- */
+function showLogin(){
+  TOK = ""; localStorage.removeItem("liuying_comm_admin");
+  $("#view").innerHTML = `
+    <div style="max-width:400px;margin:60px auto">
+      <div class="card">
+        <h3>管理员登录</h3>
+        <div class="row"><label>管理令牌</label><input id="tk" style="flex:1" placeholder="输入 X-Community-Admin-Token"></div>
+        <button class="btn p" onclick="login()">进入后台</button>
+      </div>
+    </div>`;
+  $("#ttl").textContent = "登录";
+  $("#who").textContent = "";
+}
+async function login(){
+  const tk = $("#tk").value.trim();
+  if(!tk) return toast("请输入令牌",1);
+  TOK = tk;
+  try{
+    const j = await api("GET", "/admin/stats");
+    localStorage.setItem("liuying_comm_admin", TOK);
+    toast("登录成功");
+    renderNav(); go("dash");
+  }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 导航 / 路由 ---------------- */
+function renderNav(){
+  const groups = [];
+  NAV.forEach(([t,id,lvl])=>{
+    if(lvl>0 && LVL>0 && lvl<LVL) return; // 二级(lvl=2)要求 level≥2；level=1 全可见
+    const g = groups.find(x=>x.t===t);
+    if(t==="用户"&&id==="users" && groups.find(x=>x.t==="用户")) return;
+    // 分组
+  });
+  let html = "";
+  let cur = "";
+  NAV.forEach(([t,id,lvl])=>{
+    if(lvl>0 && LVL===0 && id!=="dash") return;
+    if(t==="用户" && id==="users") return;
+    if(t==="仪表盘" && cur==="") cur="dash";
+  });
+  html = `<div class="grp">总览</div><a data-v="dash" href="javascript:void 0">仪表盘</a>`
+    +`<div class="grp">内容治理</div>`
+    +`<a data-v="audit" href="javascript:void 0">帖子审核</a>`
+    +`<a data-v="posts" href="javascript:void 0">帖子管理</a>`
+    +`<a data-v="comments" href="javascript:void 0">评论管理</a>`
+    +`<a data-v="reports" href="javascript:void 0">举报处理</a>`
+    +`<div class="grp">运营配置</div>`
+    +`<a data-v="boards" href="javascript:void 0">版块管理</a>`
+    +`<a data-v="topics" href="javascript:void 0">话题管理</a>`
+    +`<a data-v="banners" href="javascript:void 0">Banner</a>`
+    +`<a data-v="activities" href="javascript:void 0">活动管理</a>`
+    +`<a data-v="words" href="javascript:void 0">敏感词</a>`
+    +`<div class="grp">用户与会员</div>`
+    +`<a data-v="userlist" href="javascript:void 0">用户管理</a>`
+    +`<a data-v="members" href="javascript:void 0">会员管理</a>`
+    +`<div class="grp">内容工具</div>`
+    +`<a data-v="official" href="javascript:void 0">官方通知</a>`
+    +`<a data-v="frames" href="javascript:void 0">头像框</a>`
+    +`<a data-v="emojis" href="javascript:void 0">表情包</a>`
+    +`<div class="grp">系统</div>`
+    +`<a data-v="admins" href="javascript:void 0">管理员</a>`
+    +`<a data-v="system" href="javascript:void 0">令牌/日志/等级</a>`;
+  $("#nav").innerHTML = html;
+  $$("#nav a").forEach(a=>a.onclick=()=>go(a.dataset.v));
+}
+function go(v){
+  $$("#nav a").forEach(a=>a.classList.toggle("on", a.dataset.v===v));
+  const map = {dash:viewDash, audit:viewAudit, posts:viewPosts, comments:viewComments,
+    reports:viewReports, boards:viewBoards, topics:viewTopics, banners:viewBanners,
+    activities:viewActivities, words:viewWords, userlist:viewUsers, members:viewMembers,
+    official:viewOfficial, frames:viewFrames, emojis:viewEmojis, admins:viewAdmins, system:viewSystem};
+  (map[v]||viewDash)();
+}
+
+/* ---------------- 仪表盘 ---------------- */
+async function viewDash(){
+  $("#ttl").textContent = "仪表盘";
+  $("#who").textContent = "管理员身份：Level " + (LVL||1);
+  let j;
+  try{ j = await api("GET", "/admin/stats"); }catch(e){ $("#view").innerHTML=`<div class="empty">${esc(e.message)}</div>`; return; }
+  const st = j.stats || j;
+  const cards = [
+    ["帖子总数", st.posts||0],["待审核", st.pendingAudit||0],["短视频", st.videos||0],
+    ["评论数", st.comments||0],["用户数", st.users||0],["今日新增帖", st.todayPosts||0],
+    ["会员数", st.members||0],["敏感词", st.words||0],["举报待处理", st.reports||0],
+  ];
+  $("#view").innerHTML = `
+    <div class="grid">${cards.map(c=>`<div class="stat"><span>${c[0]}</span><b>${c[1]}</b></div>`).join("")}</div>
+    <div class="card" style="margin-top:14px"><h3>近 7 日帖子趋势</h3><div id="trend"></div></div>`;
+  try{
+    const t = await api("GET", "/admin/trends");
+    const list = t.list || [];
+    if(!list.length){ $("#trend").innerHTML = `<div class="empty">暂无数据</div>`; return; }
+    const max = Math.max(1, ...list.map(x=>x.count));
+    $("#trend").innerHTML = `<div style="display:flex;align-items:flex-end;gap:8px;height:160px;padding-top:8px">
+      ${list.map(x=>`<div style="flex:1;text-align:center">
+        <div style="background:linear-gradient(180deg,var(--acc),var(--acc2));height:${Math.round(x.count/max*120)+8}px;border-radius:6px 6px 0 0;min-height:4px"></div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px">${esc(x.day.slice(5))}</div>
+        <div style="font-size:12px">${x.count}</div></div>`).join("")}</div>`;
+  }catch(e){ $("#trend").innerHTML = `<div class="empty">趋势数据加载失败</div>`; }
+}
+
+/* ---------------- 帖子审核 ---------------- */
+async function viewAudit(){
+  $("#ttl").textContent = "帖子审核";
+  let j;
+  try{ j = await api("GET", "/admin/posts?audit=0"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>待审核内容（${list.length}）</h3>
+    <div class="row"><button class="btn" onclick="go('audit')">刷新</button>
+    <span class="tag t-dim">帖子与短视频统一审核 · 通过后进入信息流 · 拒绝需填写理由（≤200字）并通知作者</span></div>
+    ${list.length?`<table><tr><th>类型</th><th>作者</th><th>内容/文案</th><th>图片/视频</th><th>话题</th><th>时间</th><th style="width:240px">操作</th></tr>
+    ${list.map(p=>`<tr>
+      <td>${typeTag(p.type)}</td>
+      <td>${esc(p.author&&p.author.name||"-")}</td>
+      <td>${esc(short(p.content,60))}</td>
+      <td>${p.images&&p.images.length?'<span class="tag t-acc">'+p.images.length+'图</span>':''
+        +(p.type==="video"?'<span class="tag t-acc">视频</span>':'')}</td>
+      <td>${(p.topic||[]).map(t=>'#'+esc(t)).join(" ")||'-'}</td>
+      <td>${fmt(p.created)}</td>
+      <td>
+        <button class="btn p mini" onclick="auditAct('${p.id}',1)">通过</button>
+        <button class="btn danger mini" onclick="rejectPost('${p.id}')">拒绝</button>
+        <button class="btn mini" onclick="showPost('${p.id}')">详情</button>
+      </td></tr>`).join("")}</table>`
+    :`<div class="empty">没有待审核内容 🎉</div>`}</div>`;
+}
+async function auditAct(id, act){
+  try{
+    await api("POST", "/admin/posts/"+id+"/audit", {action: act==1?"approve":"reject", reason:""});
+    toast("已通过审核"); go("audit");
+  }catch(e){ toast(e.message,1); }
+}
+function rejectPost(id){
+  openDlg("拒绝原因（必填，≤200字，将通知作者）", `
+    <textarea id="r" class="reason" placeholder="例如：内容与社区规范不符"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn p" onclick="doReject('${id}')">确认拒绝</button>
+      <button class="btn" onclick="closeDlg()">取消</button></div>`);
+}
+async function doReject(id){
+  const r = $("#r").value.trim();
+  if(!r) return toast("必须填写拒绝理由",1);
+  try{ await api("POST", "/admin/posts/"+id+"/audit", {action:"reject", reason:r}); toast("已拒绝并通知作者"); closeDlg(); go("audit"); }
+  catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 帖子管理 ---------------- */
+async function viewPosts(){
+  $("#ttl").textContent = "帖子管理";
+  let j;
+  try{ j = await api("GET", "/admin/posts?page=1&size=20"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>全部帖子（审核/置顶/精华/下架/删除/结束投票）</h3>
+    <div class="row"><button class="btn" onclick="go('posts')">刷新</button>
+      <span class="tag t-warn">下架必填理由 · 下架后不进信息流可恢复</span></div>
+    ${list.length?`<table><tr><th>状态</th><th>类型</th><th>作者</th><th>内容</th><th>赞/评/享</th><th>时间</th><th style="width:300px">操作</th></tr>
+    ${list.map(p=>`<tr>
+      <td>${auditTag(p.auditStatus)}${p.takenDown?'<span class="tag t-bad">已下架</span>':''}${p.sticky?'<span class="tag t-acc">置顶</span>':''}${p.featured?'<span class="tag t-ok">精华</span>':''}</td>
+      <td>${typeTag(p.type)}</td>
+      <td>${esc(p.author&&p.author.name||"-")}</td>
+      <td>${esc(short(p.content,40))}</td>
+      <td>${p.likeCount||0}/${p.commentCount||0}/${p.shareCount||0}</td>
+      <td>${fmt(p.created)}</td>
+      <td>
+        <button class="btn mini" onclick="postOp('${p.id}','pin',p=>{})">置顶</button>
+        <button class="btn mini" onclick="postOp('${p.id}','featured')">精华</button>
+        <button class="btn mini danger" onclick="takedownPost('${p.id}')">下架</button>
+        <button class="btn mini danger" onclick="postOp('${p.id}','delete')">删除</button>
+        ${p.type==="poll"&&!p.pollEnded?`<button class="btn mini" onclick="postOp('${p.id}','end-poll')">结束投票</button>`:''}
+      </td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无帖子</div>`}</div>`;
+}
+async function postOp(id, op){
+  const label = {pin:"置顶", featured:"设为精华", "end-poll":"结束投票", delete:"删除"}[op];
+  if(op==="delete" && !confirm("确认删除该帖子？不可恢复")) return;
+  try{ await api("POST", "/admin/posts/"+id+"/"+op, {}); toast(label+"成功"); go("posts"); }
+  catch(e){ toast(e.message,1); }
+}
+function takedownPost(id){
+  openDlg("下架理由（必填）", `
+    <textarea id="r" class="reason" placeholder="下架原因，将通知作者"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn p" onclick="doTakedown('${id}')">确认下架</button>
+      <button class="btn" onclick="closeDlg()">取消</button></div>`);
+}
+async function doTakedown(id){
+  const r = $("#r").value.trim();
+  if(!r) return toast("必须填写下架理由",1);
+  try{ await api("POST", "/admin/posts/"+id+"/takedown", {reason:r}); toast("已下架并通知作者"); closeDlg(); go("posts"); }
+  catch(e){ toast(e.message,1); }
+}
+async function showPost(id){
+  const j = await api("GET", "/post/"+id);
+  const p = j.post||{};
+  openDlg("帖子详情", `
+    <p><b>类型：</b>${p.type}　<b>审核：</b>${auditTag(p.auditStatus)}　<b>作者：</b>${esc(p.author&&p.author.name||"")}</p>
+    <p style="margin-top:8px"><b>内容：</b></p><div style="background:var(--panel2);border-radius:8px;padding:10px;margin-top:4px">${esc(p.content||"(无文字)")}</div>
+    ${(p.images||[]).length?`<p style="margin-top:8px"><b>图片：</b></p><div class="row">${p.images.map(i=>`<img class="mini" src="/community/api/media?name=${esc(i)}">`).join("")}</div>`:""}
+    ${p.video?`<p style="margin-top:8px"><b>视频：</b>${esc(p.video)}</p>`:""}
+    <p style="margin-top:8px"><b>话题：</b>${(p.topic||[]).map(t=>'#'+esc(t)).join(" ")||"-"}　<b>时间：</b>${fmt(p.created)}</p>
+    <div class="row" style="margin-top:12px"><button class="btn" onclick="closeDlg()">关闭</button></div>`);
+}
+
+/* ---------------- 评论管理 ---------------- */
+async function viewComments(){
+  $("#ttl").textContent = "评论管理";
+  let j;
+  try{ j = await api("GET", "/admin/comments?page=1&size=20"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>评论（设神评 / 删除）</h3>
+    <div class="row"><button class="btn" onclick="go('comments')">刷新</button>
+    <span class="tag t-acc">神评：评论置顶 + 徽标 · 帖子评论与短视频评论同一套</span></div>
+    ${list.length?`<table><tr><th>作者</th><th>评论</th><th>帖子</th><th>神评</th><th>时间</th><th>操作</th></tr>
+    ${list.map(c=>`<tr>
+      <td>${esc(c.author||"-")}</td>
+      <td>${esc(short(c.content,50))}</td>
+      <td>${esc(short(c.postContent||"",30))}</td>
+      <td>${c.pinned?'<span class="tag t-acc">神评</span>':'-'}</td>
+      <td>${fmt(c.created)}</td>
+      <td>
+        <button class="btn mini" onclick="cmtOp('${c.id}','pin')">设神评</button>
+        <button class="btn mini danger" onclick="cmtOp('${c.id}','delete')">删除</button>
+      </td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无评论</div>`}</div>`;
+}
+async function cmtOp(id, op){
+  if(op==="delete" && !confirm("确认删除该评论？")) return;
+  try{ await api("POST", "/admin/comment/"+id+"/"+(op==="pin"?"pin":""), op==="pin"?{}:undefined); toast(op==="pin"?"已设为神评":"已删除"); go("comments"); }
+  catch(e){
+    if(op==="delete"){
+      try{ const r = await fetch(API+"/admin/comment/"+id, {method:"DELETE", headers:{"X-Community-Admin-Token":TOK}});
+        if(r.ok){ toast("已删除"); go("comments"); } else toast("删除失败",1); }catch(e2){ toast(e2.message,1); }
+    } else toast(e.message,1);
+  }
+}
+
+/* ---------------- 举报 ---------------- */
+async function viewReports(){
+  $("#ttl").textContent = "举报处理";
+  let j;
+  try{ j = await api("GET", "/admin/reports"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>举报队列（${list.length}）</h3>
+    <div class="row"><button class="btn" onclick="go('reports')">刷新</button></div>
+    ${list.length?`<table><tr><th>对象</th><th>类型</th><th>举报人</th><th>理由</th><th>时间</th><th>操作</th></tr>
+    ${list.map(r=>`<tr>
+      <td>${esc(short(r.targetId||"",24))}</td>
+      <td>${esc(r.targetType||"")}</td>
+      <td>${esc(r.reporterName||"")}</td>
+      <td>${esc(short(r.reason,50))}</td>
+      <td>${fmt(r.created)}</td>
+      <td><button class="btn mini" onclick="handleReport('${r.id}',0)">忽略</button>
+          <button class="btn mini danger" onclick="handleReport('${r.id}',1)">确认违规</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">没有待处理举报</div>`}</div>`;
+}
+async function handleReport(id, verdict){
+  try{ await api("POST", "/admin/reports/"+id+"/handle", {verdict:verdict?"confirmed":"ignored"});
+    toast(verdict?"已确认违规":"已忽略"); go("reports"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 版块 ---------------- */
+async function viewBoards(){
+  $("#ttl").textContent = "版块管理";
+  let j;
+  try{ j = await api("GET", "/admin/boards"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  const renderTree = (nodes,depth)=>{
+    return nodes.map(n=>`<tr>
+      <td style="padding-left:${depth*22+8}px">${esc(n.icon||"")} ${esc(n.name)}${n.children&&n.children.length?`<span class="tag t-dim">${n.children.length} 子版块</span>`:""}</td>
+      <td>${esc(n.color||"")}</td><td>${n.postCount||0}</td>
+      <td>${n.active===0?'<span class="tag t-bad">已停用</span>':'<span class="tag t-ok">启用</span>'}</td>
+      <td>
+        <button class="btn mini" onclick="openBoardDlg('${n.id}','${esc(n.name)}')">编辑</button>
+        <button class="btn mini" onclick="addChild('${n.id}')">加子版块</button>
+        <button class="btn mini danger" onclick="delBoard('${n.id}')">删除</button>
+      </td></tr>${n.children&&n.children.length?renderTree(n.children,depth+1):""}`).join("");
+  };
+  $("#view").innerHTML = `
+    <div class="card"><h3>版块（多级子分类 · 后台自由增删/启停）</h3>
+    <div class="row"><button class="btn p" onclick="openBoardDlg()">+ 新建版块</button>
+    <button class="btn" onclick="go('boards')">刷新</button></div>
+    ${list.length?`<table><tr><th>名称</th><th>颜色</th><th>帖子数</th><th>状态</th><th>操作</th></tr>${renderTree(list,0)}</table>`
+    :`<div class="empty">暂无版块</div>`}</div>`;
+}
+function openBoardDlg(id, name, parentId){
+  openDlg(id?"编辑版块":"新建版块", `
+    <div class="row"><label>名称</label><input id="bname" value="${esc(name||"")}" placeholder="版块名称"></div>
+    <div class="row"><label>图标</label><input id="bicon" placeholder="emoji 或图片URL"></div>
+    <div class="row"><label>颜色</label><input id="bcolor" placeholder="#4FC3F7"></div>
+    ${parentId?`<div class="row"><span class="tag t-acc">将创建为子版块</span></div>`:""}
+    <div class="row" style="margin-top:10px">
+      <button class="btn p" onclick="saveBoard('${id||""}','${parentId||""}')">保存</button>
+      <button class="btn" onclick="closeDlg()">取消</button></div>`);
+}
+async function saveBoard(id, parentId){
+  const body = {name:$("#bname").value.trim(), icon:$("#bicon").value.trim(), color:$("#bcolor").value.trim()};
+  if(parentId) body.parentId = parentId;
+  if(!body.name) return toast("名称必填",1);
+  try{ if(id) await api("PUT", "/admin/boards/"+id, body); else await api("POST", "/admin/boards", body);
+    toast("保存成功"); closeDlg(); go("boards"); }catch(e){ toast(e.message,1); }
+}
+function addChild(pid){ openBoardDlg("", "", pid); }
+async function delBoard(id){
+  if(!confirm("确认删除该版块？")) return;
+  try{ await api("DELETE", "/admin/boards/"+id); toast("已删除"); go("boards"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 话题 ---------------- */
+async function viewTopics(){
+  $("#ttl").textContent = "话题管理";
+  let j;
+  try{ j = await api("GET", "/admin/topics"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>话题</h3>
+    <div class="row"><button class="btn" onclick="go('topics')">刷新</button></div>
+    ${list.length?`<table><tr><th>话题</th><th>帖子数</th><th>创建时间</th><th>操作</th></tr>
+    ${list.map(t=>`<tr><td>#${esc(t.name)}</td><td>${t.count||0}</td><td>${fmt(t.created)}</td>
+      <td><button class="btn mini danger" onclick="delTopic('${esc(t.name)}')">删除</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无话题</div>`}</div>`;
+}
+async function delTopic(name){
+  if(!confirm("删除话题 #"+name+" ？")) return;
+  try{ await api("DELETE", "/admin/topics/"+encodeURIComponent(name)); toast("已删除"); go("topics"); }
+  catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- Banner ---------------- */
+async function viewBanners(){
+  $("#ttl").textContent = "Banner 运营位";
+  let j;
+  try{ j = await api("GET", "/admin/banners"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>信息流 Banner</h3>
+    <div class="row"><button class="btn p" onclick="openBannerDlg()">+ 新建 Banner</button>
+    <button class="btn" onclick="go('banners')">刷新</button></div>
+    ${list.length?`<table><tr><th>图片</th><th>链接类型</th><th>链接</th><th>状态</th><th>排序</th><th>操作</th></tr>
+    ${list.map(b=>`<tr>
+      <td>${b.image?`<img class="mini" src="/community/api/media?name=${esc(b.image)}">`:"-"}</td>
+      <td>${esc(b.linkType||"")}</td><td>${esc(short(b.link,30))}</td>
+      <td>${b.active===0?'<span class="tag t-bad">停用</span>':'<span class="tag t-ok">启用</span>'}</td>
+      <td>${b.sort||0}</td>
+      <td><button class="btn mini danger" onclick="delBanner('${b.id}')">删除</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无 Banner</div>`}</div>`;
+}
+function openBannerDlg(){
+  openDlg("新建 Banner", `
+    <div class="row"><label>图片URL</label><input id="bi" placeholder="community_img_* 或外链"></div>
+    <div class="row"><label>类型</label><select id="bl"><option value="url">外链</option><option value="post">帖子</option><option value="topic">话题</option></select></div>
+    <div class="row"><label>链接</label><input id="blink" placeholder="URL / 帖子ID / 话题名"></div>
+    <div class="row" style="margin-top:10px"><button class="btn p" onclick="saveBanner()">保存</button><button class="btn" onclick="closeDlg()">取消</button></div>`);
+}
+async function saveBanner(){
+  const body = {image:$("#bi").value.trim(), linkType:$("#bl").value, link:$("#blink").value.trim()};
+  if(!body.image) return toast("图片必填",1);
+  try{ await api("POST", "/admin/banners", body); toast("已创建"); closeDlg(); go("banners"); }catch(e){ toast(e.message,1); }
+}
+async function delBanner(id){
+  if(!confirm("删除该 Banner？")) return;
+  try{ await api("DELETE", "/admin/banners/"+id); toast("已删除"); go("banners"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 活动 ---------------- */
+async function viewActivities(){
+  $("#ttl").textContent = "活动管理";
+  let j;
+  try{ j = await api("GET", "/admin/activities"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  const now = Date.now()/1000;
+  $("#view").innerHTML = `
+    <div class="card"><h3>话题活动（结束后自动给参与帖作者发经验奖励）</h3>
+    <div class="row"><button class="btn p" onclick="openActDlg()">+ 新建活动</button>
+    <button class="btn" onclick="go('activities')">刷新</button></div>
+    ${list.length?`<table><tr><th>标题</th><th>话题</th><th>奖励经验</th><th>状态</th><th>时间</th><th>操作</th></tr>
+    ${list.map(a=>{const st=a.endAt<now||a.finished?'<span class="tag t-bad">已结束</span>':a.startAt>now?'<span class="tag t-warn">未开始</span>':'<span class="tag t-ok">进行中</span>';
+      return `<tr><td>${esc(a.title)}</td><td>#${esc(a.topicId)}</td><td>+${a.rewardExp||0}</td><td>${st}</td>
+      <td>${fmt(a.startAt)} → ${fmt(a.endAt)}</td>
+      <td>${a.finished?"-":`<button class="btn mini" onclick="endAct('${a.id}')">结束发奖</button>`}
+      <button class="btn mini danger" onclick="delAct('${a.id}')">删除</button></td></tr>`;}).join("")}</table>`
+    :`<div class="empty">暂无活动</div>`}</div>`;
+}
+function openActDlg(){
+  openDlg("新建活动", `
+    <div class="row"><label>标题</label><input id="at" placeholder="活动标题"></div>
+    <div class="row"><label>话题</label><input id="atp" placeholder="关联话题名"></div>
+    <div class="row"><label>奖励经验</label><input id="ae" type="number" value="50"></div>
+    <div class="row"><label>开始</label><input id="as" type="datetime-local"></div>
+    <div class="row"><label>结束</label><input id="aend" type="datetime-local"></div>
+    <div class="row"><label>说明</label><input id="ad" placeholder="活动说明"></div>
+    <div class="row" style="margin-top:10px"><button class="btn p" onclick="saveAct()">保存</button><button class="btn" onclick="closeDlg()">取消</button></div>`);
+}
+async function saveAct(){
+  const toTs = v => v?new Date(v).getTime()/1000:Date.now()/1000;
+  const body = {title:$("#at").value.trim(), topicId:$("#atp").value.trim(), rewardExp:parseInt($("#ae").value||"50"),
+    startAt:toTs($("#as").value), endAt:toTs($("#aend").value), desc:$("#ad").value.trim()};
+  if(!body.title||!body.topicId) return toast("标题与话题必填",1);
+  try{ await api("POST", "/admin/activities", body); toast("已创建"); closeDlg(); go("activities"); }catch(e){ toast(e.message,1); }
+}
+async function endAct(id){
+  try{ await api("POST", "/admin/activities/"+id+"/end", {}); toast("已结束并发奖"); go("activities"); }catch(e){ toast(e.message,1); }
+}
+async function delAct(id){
+  if(!confirm("删除该活动？")) return;
+  try{ await api("DELETE", "/admin/activities/"+id); toast("已删除"); go("activities"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 敏感词 ---------------- */
+async function viewWords(){
+  $("#ttl").textContent = "敏感词管理";
+  let j;
+  try{ j = await api("GET", "/admin/sensitive-words"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>敏感词（level=0 直接拦截 · level=1 转人工审核）</h3>
+    <div class="row"><input id="nw" placeholder="新敏感词"><select id="nwl">
+      <option value="0">拦截(0)</option><option value="1">转审(1)</option></select>
+      <button class="btn p" onclick="addWord()">添加</button>
+      <button class="btn" onclick="go('words')">刷新</button></div>
+    ${list.length?`<table><tr><th>词</th><th>级别</th><th>状态</th><th>操作</th></tr>
+    ${list.map(w=>`<tr><td>${esc(w.word)}</td>
+      <td>${w.level===0?'<span class="tag t-bad">拦截</span>':'<span class="tag t-warn">转审</span>'}</td>
+      <td>${w.active===0?'<span class="tag t-dim">停用</span>':'<span class="tag t-ok">启用</span>'}</td>
+      <td><button class="btn mini" onclick="toggleWord('${w.id}',${w.active===1?0:1})">${w.active===1?"停用":"启用"}</button>
+      <button class="btn mini danger" onclick="delWord('${w.id}')">删除</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无敏感词</div>`}</div>`;
+}
+async function addWord(){
+  const w = $("#nw").value.trim(); if(!w) return toast("词必填",1);
+  try{ await api("POST", "/admin/sensitive-words", {word:w, level:parseInt($("#nwl").value)});
+    toast("已添加"); $("#nw").value=""; go("words"); }catch(e){ toast(e.message,1); }
+}
+async function toggleWord(id, active){
+  try{ await api("PUT", "/admin/sensitive-words/"+id, {active}); toast("已更新"); go("words"); }catch(e){ toast(e.message,1); }
+}
+async function delWord(id){
+  if(!confirm("删除该敏感词？")) return;
+  try{ await api("DELETE", "/admin/sensitive-words/"+id); toast("已删除"); go("words"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 用户 ---------------- */
+async function viewUsers(){
+  $("#ttl").textContent = "用户管理";
+  let j;
+  try{ j = await api("GET", "/admin/users?page=1&size=20"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>用户（封禁 / 解封 · 认证与头衔与音乐互通只读）</h3>
+    <div class="row"><button class="btn" onclick="go('userlist')">刷新</button>
+    <span class="tag t-dim">账号/认证/头衔来自音乐侧 users 表</span></div>
+    ${list.length?`<table><tr><th>账号</th><th>昵称</th><th>头衔</th><th>认证</th><th>管理员</th><th>状态</th><th>操作</th></tr>
+    ${list.map(u=>`<tr>
+      <td class="mono">${esc(u.account||"")}</td>
+      <td>${esc(u.name||"")}</td>
+      <td>${esc(u.title||"-")}</td>
+      <td>${u.verified?`<span class="tag t-acc">${esc(u.verifiedLabel||"认证")}</span>`:'-'}</td>
+      <td>${u.adminLevel>0?`<span class="tag t-acc">${esc(u.adminName||"管理员")}</span>`:'-'}</td>
+      <td>${u.banned?'<span class="tag t-bad">已封禁</span>':'<span class="tag t-ok">正常</span>'}</td>
+      <td>${u.banned
+        ?`<button class="btn mini" onclick="banUser('${u.id}',0)">解封</button>`
+        :`<button class="btn mini danger" onclick="banUser('${u.id}',1)">封禁</button>`}
+      </td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无用户</div>`}</div>`;
+}
+async function banUser(uid, banned){
+  const r = banned?"封禁该用户？":"确认解封？";
+  if(!confirm(r)) return;
+  try{ await api("POST", "/admin/users/"+uid+"/ban", {banned:!!banned}); toast("已更新"); go("userlist"); }
+  catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 会员 ---------------- */
+async function viewMembers(){
+  $("#ttl").textContent = "会员管理（独立于音乐会员）";
+  let j;
+  try{ j = await api("GET", "/admin/members"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>流萤社区会员（独立体系 · 开通/续期/取消）</h3>
+    <div class="row"><button class="btn" onclick="go('members')">刷新</button>
+    <span class="tag t-warn">社区会员与音乐会员不互通，独立生效</span></div>
+    ${list.length?`<table><tr><th>用户</th><th>类型</th><th>到期时间</th><th>操作</th></tr>
+    ${list.map(m=>`<tr><td>${esc(m.userName||"")}</td>
+      <td>${m.type==="svip"?'<span class="tag t-acc">SVIP</span>':'<span class="tag t-ok">VIP</span>'}</td>
+      <td>${fmt(m.expireAt)}</td>
+      <td><button class="btn mini danger" onclick="revokeMember('${m.userId}','${m.type}')">取消</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无会员</div>`}</div>
+    <div class="card"><h3>开通 / 续期</h3>
+      <div class="row"><label>用户ID</label><input id="mu" placeholder="用户 id">
+      <label>类型</label><select id="mt"><option value="member">VIP</option><option value="svip">SVIP</option></select>
+      <label>天数</label><input id="md" type="number" value="30">
+      <button class="btn p" onclick="grantMember()">开通/续期</button></div>
+    </div>`;
+}
+async function grantMember(){
+  const uid=$("#mu").value.trim(), days=parseInt($("#md").value||"30");
+  if(!uid) return toast("用户ID必填",1);
+  try{ await api("POST", "/admin/members/"+uid+"/grant", {type:$("#mt").value, days});
+    toast("会员已开通/续期"); go("members"); }catch(e){ toast(e.message,1); }
+}
+async function revokeMember(uid, type){
+  if(!confirm("取消该会员？")) return;
+  try{ await api("POST", "/admin/members/"+uid+"/revoke", {type}); toast("已取消"); go("members"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 官方通知 ---------------- */
+async function viewOfficial(){
+  $("#ttl").textContent = "官方通知（与音乐完全分离）";
+  let j;
+  try{ j = await api("GET", "/admin/official"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>社区官方通知 · 独立表独立入口</h3>
+    <div class="row"><button class="btn" onclick="go('official')">刷新</button>
+    <span class="tag t-acc">音乐官方消息与本社区互不影响</span></div>
+    ${list.length?`<table><tr><th>内容</th><th>定向用户</th><th>时间</th><th>操作</th></tr>
+    ${list.map(o=>`<tr><td>${esc(short(o.content,60))}</td>
+      <td>${o.receiverUserId?esc(o.receiverUserId.slice(0,8)+"…"):'<span class="tag t-acc">广播</span>'}</td>
+      <td>${fmt(o.created)}</td>
+      <td><button class="btn mini danger" onclick="delOfficial('${o.id}')">删除</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无官方通知</div>`}</div>
+    <div class="card"><h3>发布通知</h3>
+      <div class="row"><label>内容</label><input id="oc" style="flex:1" placeholder="通知内容"></div>
+      <div class="row"><label>定向用户ID</label><input id="ou" placeholder="留空=广播给全部用户"></div>
+      <div class="row"><button class="btn p" onclick="sendOfficial()">发布</button></div>
+    </div>`;
+}
+async function sendOfficial(){
+  const content=$("#oc").value.trim();
+  if(!content) return toast("内容必填",1);
+  try{ await api("POST", "/admin/official", {content, receiverUserId:$("#ou").value.trim()});
+    toast("已发布"); $("#oc").value=""; go("official"); }catch(e){ toast(e.message,1); }
+}
+async function delOfficial(id){
+  if(!confirm("删除该通知？")) return;
+  try{ await api("DELETE", "/admin/official/"+id); toast("已删除"); go("official"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 头像框 ---------------- */
+async function viewFrames(){
+  $("#ttl").textContent = "头像框（个性化装扮）";
+  let j;
+  try{ j = await api("GET", "/admin/frames"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>头像框素材（静态/动态 GIF）</h3>
+    <div class="row"><button class="btn" onclick="go('frames')">刷新</button>
+    <span class="tag t-dim">素材文件上传至 files/ 后填写文件名</span></div>
+    ${list.length?`<table><tr><th>预览</th><th>名称</th><th>静态图</th><th>动态图</th><th>排序</th><th>操作</th></tr>
+    ${list.map(f=>`<tr>
+      <td>${f.image?`<img class="mini" src="/community/api/media?name=${esc(f.image)}">`:"-"}</td>
+      <td>${esc(f.name)}</td><td class="mono">${esc(f.image)}</td><td class="mono">${esc(f.imageDynamic||"-")}</td>
+      <td>${f.sort||0}</td>
+      <td><button class="btn mini" onclick="toggleFrame('${f.id}',${f.active===1?0:1})">${f.active===1?"停用":"启用"}</button>
+      <button class="btn mini danger" onclick="delFrame('${f.id}')">删除</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无头像框</div>`}</div>
+    <div class="card"><h3>新建头像框</h3>
+      <div class="row"><label>名称</label><input id="fn"><label>静态图</label><input id="fi" placeholder="community_img_*.png">
+      <label>动态图</label><input id="fid" placeholder="community_img_*.gif（可选）">
+      <label>排序</label><input id="fs" type="number" value="0">
+      <button class="btn p" onclick="addFrame()">添加</button></div></div>`;
+}
+async function addFrame(){
+  const body = {name:$("#fn").value.trim(), image:$("#fi").value.trim(),
+    imageDynamic:$("#fid").value.trim(), sort:parseInt($("#fs").value||"0")};
+  if(!body.name||!body.image) return toast("名称与静态图必填",1);
+  try{ await api("POST", "/admin/frames", body); toast("已添加"); go("frames"); }catch(e){ toast(e.message,1); }
+}
+async function toggleFrame(id, active){
+  try{ await api("PUT", "/admin/frames/"+id, {active}); toast("已更新"); go("frames"); }catch(e){ toast(e.message,1); }
+}
+async function delFrame(id){
+  if(!confirm("删除该头像框？")) return;
+  try{ await api("DELETE", "/admin/frames/"+id); toast("已删除"); go("frames"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 表情包 ---------------- */
+async function viewEmojis(){
+  $("#ttl").textContent = "表情包（官方素材库）";
+  let j;
+  try{ j = await api("GET", "/admin/emojis"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>官方表情包 · 支持评论文字混排</h3>
+    <div class="row"><button class="btn" onclick="go('emojis')">刷新</button>
+    <button class="btn p" onclick="importEmojis()">扫描目录导入</button>
+    <span class="tag t-dim">素材放 files/emoji_official/&lt;分类&gt;/&lt;文件&gt;，导入后 code=[文件名]</span></div>
+    ${list.length?`<table><tr><th>预览</th><th>code</th><th>分类</th><th>状态</th><th>操作</th></tr>
+    ${list.map(e=>`<tr>
+      <td>${e.image?`<img class="mini" src="/community/api/media?name=${esc(e.image)}">`:"-"}</td>
+      <td class="mono">${esc(e.code)}</td><td>${esc(e.category||"")}</td>
+      <td>${e.active===0?'<span class="tag t-dim">停用</span>':'<span class="tag t-ok">启用</span>'}</td>
+      <td><button class="btn mini" onclick="toggleEmoji('${e.id}',${e.active===1?0:1})">${e.active===1?"停用":"启用"}</button>
+      <button class="btn mini danger" onclick="delEmoji('${e.id}')">删除</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无表情包</div>`}</div>`;
+}
+async function importEmojis(){
+  try{ const j = await api("POST", "/admin/emojis/import", {});
+    toast("导入完成：新增 "+j.imported+" 个表情"); go("emojis"); }catch(e){ toast(e.message,1); }
+}
+async function toggleEmoji(id, active){
+  try{ await api("PUT", "/admin/emojis/"+id, {active}); toast("已更新"); go("emojis"); }catch(e){ toast(e.message,1); }
+}
+async function delEmoji(id){
+  if(!confirm("删除该表情？")) return;
+  try{ await api("DELETE", "/admin/emojis/"+id); toast("已删除"); go("emojis"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 管理员 ---------------- */
+async function viewAdmins(){
+  $("#ttl").textContent = "管理员管理（分级）";
+  let j;
+  try{ j = await api("GET", "/admin/admins"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>一级（超级）/ 二级（社区管理员）</h3>
+    <div class="row"><button class="btn" onclick="go('admins')">刷新</button>
+    <span class="tag t-acc">一级可升级/撤销二级 · 二级可审核/神评/置顶/精华/下架</span></div>
+    ${list.length?`<table><tr><th>用户</th><th>级别</th><th>令牌</th><th>时间</th><th>操作</th></tr>
+    ${list.map(a=>`<tr><td>${esc(a.name||"")}</td>
+      <td>${a.level===1?'<span class="tag t-acc">一级超级管理员</span>':'<span class="tag t-ok">二级管理员</span>'}</td>
+      <td class="mono">${esc(a.token||"")}</td><td>${fmt(a.created)}</td>
+      <td>${a.level===2?`<button class="btn mini danger" onclick="revokeAdmin('${a.userId}')">撤销二级</button>`:"-"}</td></tr>`).join("")}</table>`
+    :`<div class="empty">暂无管理员</div>`}</div>
+    <div class="card"><h3>升级二级管理员</h3>
+      <div class="row"><label>用户ID</label><input id="au"><label>名称</label><input id="an" placeholder="社区管理员">
+      <button class="btn p" onclick="grantAdmin()">升级</button></div>
+    </div>`;
+}
+async function grantAdmin(){
+  const uid=$("#au").value.trim();
+  if(!uid) return toast("用户ID必填",1);
+  try{ const j = await api("POST", "/admin/admins/grant", {userId:uid, name:$("#an").value.trim()||"社区管理员"});
+    toast("已升级为二级管理员，令牌："+j.token); go("admins"); }catch(e){ toast(e.message,1); }
+}
+async function revokeAdmin(uid){
+  if(!confirm("撤销该二级管理员？")) return;
+  try{ await api("POST", "/admin/admins/revoke", {userId:uid}); toast("已撤销"); go("admins"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 系统：令牌/日志/等级 ---------------- */
+async function viewSystem(){
+  $("#ttl").textContent = "系统：令牌 / 操作日志 / 等级";
+  $("#view").innerHTML = `
+    <div class="card"><h3>管理令牌轮换</h3>
+      <p style="color:var(--dim);margin-bottom:8px">轮换后旧令牌立即失效，请保存新令牌。</p>
+      <div class="row"><input id="oldTk" style="flex:1" placeholder="当前令牌"><button class="btn p" onclick="rotateTk()">轮换令牌</button></div>
+      <div id="newTk" style="margin-top:8px"></div></div>
+    <div class="card"><h3>等级配置（只读）</h3><div id="lvlCfg"></div></div>
+    <div class="card"><h3>操作日志</h3>
+      <div class="row"><button class="btn" onclick="loadLogs()">刷新日志</button></div>
+      <div id="logs"><div class="empty">点击刷新加载</div></div></div>`;
+  try{
+    const l = await api("GET", "/admin/level-config");
+    const thr = l.thresholds||[]; const rules = l.rules||{};
+    $("#lvlCfg").innerHTML = `
+      <p><b>等级门槛：</b>${thr.map((t,i)=>`Lv${i}=${t}`).join("　")}</p>
+      <p style="margin-top:8px"><b>经验规则：</b>${Object.entries(rules).map(([k,v])=>`${k}+${v}`).join("　")}</p>`;
+  }catch(e){ $("#lvlCfg").innerHTML = `<div class="empty">等级配置不可读（需一级权限）</div>`; }
+}
+async function rotateTk(){
+  const old = $("#oldTk").value.trim();
+  if(!old) return toast("输入当前令牌",1);
+  try{ const j = await api("POST", "/admin/token/rotate", {oldToken:old});
+    $("#newTk").innerHTML = `<div class="tag t-ok">新令牌：</div><div class="mono" style="word-break:break-all;background:var(--panel2);padding:8px;border-radius:8px;margin-top:4px">${esc(j.token)}</div>
+    <button class="btn mini" style="margin-top:6px" onclick="copyTk('${esc(j.token)}')">复制</button>`;
+    toast("轮换成功，请保存新令牌"); }catch(e){ toast(e.message,1); }
+}
+function copyTk(t){
+  navigator.clipboard.writeText(t).then(()=>toast("已复制")).catch(()=>toast("复制失败",1));
+}
+async function loadLogs(){
+  try{ const j = await api("GET", "/admin/logs");
+    const list = j.list||[];
+    $("#logs").innerHTML = list.length?`<table><tr><th>动作</th><th>对象</th><th>ID</th><th>时间</th></tr>
+      ${list.map(x=>`<tr><td>${esc(x.action)}</td><td>${esc(x.targetType||"-")}</td>
+      <td class="mono">${esc(short(x.targetId||"",24))}</td><td>${fmt(x.created)}</td></tr>`).join("")}</table>`
+      :`<div class="empty">暂无日志</div>`;
+  }catch(e){ $("#logs").innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
+}
+loadLogs = async function(){};
+
+/* ---------------- 通用 ---------------- */
+function openDlg(title, body){
+  $("#dlgBox").innerHTML = `<div class="mask" onclick="if(event.target===this)closeDlg()">
+    <div class="dlg"><h4>${esc(title)}</h4>${body}</div></div>`;
+}
+function closeDlg(){ $("#dlgBox").innerHTML=""; }
+function err(e){ $("#view").innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
+
+/* ---------------- 启动 ---------------- */
+(async function init(){
+  renderNav();
+  if(TOK){
+    try{
+      await api("GET", "/admin/stats");
+      $("#who").textContent = "已登录 · 令牌 " + TOK.slice(0,8) + "…";
+      go("dash");
+      return;
+    }catch(e){ /* 令牌失效走登录 */ }
+  }
+  showLogin();
+})();
+</script>
+</body>
+</html>

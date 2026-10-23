@@ -1,0 +1,27 @@
+name: community_app
+description: "流萤社区 · 短视频+图文混合社区（Android/iOS 单代码库，与流萤音乐账号互通）"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # HTTP 客户端
+  http: ^1.2.2
+  # 视频播放（Android ExoPlayer / iOS AVPlayer）
+  video_player: ^2.9.2
+  # 本地 token/偏好存储
+  shared_preferences: ^2.3.2
+  # 头像/封面/表情包图片缓存
+  cached_network_image: ^3.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

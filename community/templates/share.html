@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>流萤社区 · 分享</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(900px 500px at 20% -10%,#1b2347 0%,#0b1020 60%);color:#e8eefc;font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{width:min(560px,96vw);background:#121a33;border:1px solid #223052;border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.head{display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid #223052;margin-bottom:14px}
+.av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#4fc3f7);display:flex;align-items:center;justify-content:center;font-size:18px}
+.name{font-weight:600}
+.meta{color:#8fa3c8;font-size:12px}
+.badge{display:inline-block;padding:1px 8px;border-radius:12px;font-size:11px;background:rgba(124,92,255,.2);color:#a5e3ff;margin-left:6px}
+.content{white-space:pre-wrap;word-break:break-word;margin:10px 0}
+.topic{color:#7c5cff;font-weight:500}
+.imgs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.imgs img{width:calc(33.3% - 6px);min-width:96px;border-radius:10px;object-fit:cover;aspect-ratio:1/1}
+.videoBox{margin-top:10px}
+video{width:100%;border-radius:10px;background:#000}
+.foot{display:flex;gap:16px;color:#8fa3c8;font-size:13px;margin-top:16px;padding-top:12px;border-top:1px solid #223052}
+.cta{margin-top:16px;text-align:center}
+.cta a{display:inline-block;background:linear-gradient(135deg,#7c5cff,#4fc3f7);color:#fff;text-decoration:none;padding:10px 28px;border-radius:24px;font-weight:600}
+.err{text-align:center;color:#8fa3c8;padding:40px 10px}
+.loading{text-align:center;color:#8fa3c8;padding:40px 10px}
+</style>
+</head>
+<body>
+<div class="card" id="box"><div class="loading">加载中…</div></div>
+<script>
+const API = "/community/api";
+const id = new URLSearchParams(location.search).get("id") || "";
+const box = document.getElementById("box");
+async function load(){
+  if(!id){ box.innerHTML = `<div class="err">分享内容不存在</div>`; return; }
+  try{
+    const r = await fetch(API + "/post/" + id);
+    const j = await r.json();
+    if(!r.ok || !j.post) throw new Error(j.error || "not found");
+    const p = j.post, a = p.author || {};
+    if(p.auditStatus !== 1 || p.takenDown){ box.innerHTML = `<div class="err">该内容已下架或不可见</div>`; return; }
+    box.innerHTML = `
+      <div class="head">
+        <div class="av">${esc((a.name||"?").slice(0,1))}</div>
+        <div><div class="name">${esc(a.name||"流萤用户")}${a.verified?`<span class="badge">${esc(a.verifiedLabel||"认证")}</span>`:""}${a.adminLevel>0?`<span class="badge">${esc(a.adminName||"管理员")}</span>`:""}</div>
+        <div class="meta">${p.type==="video"?"短视频":"帖子"} · ${fmt(p.created)}</div></div>
+      <div class="content">${esc(p.content||"")}${(p.topic||[]).length?`<div class="topic" style="margin-top:6px">${p.topic.map(t=>"#"+esc(t)).join(" ")}</div>`:""}</div>
+      ${(p.images||[]).length?`<div class="imgs">${p.images.map(i=>`<img src="/community/api/media?name=${esc(i)}" loading="lazy">`).join("")}</div>`:""}
+      ${p.type==="video"&&p.video?`<div class="videoBox"><video controls preload="metadata" poster="/community/api/media?name=${esc(p.cover||"")}"><source src="/community/api/media?name=${esc(p.video)}"></video></div>`:""}
+      <div class="foot"><span>♥ ${p.likeCount||0} 赞</span><span>💬 ${p.commentCount||0} 评论</span><span>↗ ${p.shareCount||0} 分享</span></div>
+      <div class="cta"><a href="/community/admin.html">流萤社区 · 立即下载体验</a></div>`;
+  }catch(e){ box.innerHTML = `<div class="err">分享内容加载失败</div>`; }
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+function fmt(t){ if(!t) return ""; const d=new Date(t*1000); return d.toLocaleString("zh-CN",{hour12:false}); }
+load();
+</script>
+</body>
+</html>
