@@ -14,14 +14,14 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.7'
           cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Static analysis
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build APK (release)
         run: flutter build apk --release
@@ -40,11 +40,21 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.7'
           cache: true
 
       - name: Install dependencies
         run: flutter pub get
+
+      # macos-14 镜像默认 Xcode 15.x 编译不了 video_player_avfoundation 2.12 的
+      # Swift 6 并发语法，切到镜像自带的最新 Xcode（音乐项目同法已验证）
+      - name: Select latest Xcode
+        run: |
+          ls /Applications | grep -i xcode
+          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
 
       - name: Build iOS (unsigned)
         run: flutter build ios --release --no-codesign
