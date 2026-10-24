@@ -81,9 +81,12 @@ class _RootPageState extends State<RootPage> {
               ],
             ),
           ),
-          // 底部导航（透明悬浮，短视频页透出内容）
-          Align(
-            alignment: Alignment.bottomCenter,
+          // 底部导航（Positioned 贴底：不吃 StackFit.expand 的 tight 约束，必然贴底；
+          // 短视频页沉浸式时保持透明悬浮，透出内容）
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _ShortsSelectionScope(
               selection: _tab,
               onChanged: (i) => setState(() => _tab = i),
