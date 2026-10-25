@@ -27,7 +27,6 @@ class VideoCard extends StatefulWidget {
 
 class _VideoCardState extends State<VideoCard> {
   VideoPlayerController? _video;
-  bool _ready = false;
   bool _failed = false;
   bool _liked = false;
   int _likeCount = 0;
@@ -51,7 +50,6 @@ class _VideoCardState extends State<VideoCard> {
 
   Future<void> _initVideo() async {
     setState(() {
-      _ready = false;
       _failed = false;
     });
     try {
@@ -69,7 +67,6 @@ class _VideoCardState extends State<VideoCard> {
       }
       setState(() {
         _video = c;
-        _ready = true;
       });
       if (widget.isActive) {
         c.setLooping(true);

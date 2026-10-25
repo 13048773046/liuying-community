@@ -190,6 +190,15 @@ _TABLES = [
         option INTEGER DEFAULT 0, created REAL,
         PRIMARY KEY(user_id, post_id))""",
     """
+    CREATE TABLE IF NOT EXISTS community_feedback(
+        id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+        type TEXT DEFAULT 'other',    -- bug | suggestion | other
+        content TEXT NOT NULL,
+        contact TEXT DEFAULT '',      -- 联系方式（邮箱等，选填）
+        status INTEGER DEFAULT 0,     -- 0 待处理 / 1 已处理 / 2 已忽略
+        reply TEXT DEFAULT '',        -- 处理备注
+        created REAL, updated REAL)""",
+    """
     CREATE TABLE IF NOT EXISTS community_banners(
         id TEXT PRIMARY KEY, image TEXT NOT NULL,
         link_type TEXT DEFAULT 'url', link_id TEXT DEFAULT '',

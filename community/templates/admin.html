@@ -91,7 +91,7 @@ let LVL = 0;
 
 const NAV = [
   ["仪表盘", "dash", 1],["帖子审核", "audit", 2],["帖子管理", "posts", 2],
-  ["评论管理", "comments", 2],["举报处理", "reports", 2],
+  ["评论管理", "comments", 2],["举报处理", "reports", 2],["反馈处理", "feedback", 2],
   ["运营", "ops", 0],
   ["版块管理", "boards", 1],["话题管理", "topics", 1],["Banner", "banners", 1],
   ["活动管理", "activities", 1],["敏感词", "words", 1],
@@ -219,7 +219,7 @@ function renderNav(){
 function go(v){
   $$("#nav a").forEach(a=>a.classList.toggle("on", a.dataset.v===v));
   const map = {dash:viewDash, audit:viewAudit, posts:viewPosts, comments:viewComments,
-    reports:viewReports, boards:viewBoards, topics:viewTopics, banners:viewBanners,
+    reports:viewReports, feedback:viewFeedback, boards:viewBoards, topics:viewTopics, banners:viewBanners,
     activities:viewActivities, words:viewWords, userlist:viewUsers, members:viewMembers,
     official:viewOfficial, frames:viewFrames, emojis:viewEmojis, admins:viewAdmins, system:viewSystem};
   (map[v]||viewDash)();
@@ -236,6 +236,7 @@ async function viewDash(){
     ["帖子总数", st.posts||0],["待审核", st.pendingAudit||0],["短视频", st.videos||0],
     ["评论数", st.comments||0],["用户数", st.users||0],["今日新增帖", st.todayPosts||0],
     ["会员数", st.members||0],["敏感词", st.words||0],["举报待处理", st.reports||0],
+    ["反馈待处理", st.feedback||0],
   ];
   $("#view").innerHTML = `
     <div class="grid">${cards.map(c=>`<div class="stat"><span>${c[0]}</span><b>${c[1]}</b></div>`).join("")}</div>
@@ -412,8 +413,33 @@ async function viewReports(){
     :`<div class="empty">没有待处理举报</div>`}</div>`;
 }
 async function handleReport(id, verdict){
-  try{ await api("POST", "/admin/reports/"+id+"/handle", {verdict:verdict?"confirmed":"ignored"});
+  try{ await api("POST", "/admin/reports/"+id+"/handle", {action: verdict?"delete":"ignore"});
     toast(verdict?"已确认违规":"已忽略"); go("reports"); }catch(e){ toast(e.message,1); }
+}
+
+/* ---------------- 反馈 ---------------- */
+async function viewFeedback(){
+  $("#ttl").textContent = "反馈处理";
+  let j;
+  try{ j = await api("GET", "/admin/feedback"); }catch(e){ return err(e); }
+  const list = j.list || [];
+  $("#view").innerHTML = `
+    <div class="card"><h3>反馈队列（${list.length}）</h3>
+    <div class="row"><button class="btn" onclick="go('feedback')">刷新</button></div>
+    ${list.length?`<table><tr><th>用户</th><th>类型</th><th>内容</th><th>联系方式</th><th>时间</th><th>操作</th></tr>
+    ${list.map(r=>`<tr>
+      <td>${esc(r.user&&r.user.name?r.user.name:"")}${r.user&&r.user.account?`<br><span class="dim">${esc(r.user.account)}</span>`:""}</td>
+      <td>${esc(r.type||"")}</td>
+      <td>${esc(short(r.content,80))}</td>
+      <td>${esc(short(r.contact||"",30))}</td>
+      <td>${fmt(r.created)}</td>
+      <td><button class="btn mini" onclick="handleFeedback('${r.id}',2)">忽略</button>
+          <button class="btn mini" onclick="handleFeedback('${r.id}',1)">标记处理</button></td></tr>`).join("")}</table>`
+    :`<div class="empty">没有待处理反馈</div>`}</div>`;
+}
+async function handleFeedback(id, status){
+  try{ await api("PUT", "/admin/feedback/"+id, {status: status});
+    toast("已更新"); go("feedback"); }catch(e){ toast(e.message,1); }
 }
 
 /* ---------------- 版块 ---------------- */

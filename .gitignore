@@ -69,3 +69,8 @@ ios/Flutter/flutter_export_environment.sh
 *.mobileprovision
 .env
 .tmp-tool-results/
+# 本地测试产物
+community/files/
+*.db-wal
+*.db-shm
+community/tests/tracks_test.db

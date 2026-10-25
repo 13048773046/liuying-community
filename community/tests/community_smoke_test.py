@@ -290,6 +290,25 @@ def _run(users, tokens, adm_tok):
     s, r = req("DELETE", "/block/%s" % u1, token=t3)
     check("取消拉黑", s == 200)
 
+    # ===== 意见反馈 =====
+    s, r = req("POST", "/feedback", {"type": "bug", "content": "测试反馈：界面问题",
+                                    "contact": "t@test.com"}, token=t3)
+    check("提交反馈", s == 200 and r.get("id"))
+    fb_id = r.get("id")
+    s, r = req("POST", "/feedback", {"type": "bug", "content": ""}, token=t3)
+    check("空反馈被拒", s == 400)
+    s, r = req("POST", "/feedback", {"type": "bug", "content": "未登录反馈"}, token=None)
+    check("未登录反馈被拒", s == 401)
+    s, r = req("GET", "/feedback/mine", token=t3)
+    check("我的反馈列表", s == 200 and any(x.get("id") == fb_id for x in r.get("list", [])))
+    s, r = req("GET", "/admin/feedback", adm=adm_tok)
+    check("后台反馈队列", s == 200 and len(r.get("list", [])) == 1)
+    s, r = req("PUT", "/admin/feedback/%s" % fb_id, {"status": 1, "reply": "已处理"},
+               adm=adm_tok)
+    check("后台处理反馈", s == 200 and r.get("updated"))
+    s, r = req("GET", "/admin/feedback?status=1", adm=adm_tok)
+    check("已处理反馈列表", s == 200 and len(r.get("list", [])) == 1)
+
     # ===== 偏好（通知/隐私/主题） =====
     s, r = req("PUT", "/prefs", {"notifyMask": {"like": False}, "commentPerm": 1,
                                  "profileVisible": True, "theme": "light"}, token=t1)

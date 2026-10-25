@@ -54,6 +54,7 @@ def _handle_stats(self, c, u, api, method):
             "users": cnt("SELECT COUNT(*) FROM users", ()),
             "members": cnt("SELECT COUNT(*) FROM community_members WHERE expire>?", (now,)),
             "reports": cnt("SELECT COUNT(*) FROM community_reports WHERE status=0", ()),
+            "feedback": cnt("SELECT COUNT(*) FROM community_feedback WHERE status=0", ()),
             "todayPosts": cnt("SELECT COUNT(*) FROM community_posts WHERE status=1 AND created>?", (day,)),
             "todayComments": cnt("SELECT COUNT(*) FROM community_post_comments WHERE status=1 AND created>?", (day,)),
             "todayNewUsers": cnt("SELECT COUNT(*) FROM users WHERE created>?", (day,)),
@@ -1024,6 +1025,63 @@ def _handle_logs(self, c, u, api, method):
     return True
 
 
+def _handle_feedback_admin(self, c, u, api, method):
+    """反馈处理：GET /admin/feedback?status=0 列表；PUT /admin/feedback/{id} 状态/回复。"""
+    if api == "/admin/feedback":
+        adm = _auth(self, c, 2)
+        if not adm:
+            return True
+        query = urllib.parse.parse_qs(u.query)
+        status = int((query.get("status") or ["0"])[0] or 0)
+        rows = c.execute(
+            "SELECT * FROM community_feedback WHERE status=? ORDER BY created DESC LIMIT 100",
+            (status,)).fetchall()
+        out = []
+        for r in rows:
+            d = row_dict(r)
+            urow = c.execute("SELECT name, account FROM users WHERE id=?",
+                             (d["user_id"],)).fetchone()
+            out.append({"id": d["id"], "type": d["type"], "content": d["content"],
+                        "contact": d.get("contact", ""), "status": d.get("status", 0),
+                        "reply": d.get("reply", ""), "created": d.get("created", 0),
+                        "user": {"name": urow[0] if urow else "",
+                                 "account": urow[1] if urow else ""}})
+        c.commit()
+        self._ok({"list": out})
+        return True
+    m = re.match(r"^/admin/feedback/([\w\-]+)$", api)
+    if m and method == "PUT":
+        adm = _auth(self, c, 2)
+        if not adm:
+            return True
+        fid = m.group(1)
+        row = c.execute("SELECT 1 FROM community_feedback WHERE id=?", (fid,)).fetchone()
+        if not row:
+            self._err(404, "反馈不存在")
+            return True
+        body = _body(self)
+        sets = []
+        args = []
+        if "status" in body:
+            sets.append("status=?")
+            args.append(int(body.get("status") or 0))
+        if "reply" in body:
+            sets.append("reply=?")
+            args.append((body.get("reply") or "").strip()[:500])
+        if not sets:
+            sets.append("status=?")
+            args.append(0)
+        sets.append("updated=?")
+        args.append(time.time())
+        c.execute("UPDATE community_feedback SET %s WHERE id=?" % ",".join(sets), args + [fid])
+        admin_log(c, adm[0], "feedback_handle", "feedback", fid,
+                  (body.get("reply") or "")[:40])
+        c.commit()
+        self._ok({"updated": True})
+        return True
+    return False
+
+
 def dispatch(self, c, u, api, method):
     handlers = [_handle_stats, _handle_admin_posts, _handle_admin_comments,
                 _handle_reports, _crud_boards, _handle_topics_admin,
@@ -1032,7 +1090,8 @@ def dispatch(self, c, u, api, method):
                 _handle_members_admin, _handle_official_admin,
                 _handle_frames_admin, _handle_emojis_admin,
                 _handle_level_config, _handle_admins_admin,
-                _handle_token_rotate, _handle_hotwords, _handle_logs]
+                _handle_token_rotate, _handle_hotwords, _handle_logs,
+                _handle_feedback_admin]
     for h in handlers:
         if h(self, c, u, api, method):
             return True

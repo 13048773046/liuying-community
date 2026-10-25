@@ -28,6 +28,7 @@ from handlers import user as H_USER
 from handlers import official as H_OFFICIAL
 from handlers import upload as H_UPLOAD
 from handlers import admin_api as H_ADMIN
+from handlers import feedback as H_FEEDBACK
 from handlers import ws as H_WS
 
 API_PREFIX = "/community/api"
@@ -191,7 +192,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method, c, u, api):
         # 路由表：按模块分发
-        for mod in (H_CONTENT, H_FEED, H_USER, H_OFFICIAL, H_UPLOAD, H_ADMIN, H_WS):
+        for mod in (H_CONTENT, H_FEED, H_USER, H_OFFICIAL, H_UPLOAD, H_ADMIN, H_FEEDBACK, H_WS):
             try:
                 handled = mod.dispatch(self, c, u, api, method)
                 if handled:

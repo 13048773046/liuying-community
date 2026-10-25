@@ -22,6 +22,7 @@ class ApiException implements Exception {
 
 class ApiClient {
   static String? token; // 全局登录态（内存缓存）
+  static String? userId; // 当前登录用户 id（myProfile 成功后缓存）
 
   // ---------- 基础请求 ----------
 
@@ -290,6 +291,34 @@ class ApiClient {
   static Future<Map<String, dynamic>> boards() => get('/boards');
   static Future<Map<String, dynamic>> topics() => get('/topics');
 
+  // ---------- 收藏 / 稍后看 ----------
+
+  /// 收藏列表：kind=fav（收藏）| later（稍后看），返回 decorate_post 结构
+  static Future<Map<String, dynamic>> favorites({
+    String kind = 'fav',
+    int page = 1,
+    int size = 20,
+  }) =>
+      get('/favorites', query: {
+        'kind': kind,
+        'page': '$page',
+        'size': '$size',
+      });
+
+  // ---------- 意见反馈 ----------
+
+  /// 提交意见反馈：type=bug|suggestion|other
+  static Future<Map<String, dynamic>> submitFeedback({
+    required String type,
+    required String content,
+    String contact = '',
+  }) =>
+      post('/feedback', body: {
+        'type': type,
+        'content': content,
+        'contact': contact,
+      });
+
   // ---------- 通知（互动 + 社区官方，官方与音乐完全分离） ----------
 
   static Future<Map<String, dynamic>> notifications(
@@ -351,7 +380,14 @@ class ApiClient {
       post('/user/$uid/follow');
 
   /// 当前用户主页
-  static Future<Map<String, dynamic>> myProfile() => get('/user/me');
+  static Future<Map<String, dynamic>> myProfile() async {
+    final j = await get('/user/me');
+    final u = j['user'];
+    if (u is Map && u['id'] != null) {
+      userId = u['id'] as String;
+    }
+    return j;
+  }
 
   /// 指定用户主页
   static Future<Map<String, dynamic>> userProfile(String uid) =>

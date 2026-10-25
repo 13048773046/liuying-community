@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
-import '../../widgets/image_box.dart';
+import '../mine/login_page.dart';
 
 class MessagePage extends StatefulWidget {
   const MessagePage({super.key});
@@ -26,6 +26,7 @@ class _MessagePageState extends State<MessagePage> {
   bool _hasMore = false;
   int _page = 0;
   bool _listLoading = false;
+  bool _needLogin = false; // 401 时引导登录
 
   @override
   void initState() {
@@ -73,12 +74,32 @@ class _MessagePageState extends State<MessagePage> {
         });
         await ApiClient.markOfficialRead();
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
         _listLoading = false;
+        // 未登录 401：不再显示误导性空态，改为登录引导
+        _needLogin = e is ApiException && e.code == 401;
       });
+    }
+  }
+
+  Future<void> _goLogin() async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+    );
+    if (ok == true) {
+      if (!mounted) return;
+      setState(() {
+        _needLogin = false;
+        _notifs = [];
+        _official = [];
+        _hasMore = false;
+        _loading = true;
+        _page = 0;
+      });
+      _load(refresh: true);
     }
   }
 
@@ -105,16 +126,20 @@ class _MessagePageState extends State<MessagePage> {
                   ? const Center(
                       child: CircularProgressIndicator(
                           color: Color(AppTheme.accent), strokeWidth: 2.5))
-                  : RefreshIndicator(
-                      color: const Color(AppTheme.accent),
-                      backgroundColor: const Color(AppTheme.card),
-                      onRefresh: () => _load(refresh: true),
-                      child: ListView(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        children:
-                            _tab == 0 ? _notifTiles() : _officialTiles(),
-                      ),
-                    ),
+                  : _needLogin
+                      ? _loginEmpty()
+                      : RefreshIndicator(
+                          color: const Color(AppTheme.accent),
+                          backgroundColor: const Color(AppTheme.card),
+                          onRefresh: () => _load(refresh: true),
+                          child: ListView(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 8),
+                            children: _tab == 0
+                                ? _notifTiles()
+                                : _officialTiles(),
+                          ),
+                        ),
             ),
           ],
         ),
@@ -177,7 +202,9 @@ class _MessagePageState extends State<MessagePage> {
   List<Widget> _notifTiles() {
     if (_notifs.isEmpty) {
       return [
-        _empty('暂无互动通知\n点赞、评论、@提及、审核结果都会出现在这里')
+        _empty(Icons.notifications_none,
+            '暂无互动通知',
+            '点赞、评论、@提及、审核结果都会出现在这里'),
       ];
     }
     final List<Widget> tiles = _notifs.map((n) {
@@ -189,24 +216,23 @@ class _MessagePageState extends State<MessagePage> {
       final isRead = boolOf(n['isRead']);
       final icon = _notifIcon(type);
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: const BoxDecoration(
-          border: Border(
-              bottom:
-                  BorderSide(color: Color(AppTheme.border), width: 0.5)),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.card),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 color: const Color(AppTheme.accentSoft),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(11),
               ),
-              child: Icon(icon, color: const Color(AppTheme.accent), size: 18),
+              child: Icon(icon, color: const Color(AppTheme.accent), size: 19),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -267,32 +293,32 @@ class _MessagePageState extends State<MessagePage> {
 
   List<Widget> _officialTiles() {
     if (_official.isEmpty) {
-      return [_empty('暂无社区官方通知')];
+      return [_empty(Icons.campaign_outlined, '暂无社区官方通知',
+          '官方公告、活动提醒会在这里通知你')];
     }
     return _official.map((m) {
       final content = (m['content'] ?? '') as String;
       final sender = (m['senderName'] ?? '') as String;
       final created = ((m['created'] ?? 0) as num).toInt();
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: const BoxDecoration(
-          border: Border(
-              bottom:
-                  BorderSide(color: Color(AppTheme.border), width: 0.5)),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.card),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 color: const Color(AppTheme.sky).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(11),
               ),
               child: const Icon(Icons.campaign_outlined,
-                  color: Color(AppTheme.sky), size: 18),
+                  color: Color(AppTheme.sky), size: 19),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -338,16 +364,63 @@ class _MessagePageState extends State<MessagePage> {
     }
   }
 
-  Widget _empty(String s) {
+  Widget _empty(IconData icon, String title, String subtitle,
+      {Widget? action}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 80),
+      padding: const EdgeInsets.symmetric(vertical: 60),
       child: Center(
-        child: Text(s,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: Color(AppTheme.textTertiary),
-                fontSize: 13,
-                height: 1.6)),
+        child: Column(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: const Color(AppTheme.card),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(icon,
+                  size: 30, color: const Color(AppTheme.textTertiary)),
+            ),
+            const SizedBox(height: 14),
+            Text(title,
+                style: const TextStyle(
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Color(AppTheme.textTertiary),
+                    fontSize: 12.5,
+                    height: 1.6)),
+            if (action != null) ...[
+              const SizedBox(height: 18),
+              action,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 未登录引导空态
+  Widget _loginEmpty() {
+    return _empty(
+      Icons.lock_outline,
+      '登录后查看消息',
+      '点赞、评论、@提及、审核结果\n登录后才会出现在这里',
+      action: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(AppTheme.accent),
+          foregroundColor: Colors.black,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+        ),
+        onPressed: _goLogin,
+        child: const Text('去登录',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
   }
