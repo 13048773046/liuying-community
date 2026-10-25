@@ -59,6 +59,11 @@ class _RootPageState extends State<RootPage> {
     final isShorts = _tab == 2;
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
+      // 修复：禁用键盘避让（resizeToAvoidBottomInset: false）
+      // iOS 键盘弹出时默认会压缩 Scaffold body（812pt→约430pt），
+      // 导致 Positioned(bottom:0) 的底部导航被顶到屏幕中部并盖住内容；
+      // RootPage 自身无输入框，键盘避让由 push 出的登录/发布/评论页各自处理。
+      resizeToAvoidBottomInset: false,
       body: Stack(
         // 强制所有子组件撑满屏幕，底部导航必然贴底
         fit: StackFit.expand,
