@@ -17,6 +17,11 @@ from common import (db, resolve_token, decorate_post, is_blocked, blocked_by, ro
 
 HALF_LIFE = 48 * 3600
 
+# 推荐流候选窗口：避免全表扫描。半衰期 48h，7 天前帖子热度已衰减至 1/8，
+# 基本不可能进入推荐排序前列；500 条上限对当前内容量充分覆盖。
+RECOMMEND_WINDOW = 7 * 24 * 3600
+RECOMMEND_MAX_CANDIDATES = 500
+
 
 def _uid(c, handler):
     return resolve_token(c, handler.headers.get("Authorization", ""))
@@ -92,8 +97,13 @@ def _handle_feed(self, c, u, api, method):
             else:
                 where.append("1=0")
     elif tab == "recommend":
-        rows0 = c.execute("SELECT * FROM community_posts WHERE %s" % " AND ".join(where),
-                          args).fetchall()
+        # 候选窗口化（避免全表扫描）：created 近 RECOMMEND_WINDOW 且按时间倒序
+        # 取最多 RECOMMEND_MAX_CANDIDATES 条，再按热度排序分页。
+        w2 = list(where) + ["created >= ?"]
+        a2 = args + [time.time() - RECOMMEND_WINDOW]
+        rows0 = c.execute(
+            "SELECT * FROM community_posts WHERE %s ORDER BY created DESC LIMIT ?"
+            % " AND ".join(w2), a2 + [RECOMMEND_MAX_CANDIDATES]).fetchall()
         rows0 = [r for r in rows0 if not blocked_by(c, uid, row_dict(r)["user_id"])]
         rows0.sort(key=lambda r: _heat(row_dict(r), 0), reverse=True)
         total = len(rows0)
