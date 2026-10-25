@@ -109,14 +109,19 @@ class ApiClient {
       RegExp(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$').hasMatch(email);
 
   /// 发送邮箱验证码（音乐 /music/api/send-email-code）
-  /// 返回 null 表示失败（message 已抛异常）。
+  ///
+  /// 注意：改用 JSON 请求而非 multipart。原因——Dart http 包的 multipart 字段头
+  /// 是小写 `content-disposition`，音乐后端 _parse_multipart 大小写敏感匹配
+  /// `Content-Disposition` 会跳过所有字段（email 解析为空 → 报"邮箱格式不正确"）。
+  /// 服务端对非 multipart 请求有 JSON fallback 解析（实测 {"email":..} → ok）。
   static Future<void> sendEmailCode(String email) async {
-    final req =
-        http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/send-email-code'));
-    req.fields['email'] = normalizeEmail(email);
-    final streamed = await req.send().timeout(const Duration(seconds: 20));
-    final r = await http.Response.fromStream(streamed);
-    // 音乐接口成功返回 {"ok": true}；失败返回 {err: msg}（HTTP 非 2xx）
+    final r = await http
+        .post(
+          Uri.parse('$kMusicBase/api/send-email-code'),
+          headers: _headers(),
+          body: jsonEncode({'email': normalizeEmail(email)}),
+        )
+        .timeout(const Duration(seconds: 20));
     final Map<String, dynamic> j;
     try {
       j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
@@ -124,20 +129,22 @@ class ApiClient {
       throw ApiException(r.statusCode, '响应解析失败 (HTTP ${r.statusCode})');
     }
     if (r.statusCode != 200 || j['ok'] != true) {
-      throw ApiException(r.statusCode, (j['err'] ?? j['error'] ?? j['msg'] ?? '发送失败') as String);
+      throw ApiException(r.statusCode,
+          (j['err'] ?? j['error'] ?? j['msg'] ?? '发送失败') as String);
     }
   }
 
   /// 邮箱验证码登录 / 注册（音乐 /music/api/login-email，新邮箱自动注册）
-  /// 成功返回用户资料（含 token）。
+  /// 成功返回用户资料（含 token）。同样用 JSON 而非 multipart（见 sendEmailCode）。
   static Future<Map<String, dynamic>> loginEmail(
       String email, String code) async {
-    final req =
-        http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/login-email'));
-    req.fields['email'] = normalizeEmail(email);
-    req.fields['code'] = code.trim();
-    final streamed = await req.send().timeout(const Duration(seconds: 20));
-    final r = await http.Response.fromStream(streamed);
+    final r = await http
+        .post(
+          Uri.parse('$kMusicBase/api/login-email'),
+          headers: _headers(),
+          body: jsonEncode({'email': normalizeEmail(email), 'code': code.trim()}),
+        )
+        .timeout(const Duration(seconds: 20));
     final Map<String, dynamic> j;
     try {
       j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
@@ -146,7 +153,8 @@ class ApiClient {
     }
     // 音乐登录成功直接返回用户 JSON（含 token，无 ok 包装）；失败返回 {err: msg}
     if (r.statusCode != 200) {
-      throw ApiException(r.statusCode, (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String);
+      throw ApiException(r.statusCode,
+          (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String);
     }
     return j;
   }
