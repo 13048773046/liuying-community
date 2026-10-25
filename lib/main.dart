@@ -83,27 +83,39 @@ class _BootstrapState extends State<_Bootstrap> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 圆角 Logo（同音乐 SplashView cornerRadius 28/112）
+                  // 圆角 Logo：缩小版（96，圆角 24），风格与 iOS SplashView 一致
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(24),
                     child: Image.asset(
                       'assets/logo.png',
-                      width: 112,
-                      height: 112,
+                      width: 96,
+                      height: 96,
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
                     ),
                   ),
                   const SizedBox(height: 22),
-                  const Text('流萤社区',
-                      style: TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 34,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  const Text('让每一份热爱，如流萤般点亮夜晚',
-                      style: TextStyle(
-                          color: Color(AppTheme.textSecondary), fontSize: 14)),
+                  // 名称 + 标语：与 iOS 一致，淡入 + 上浮 10pt
+                  Opacity(
+                    opacity: _appeared ? 1 : 0,
+                    child: Transform.translate(
+                      offset: Offset(0, _appeared ? 0 : 10),
+                      child: Column(
+                        children: const [
+                          Text('流萤社区',
+                              style: TextStyle(
+                                  color: Color(AppTheme.textPrimary),
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.bold)),
+                          SizedBox(height: 8),
+                          Text('让每一份热爱，如流萤般点亮夜晚',
+                              style: TextStyle(
+                                  color: Color(AppTheme.textSecondary),
+                                  fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

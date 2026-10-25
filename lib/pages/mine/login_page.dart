@@ -20,7 +20,8 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _email = TextEditingController();
   final _code = TextEditingController();
-  bool _busy = false;
+  bool _sendingCode = false; // 发送验证码进行中
+  bool _submitting = false; // 登录/注册进行中
   String? _error;
   int _countdown = 0; // 发送验证码倒计时（秒）
   bool _agreed = false;
@@ -33,27 +34,43 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   bool get _canSendCode =>
-      !_busy && _countdown == 0 && _email.text.contains('@');
+      !_sendingCode &&
+      !_submitting &&
+      _countdown == 0 &&
+      ApiClient.isValidEmail(ApiClient.normalizeEmail(_email.text));
 
-  bool get _canSubmit =>
-      !_busy && _email.text.contains('@') && _code.text.trim().length == 6 && _agreed;
+  bool get _canSubmit {
+    final code = _code.text.trim();
+    return !_submitting &&
+        !_sendingCode &&
+        ApiClient.isValidEmail(ApiClient.normalizeEmail(_email.text)) &&
+        code.length == 6 &&
+        _agreed;
+  }
 
   Future<void> _sendCode() async {
+    final email = ApiClient.normalizeEmail(_email.text);
+    if (!ApiClient.isValidEmail(email)) {
+      setState(() {
+        _error = '邮箱格式不正确：仅支持字母、数字和 . _ + -，请检查是否含全角字符或空格';
+      });
+      return;
+    }
     setState(() {
-      _busy = true;
+      _sendingCode = true;
       _error = null;
     });
     try {
-      await ApiClient.sendEmailCode(_email.text);
+      await ApiClient.sendEmailCode(email);
       if (!mounted) return;
       setState(() {
         _countdown = 60;
-        _busy = false;
+        _sendingCode = false;
       });
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-          content: Text('验证码已发送至 ${_email.text.trim().toLowerCase()}，请查收',
+          content: Text('验证码已发送至 $email，请查收',
               style: const TextStyle(fontSize: 13)),
           backgroundColor: const Color(AppTheme.card),
           behavior: SnackBarBehavior.floating,
@@ -71,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       setState(() {
         _error = e is ApiException ? e.message : '发送失败，请检查网络';
-        _busy = false;
+        _sendingCode = false;
       });
     }
   }
@@ -82,11 +99,12 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     setState(() {
-      _busy = true;
+      _submitting = true;
       _error = null;
     });
     try {
-      final j = await ApiClient.loginEmail(_email.text, _code.text);
+      final email = ApiClient.normalizeEmail(_email.text);
+      final j = await ApiClient.loginEmail(email, _code.text);
       final tok = (j['token'] ?? '') as String;
       if (tok.isEmpty) {
         throw ApiException(0, '登录未返回 token');
@@ -102,7 +120,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       setState(() {
         _error = e is ApiException ? e.message : '登录失败，请检查网络';
-        _busy = false;
+        _submitting = false;
       });
     }
   }
@@ -181,7 +199,7 @@ class _LoginPageState extends State<LoginPage> {
                             : const Color(AppTheme.card),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: _busy
+                      child: _sendingCode
                           ? const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -283,7 +301,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   alignment: Alignment.center,
-                  child: _busy
+                  child: _submitting
                       ? const SizedBox(
                           width: 20,
                           height: 20,

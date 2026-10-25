@@ -83,12 +83,37 @@ class ApiClient {
 
   // ---------- 登录互通（音乐） ----------
 
+  /// 邮箱规范化：全角→半角、去零宽字符/内部空格、统一小写。
+  ///
+  /// 后端邮箱正则仅允许 [a-zA-Z0-9_.+-]@[a-zA-Z0-9-].[a-zA-Z0-9-.]+，
+  /// 全角字符（＠、ＡＢＣ、．）、零宽空格、内部空格都会导致「邮箱格式不正确」，
+  /// 这里在客户端先纠正，让"看起来正确"的邮箱能正常通过。
+  static String normalizeEmail(String raw) {
+    final buf = StringBuffer();
+    for (final ch in raw.trim().runes) {
+      if (ch >= 0xFF01 && ch <= 0xFF5E) {
+        buf.writeCharCode(ch - 0xFEE0); // 全角 → 半角
+      } else if (ch == 0x3000 || ch == 0x20) {
+        continue; // 全角空格/普通空格一律剔除
+      } else if (ch == 0x200B || ch == 0x200C || ch == 0x200D || ch == 0xFEFF) {
+        continue; // 剔除零宽空格/BOM
+      } else {
+        buf.writeCharCode(ch);
+      }
+    }
+    return buf.toString().toLowerCase();
+  }
+
+  /// 本地邮箱格式校验（与服务端校验正则完全一致）
+  static bool isValidEmail(String email) =>
+      RegExp(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$').hasMatch(email);
+
   /// 发送邮箱验证码（音乐 /music/api/send-email-code）
   /// 返回 null 表示失败（message 已抛异常）。
   static Future<void> sendEmailCode(String email) async {
     final req =
         http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/send-email-code'));
-    req.fields['email'] = email.trim().toLowerCase();
+    req.fields['email'] = normalizeEmail(email);
     final streamed = await req.send().timeout(const Duration(seconds: 20));
     final r = await http.Response.fromStream(streamed);
     // 音乐接口成功返回 {"ok": true}；失败返回 {err: msg}（HTTP 非 2xx）
@@ -109,7 +134,7 @@ class ApiClient {
       String email, String code) async {
     final req =
         http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/login-email'));
-    req.fields['email'] = email.trim().toLowerCase();
+    req.fields['email'] = normalizeEmail(email);
     req.fields['code'] = code.trim();
     final streamed = await req.send().timeout(const Duration(seconds: 20));
     final r = await http.Response.fromStream(streamed);
