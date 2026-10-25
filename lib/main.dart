@@ -36,7 +36,7 @@ class CommunityApp extends StatelessWidget {
   }
 }
 
-/// 启动引导：恢复本地 token → 进入主界面
+/// 启动引导：展示品牌启动页（logo 圆角 + 名称 + 副标题，淡入缩放）→ 恢复 token → 进入主界面
 class _Bootstrap extends StatefulWidget {
   const _Bootstrap();
 
@@ -46,6 +46,7 @@ class _Bootstrap extends StatefulWidget {
 
 class _BootstrapState extends State<_Bootstrap> {
   bool _ready = false;
+  bool _appeared = false;
 
   @override
   void initState() {
@@ -66,14 +67,46 @@ class _BootstrapState extends State<_Bootstrap> {
   @override
   Widget build(BuildContext context) {
     if (!_ready) {
-      return const Scaffold(
-        backgroundColor: Color(AppTheme.bg),
+      // 品牌启动页：与流萤音乐 SplashView 一致（深底 + 圆角 logo + 名称副标题）
+      return Scaffold(
+        backgroundColor: const Color(AppTheme.bg),
         body: Center(
-          child: SizedBox(
-            width: 26,
-            height: 26,
-            child: CircularProgressIndicator(
-                strokeWidth: 2.5, color: Color(AppTheme.accent)),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.85, end: 1),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOut,
+            onEnd: () => setState(() => _appeared = true),
+            builder: (_, scale, child) =>
+                Opacity(opacity: _appeared ? 1 : 0, child: child),
+            child: Transform.scale(
+              scale: _appeared ? 1 : 0.85,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 圆角 Logo（同音乐 SplashView cornerRadius 28/112）
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: Image.asset(
+                      'assets/logo.png',
+                      width: 112,
+                      height: 112,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const Text('流萤社区',
+                      style: TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('让每一份热爱，如流萤般点亮夜晚',
+                      style: TextStyle(
+                          color: Color(AppTheme.textSecondary), fontSize: 14)),
+                ],
+              ),
+            ),
           ),
         ),
       );

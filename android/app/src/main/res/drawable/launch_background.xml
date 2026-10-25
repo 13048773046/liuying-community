@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 流萤社区启动页：深黑底 + 萤火虫 LOGO 居中 -->
+<!-- 流萤社区启动页：深黑底 + 圆角萤火虫 LOGO 居中（与 iOS 启动图圆角一致） -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/splash_bg" />
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/ic_launcher" />
+            android:src="@drawable/launch_logo" />
     </item>
 </layer-list>

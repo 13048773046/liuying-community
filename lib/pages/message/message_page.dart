@@ -52,7 +52,7 @@ class _MessagePageState extends State<MessagePage> {
             _notifs.addAll(list);
             _page++;
           }
-          _hasMore = (j['hasMore'] ?? false) as bool;
+          _hasMore = boolOf(j['hasMore']);
           _loading = false;
           _listLoading = false;
         });
@@ -186,7 +186,7 @@ class _MessagePageState extends State<MessagePage> {
       final content = (n['content'] ?? '') as String;
       final fromName = (n['fromUserName'] ?? '') as String;
       final created = ((n['created'] ?? 0) as num).toInt();
-      final isRead = (n['isRead'] ?? false) as bool;
+      final isRead = boolOf(n['isRead']);
       final icon = _notifIcon(type);
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),

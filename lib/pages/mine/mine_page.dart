@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
 import 'login_page.dart';
 
@@ -248,7 +249,7 @@ class _MinePageState extends State<MinePage> {
           const Icon(Icons.person_outline,
               size: 64, color: Color(AppTheme.textTertiary)),
           const SizedBox(height: 12),
-          const Text('登录后同步流萤音乐账号',
+          const Text('邮箱验证码登录，账号与流萤音乐互通',
               style: TextStyle(
                   color: Color(AppTheme.textSecondary), fontSize: 14)),
           const SizedBox(height: 24),
@@ -268,7 +269,7 @@ class _MinePageState extends State<MinePage> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text('未注册账号请先在流萤音乐 App 注册',
+          const Text('新邮箱将自动注册，与流萤音乐同一账号体系',
               style: TextStyle(
                   color: Color(AppTheme.textTertiary), fontSize: 11)),
         ],
@@ -279,7 +280,7 @@ class _MinePageState extends State<MinePage> {
   Widget _buildLoggedIn() {
     final user = _me!;
     final title = (user['title'] ?? '') as String;
-    final verified = (user['verified'] ?? false) as bool;
+    final verified = boolOf(user['verified']);
     final verifiedLabel = (user['verifiedLabel'] ?? '') as String;
     final adminLevel = ((user['adminLevel'] ?? 0) as num).toInt();
     final level = ((_level['level'] ?? user['level'] ?? 0) as num).toInt();

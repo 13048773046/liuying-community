@@ -82,7 +82,50 @@ class ApiClient {
 
   // ---------- 登录互通（音乐） ----------
 
-  /// 账号密码登录（走音乐登录接口，返回 token 与用户资料）
+  /// 发送邮箱验证码（音乐 /music/api/send-email-code）
+  /// 返回 null 表示失败（message 已抛异常）。
+  static Future<void> sendEmailCode(String email) async {
+    final req =
+        http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/send-email-code'));
+    req.fields['email'] = email.trim().toLowerCase();
+    final streamed = await req.send().timeout(const Duration(seconds: 20));
+    final r = await http.Response.fromStream(streamed);
+    // 音乐接口成功返回 {"ok": true}；失败返回 {err: msg}（HTTP 非 2xx）
+    final Map<String, dynamic> j;
+    try {
+      j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    } catch (_) {
+      throw ApiException(r.statusCode, '响应解析失败 (HTTP ${r.statusCode})');
+    }
+    if (r.statusCode != 200 || j['ok'] != true) {
+      throw ApiException(r.statusCode, (j['err'] ?? j['error'] ?? j['msg'] ?? '发送失败') as String);
+    }
+  }
+
+  /// 邮箱验证码登录 / 注册（音乐 /music/api/login-email，新邮箱自动注册）
+  /// 成功返回用户资料（含 token）。
+  static Future<Map<String, dynamic>> loginEmail(
+      String email, String code) async {
+    final req =
+        http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/login-email'));
+    req.fields['email'] = email.trim().toLowerCase();
+    req.fields['code'] = code.trim();
+    final streamed = await req.send().timeout(const Duration(seconds: 20));
+    final r = await http.Response.fromStream(streamed);
+    final Map<String, dynamic> j;
+    try {
+      j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    } catch (_) {
+      throw ApiException(r.statusCode, '响应解析失败 (HTTP ${r.statusCode})');
+    }
+    // 音乐登录成功直接返回用户 JSON（含 token，无 ok 包装）；失败返回 {err: msg}
+    if (r.statusCode != 200) {
+      throw ApiException(r.statusCode, (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String);
+    }
+    return j;
+  }
+
+  /// 账号密码登录（音乐 /music/api/login，返回 token 与用户资料）
   /// 返回 null 表示失败（message 已抛异常）。
   static Future<Map<String, dynamic>> login(String account, String password) async {
     final req = http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/login'));
@@ -90,7 +133,16 @@ class ApiClient {
     req.fields['password'] = password;
     final streamed = await req.send().timeout(const Duration(seconds: 20));
     final r = await http.Response.fromStream(streamed);
-    return _unwrap(r); // {ok, token, user:{...}}
+    final Map<String, dynamic> j;
+    try {
+      j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    } catch (_) {
+      throw ApiException(r.statusCode, '响应解析失败 (HTTP ${r.statusCode})');
+    }
+    if (r.statusCode != 200) {
+      throw ApiException(r.statusCode, (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String);
+    }
+    return j;
   }
 
   // ---------- 信息流 ----------

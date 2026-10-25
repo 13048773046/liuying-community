@@ -1,6 +1,20 @@
 /// 信息流统一模型：帖子（text/image/poll）与短视频（video）共用 feed 结构。
 library;
 
+/// 容错布尔解析：后端可能返回 true/false，也可能返回 1/0（int）或 '1'/'0'（string）。
+/// 直接 `as bool` 会在后端返回 0/1 时抛 type 'int' is not a subtype of type 'bool'。
+bool boolOf(dynamic v, [bool fallback = false]) {
+  if (v == null) return fallback;
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  if (v is String) {
+    final s = v.trim().toLowerCase();
+    if (s == 'true' || s == '1') return true;
+    if (s == 'false' || s == '0') return false;
+  }
+  return fallback;
+}
+
 class Author {
   final String id;
   final String name;
@@ -61,10 +75,10 @@ class FeedItem {
         likeCount = ((j['likeCount'] ?? 0) as num).toInt(),
         commentCount = ((j['commentCount'] ?? 0) as num).toInt(),
         shareCount = ((j['shareCount'] ?? 0) as num).toInt(),
-        liked = (j['liked'] ?? false) as bool,
-        faved = (j['faved'] ?? false) as bool,
-        sticky = (j['sticky'] ?? false) as bool,
-        featured = (j['featured'] ?? false) as bool,
+        liked = boolOf(j['liked']),
+        faved = boolOf(j['faved']),
+        sticky = boolOf(j['sticky']),
+        featured = boolOf(j['featured']),
         created = ((j['created'] ?? 0) as num).toInt(),
         author = Author.fromJson((j['author'] ?? {}) as Map<String, dynamic>);
 
@@ -85,7 +99,7 @@ class FeedPage {
             .map(FeedItem.fromJson)
             .toList(),
         page: ((j['page'] ?? 1) as num).toInt(),
-        hasMore: (j['hasMore'] ?? false) as bool,
+        hasMore: boolOf(j['hasMore']),
       );
 }
 

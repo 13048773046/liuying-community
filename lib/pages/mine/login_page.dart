@@ -1,4 +1,6 @@
-/// 登录页：账号互通（走音乐登录接口，同一份 token 双端可用）
+/// 邮箱验证码登录 / 注册页（与流萤音乐互通）：
+/// 走音乐 /music/api/send-email-code + /music/api/login-email，
+/// 新邮箱自动注册、老用户直接登录，成功后 token 双端可用。
 library;
 
 import 'package:flutter/material.dart';
@@ -16,21 +18,57 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _account = TextEditingController();
-  final _password = TextEditingController();
+  final _email = TextEditingController();
+  final _code = TextEditingController();
   bool _busy = false;
   String? _error;
+  int _countdown = 0; // 发送验证码倒计时（秒）
+  bool _agreed = false;
 
   @override
   void dispose() {
-    _account.dispose();
-    _password.dispose();
+    _email.dispose();
+    _code.dispose();
     super.dispose();
   }
 
+  bool get _canSendCode =>
+      !_busy && _countdown == 0 && _email.text.contains('@');
+
+  bool get _canSubmit =>
+      !_busy && _email.text.contains('@') && _code.text.trim().length == 6 && _agreed;
+
+  Future<void> _sendCode() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ApiClient.sendEmailCode(_email.text);
+      if (!mounted) return;
+      setState(() {
+        _countdown = 60;
+        _busy = false;
+      });
+      // 倒计时
+      Future.doWhile(() async {
+        await Future.delayed(const Duration(seconds: 1));
+        if (!mounted) return false;
+        setState(() => _countdown--);
+        return _countdown > 0;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e is ApiException ? e.message : '发送失败，请检查网络';
+        _busy = false;
+      });
+    }
+  }
+
   Future<void> _login() async {
-    if (_account.text.trim().isEmpty || _password.text.isEmpty) {
-      setState(() => _error = '请输入账号和密码');
+    if (!_agreed) {
+      setState(() => _error = '请先阅读并同意用户协议和隐私政策');
       return;
     }
     setState(() {
@@ -38,7 +76,7 @@ class _LoginPageState extends State<LoginPage> {
       _error = null;
     });
     try {
-      final j = await ApiClient.login(_account.text.trim(), _password.text);
+      final j = await ApiClient.loginEmail(_email.text, _code.text);
       final tok = (j['token'] ?? '') as String;
       if (tok.isEmpty) {
         throw ApiException(0, '登录未返回 token');
@@ -92,40 +130,124 @@ class _LoginPageState extends State<LoginPage> {
                       fontSize: 26,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
-              const Text('账号与流萤音乐互通 · 登录一次双端可用',
+              const Text('登录 / 注册',
                   style: TextStyle(
                       color: Color(AppTheme.textSecondary), fontSize: 13)),
               const SizedBox(height: 40),
-              // 账号
+              // 邮箱
               TextField(
-                controller: _account,
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
                 style: const TextStyle(color: Colors.white),
-                decoration: _input('账号 / 手机号', Icons.person_outline),
+                decoration: _input('邮箱地址', Icons.mail_outline),
               ),
               const SizedBox(height: 14),
-              // 密码
-              TextField(
-                controller: _password,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: _input('密码', Icons.lock_outline),
+              // 验证码 + 发送按钮
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _code,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _input('验证码', Icons.verified_outlined)
+                          .copyWith(counterText: ''),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: _canSendCode ? _sendCode : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: _canSendCode
+                            ? const Color(AppTheme.accent)
+                            : const Color(AppTheme.card),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _countdown > 0 ? '${_countdown}s' : '发送验证码',
+                        style: TextStyle(
+                          color: _canSendCode
+                              ? const Color(AppTheme.bg)
+                              : const Color(AppTheme.textSecondary),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // 协议勾选
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _agreed = !_agreed),
+                    child: Icon(
+                      _agreed
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      size: 18,
+                      color: _agreed
+                          ? const Color(AppTheme.accent)
+                          : const Color(AppTheme.textSecondary),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('我已阅读并同意',
+                            style: TextStyle(
+                                color: Color(AppTheme.textSecondary),
+                                fontSize: 12)),
+                        GestureDetector(
+                          onTap: () => _openAgreement(context),
+                          child: const Text('《用户协议》',
+                              style: TextStyle(
+                                  color: Color(AppTheme.accent),
+                                  fontSize: 12)),
+                        ),
+                        const Text('和',
+                            style: TextStyle(
+                                color: Color(AppTheme.textSecondary),
+                                fontSize: 12)),
+                        GestureDetector(
+                          onTap: () => _openPrivacy(context),
+                          child: const Text('《隐私政策》',
+                              style: TextStyle(
+                                  color: Color(AppTheme.accent),
+                                  fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!,
-                    style: const TextStyle(color: Color(0xFFFF4D6D), fontSize: 13)),
+                    style: const TextStyle(
+                        color: Color(0xFFFF4D6D), fontSize: 13)),
               ],
               const SizedBox(height: 26),
               // 登录按钮
               GestureDetector(
-                onTap: _busy ? null : _login,
+                onTap: _canSubmit ? _login : null,
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(AppTheme.gradStart), Color(AppTheme.gradEnd)],
-                    ),
+                    color: _canSubmit
+                        ? const Color(AppTheme.accent)
+                        : const Color(AppTheme.card),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   alignment: Alignment.center,
@@ -135,17 +257,21 @@ class _LoginPageState extends State<LoginPage> {
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2.2, color: Colors.white))
-                      : const Text('登 录',
+                      : Text(
+                          _canSubmit ? '登录 / 注册' : '登录 / 注册',
                           style: TextStyle(
-                              color: Colors.white,
+                              color: _canSubmit
+                                  ? const Color(AppTheme.bg)
+                                  : const Color(AppTheme.textSecondary),
                               fontSize: 16,
-                              fontWeight: FontWeight.w600)),
+                              fontWeight: FontWeight.w600),
+                        ),
                 ),
               ),
               const SizedBox(height: 14),
               Center(
                 child: Text(
-                  '未注册？请先在流萤音乐 App 注册，社区自动互通',
+                  '验证码将发送至邮箱，新用户自动注册 · 账号与流萤音乐互通',
                   style: TextStyle(
                       color: Colors.white.withOpacity(0.5), fontSize: 12),
                 ),
@@ -153,6 +279,36 @@ class _LoginPageState extends State<LoginPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _openAgreement(BuildContext context) {
+    // 与音乐项目共用官网协议页
+    _openUrl(context, 'https://www.dbmt999.asia/user-agreement.html');
+  }
+
+  void _openPrivacy(BuildContext context) {
+    _openUrl(context, 'https://www.dbmt999.asia/privacy-policy.html');
+  }
+
+  void _openUrl(BuildContext context, String url) {
+    // 无 url_launcher 依赖时用系统弹窗提示；后续可接入浏览器插件
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(AppTheme.card),
+        title: const Text('打开协议',
+            style: TextStyle(color: Color(AppTheme.textPrimary))),
+        content: Text(url,
+            style: const TextStyle(color: Color(AppTheme.textSecondary))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('知道了',
+                style: TextStyle(color: Color(AppTheme.accent))),
+          ),
+        ],
       ),
     );
   }

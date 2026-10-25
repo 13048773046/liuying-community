@@ -69,7 +69,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           _items.addAll(list);
           _page++;
         }
-        _hasMore = (j['hasMore'] ?? false) as bool;
+        _hasMore = boolOf(j['hasMore']);
         _listLoading = false;
       });
     } catch (_) {
@@ -83,7 +83,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       final j = await ApiClient.toggleFollow(widget.uid);
       if (!mounted) return;
       setState(() {
-        _user!['following'] = j['following'] as bool;
+        _user!['following'] = boolOf(j['following']);
         _user!['followers'] = (j['followers'] as num).toInt();
       });
     } catch (e) {
@@ -170,7 +170,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final level = ((u['level'] ?? 0) as num).toInt();
     final followers = ((u['followers'] ?? 0) as num).toInt();
     final followings = ((u['followings'] ?? 0) as num).toInt();
-    final following = (u['following'] ?? false) as bool;
+    final following = boolOf(u['following']);
     return Column(
       children: [
         // 头像（带头像框）

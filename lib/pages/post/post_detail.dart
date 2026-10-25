@@ -81,7 +81,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           _comments.addAll(list);
           _cPage++;
         }
-        _cHasMore = (j['hasMore'] ?? false) as bool;
+        _cHasMore = boolOf(j['hasMore']);
         _cLoading = false;
       });
     } catch (_) {

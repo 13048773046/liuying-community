@@ -144,7 +144,7 @@ class _VideoCardState extends State<VideoCard> {
     try {
       final r = await ApiClient.toggleFollow(widget.item.author.id);
       if (!mounted) return;
-      setState(() => _followed = (r['following'] ?? !_followed) as bool);
+      setState(() => _followed = boolOf(r['following'], !_followed));
     } catch (_) {}
   }
 

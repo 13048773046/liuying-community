@@ -57,8 +57,16 @@ class _HomePageState extends State<HomePage> {
         _loading = false;
       });
       if (_items.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('加载失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('加载失败：$e'),
+          backgroundColor: const Color(AppTheme.card),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: '重试',
+            textColor: const Color(AppTheme.accent),
+            onPressed: () => _load(refresh: true),
+          ),
+        ));
       }
     }
   }
@@ -146,7 +154,10 @@ class _HomePageState extends State<HomePage> {
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    const SizedBox(height: 200),
+                    const SizedBox(height: 160),
+                    const Icon(Icons.inbox_outlined,
+                        size: 64, color: Color(AppTheme.textTertiary)),
+                    const SizedBox(height: 12),
                     Center(
                       child: Text(
                         _loading ? '加载中…' : '还没有内容，去发第一帖吧',
@@ -154,6 +165,15 @@ class _HomePageState extends State<HomePage> {
                             color: Color(AppTheme.textSecondary), fontSize: 14),
                       ),
                     ),
+                    if (!_loading) ...[
+                      const SizedBox(height: 8),
+                      const Center(
+                        child: Text('点击右下角按钮发布你的第一条内容',
+                            style: TextStyle(
+                                color: Color(AppTheme.textTertiary),
+                                fontSize: 12)),
+                      ),
+                    ],
                   ],
                 )
               : ListView.builder(
