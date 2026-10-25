@@ -50,6 +50,16 @@ class _LoginPageState extends State<LoginPage> {
         _countdown = 60;
         _busy = false;
       });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('验证码已发送至 ${_email.text.trim().toLowerCase()}，请查收',
+              style: const TextStyle(fontSize: 13)),
+          backgroundColor: const Color(AppTheme.card),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 3),
+        ));
       // 倒计时
       Future.doWhile(() async {
         await Future.delayed(const Duration(seconds: 1));
@@ -139,6 +149,7 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
+                onChanged: (_) => setState(() {}), // 驱动发送按钮可用态
                 style: const TextStyle(color: Colors.white),
                 decoration: _input('邮箱地址', Icons.mail_outline),
               ),
@@ -151,6 +162,7 @@ class _LoginPageState extends State<LoginPage> {
                       controller: _code,
                       keyboardType: TextInputType.number,
                       maxLength: 6,
+                      onChanged: (_) => setState(() {}), // 驱动登录按钮可用态
                       style: const TextStyle(color: Colors.white),
                       decoration: _input('验证码', Icons.verified_outlined)
                           .copyWith(counterText: ''),
@@ -159,7 +171,8 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(width: 10),
                   GestureDetector(
                     onTap: _canSendCode ? _sendCode : null,
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
@@ -168,16 +181,35 @@ class _LoginPageState extends State<LoginPage> {
                             : const Color(AppTheme.card),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
-                        _countdown > 0 ? '${_countdown}s' : '发送验证码',
-                        style: TextStyle(
-                          color: _canSendCode
-                              ? const Color(AppTheme.bg)
-                              : const Color(AppTheme.textSecondary),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: _busy
+                          ? const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 13,
+                                  height: 13,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 1.8,
+                                      color: Color(AppTheme.textSecondary)),
+                                ),
+                                SizedBox(width: 6),
+                                Text('发送中',
+                                    style: TextStyle(
+                                        color: Color(AppTheme.textSecondary),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600)),
+                              ],
+                            )
+                          : Text(
+                              _countdown > 0 ? '${_countdown}s' : '发送验证码',
+                              style: TextStyle(
+                                color: _canSendCode
+                                    ? const Color(AppTheme.bg)
+                                    : const Color(AppTheme.textSecondary),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                     ),
                   ),
                 ],
