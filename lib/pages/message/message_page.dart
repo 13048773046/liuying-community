@@ -27,6 +27,7 @@ class _MessagePageState extends State<MessagePage> {
   int _page = 0;
   bool _listLoading = false;
   bool _needLogin = false; // 401 时引导登录
+  String? _loadError; // 网络/服务异常时的可读错误（显示重试按钮）
 
   @override
   void initState() {
@@ -56,10 +57,12 @@ class _MessagePageState extends State<MessagePage> {
           _hasMore = boolOf(j['hasMore']);
           _loading = false;
           _listLoading = false;
+          _loadError = null;
         });
-        // 全部标记已读
+        // 全部标记已读（fire-and-forget，失败不影响页面）
         if (refresh && list.isNotEmpty) {
-          await ApiClient.markNotificationsRead();
+          // ignore: unawaited_futures
+          ApiClient.markNotificationsRead();
         }
       } else {
         final j = await ApiClient.officialMessages();
@@ -71,16 +74,21 @@ class _MessagePageState extends State<MessagePage> {
           _hasMore = false;
           _loading = false;
           _listLoading = false;
+          _loadError = null;
         });
-        await ApiClient.markOfficialRead();
+        // ignore: unawaited_futures
+        ApiClient.markOfficialRead();
       }
     } catch (e) {
       if (!mounted) return;
+      final is401 = e is ApiException && e.code == 401;
       setState(() {
         _loading = false;
         _listLoading = false;
-        // 未登录 401：不再显示误导性空态，改为登录引导
-        _needLogin = e is ApiException && e.code == 401;
+        // 未登录 401：登录引导空态；其他失败：可读错误 + 重试（不误显示"暂无通知"）
+        _needLogin = is401;
+        _loadError =
+            is401 ? null : (e is ApiException ? e.message : '网络异常，请检查网络后重试');
       });
     }
   }
@@ -93,6 +101,7 @@ class _MessagePageState extends State<MessagePage> {
       if (!mounted) return;
       setState(() {
         _needLogin = false;
+        _loadError = null;
         _notifs = [];
         _official = [];
         _hasMore = false;
@@ -128,18 +137,20 @@ class _MessagePageState extends State<MessagePage> {
                           color: Color(AppTheme.accent), strokeWidth: 2.5))
                   : _needLogin
                       ? _loginEmpty()
-                      : RefreshIndicator(
-                          color: const Color(AppTheme.accent),
-                          backgroundColor: const Color(AppTheme.card),
-                          onRefresh: () => _load(refresh: true),
-                          child: ListView(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 8),
-                            children: _tab == 0
-                                ? _notifTiles()
-                                : _officialTiles(),
-                          ),
-                        ),
+                      : _loadError != null
+                          ? _errorRetry()
+                          : RefreshIndicator(
+                              color: const Color(AppTheme.accent),
+                              backgroundColor: const Color(AppTheme.card),
+                              onRefresh: () => _load(refresh: true),
+                              child: ListView(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                children: _tab == 0
+                                    ? _notifTiles()
+                                    : _officialTiles(),
+                              ),
+                            ),
             ),
           ],
         ),
@@ -420,6 +431,37 @@ class _MessagePageState extends State<MessagePage> {
         ),
         onPressed: _goLogin,
         child: const Text('去登录',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  /// 加载失败空态：可读错误 + 重试（网络/服务异常时不误显示"暂无通知"）
+  Widget _errorRetry() {
+    return _empty(
+      Icons.wifi_off_outlined,
+      '加载失败',
+      _loadError ?? '请检查网络后重试',
+      action: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(AppTheme.accent),
+          side: const BorderSide(color: Color(AppTheme.accent)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+        ),
+        onPressed: () {
+          setState(() {
+            _loadError = null;
+            _loading = true;
+            _notifs = [];
+            _official = [];
+            _hasMore = false;
+            _page = 0;
+          });
+          _load(refresh: true);
+        },
+        child: const Text('重新加载',
             style: TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
