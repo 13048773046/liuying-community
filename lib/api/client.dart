@@ -3,6 +3,7 @@
 /// - 登录：走音乐 /music/api/login（multipart），拿同一份 token
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -167,28 +168,84 @@ class ApiClient {
 
   // ---------- 上传（multipart） ----------
 
-  /// 上传图片（返回 {name}）
-  static Future<Map<String, dynamic>> uploadImage(String filePath) async {
-    final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-image'));
-    if (token != null && token!.isNotEmpty) {
-      req.headers['Authorization'] = 'Bearer $token';
+  /// 将底层网络异常归类为用户可读的中文提示；未知异常保留原文。
+  static ApiException _netError(Object e, String action) {
+    if (e is TimeoutException) {
+      return ApiException(0, '$action超时，请检查网络后重试');
     }
-    req.files.add(await http.MultipartFile.fromPath('file', filePath));
-    final r = await http.Response.fromStream(
-        await req.send().timeout(const Duration(seconds: 90)));
-    return _unwrap(r);
+    if (e is SocketException) {
+      return ApiException(0, '网络连接中断，请检查网络后重试');
+    }
+    if (e is http.ClientException) {
+      final msg = e.message;
+      if (msg.contains('SocketException') || msg.contains('Connection')) {
+        return ApiException(0, '网络连接异常，请稍后重试');
+      }
+      return ApiException(0, '$action失败：$msg');
+    }
+    if (e is ApiException) return e;
+    return ApiException(0, '$action失败，请重试');
+  }
+
+  /// 上传图片（返回 {name}；上传前本地校验 ≤10MB，失败中文提示）
+  static Future<Map<String, dynamic>> uploadImage(String filePath) async {
+    const maxBytes = 10 * 1024 * 1024; // 10MB
+    final f = File(filePath);
+    if (!f.existsSync()) throw ApiException(400, '图片文件不存在');
+    final size = f.lengthSync();
+    if (size > maxBytes) {
+      throw ApiException(413, '图片过大（≤10MB），请压缩后重试');
+    }
+    try {
+      final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-image'));
+      if (token != null && token!.isNotEmpty) {
+        req.headers['Authorization'] = 'Bearer $token';
+      }
+      req.files.add(await http.MultipartFile.fromPath('file', filePath));
+      final r = await http.Response.fromStream(
+          await req.send().timeout(const Duration(seconds: 90)));
+      return _unwrap(r);
+    } catch (e) {
+      throw _netError(e, '图片上传');
+    }
   }
 
   /// 上传视频（返回 {videoId, name, status}，异步转码）
+  ///
+  /// - 上传前本地校验：文件存在、≤50MB（服务端限制），超限直接中文提示；
+  /// - 网络中断（SocketException/Broken pipe，多为网关/服务端拒绝大文件或断网）自动重试 1 次；
+  /// - 所有网络异常归类为中文文案，不再把原始英文异常抛给 UI。
   static Future<Map<String, dynamic>> uploadVideo(String filePath) async {
-    final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-video'));
-    if (token != null && token!.isNotEmpty) {
-      req.headers['Authorization'] = 'Bearer $token';
+    const maxBytes = 50 * 1024 * 1024; // 50MB
+    final f = File(filePath);
+    if (!f.existsSync()) throw ApiException(400, '视频文件不存在');
+    final size = f.lengthSync();
+    if (size > maxBytes) {
+      throw ApiException(413, '视频过大（≤50MB），请压缩后重试');
     }
-    req.files.add(await http.MultipartFile.fromPath('file', filePath));
-    final r = await http.Response.fromStream(
-        await req.send().timeout(const Duration(seconds: 300)));
-    return _unwrap(r);
+    Object? lastErr;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final req =
+            http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-video'));
+        if (token != null && token!.isNotEmpty) {
+          req.headers['Authorization'] = 'Bearer $token';
+        }
+        req.files.add(await http.MultipartFile.fromPath('file', filePath));
+        final r = await http.Response.fromStream(
+            await req.send().timeout(const Duration(seconds: 300)));
+        return _unwrap(r);
+      } catch (e) {
+        // 仅在“未收到服务端响应”的网络类异常下重试，业务错误（_unwrap 抛的
+        // ApiException）直接透传，不重试。
+        if (e is ApiException) rethrow;
+        lastErr = e;
+        if (attempt == 0) {
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
+    }
+    throw _netError(lastErr!, '视频上传');
   }
 
   /// 视频状态（转码进度）
