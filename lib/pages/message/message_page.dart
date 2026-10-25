@@ -218,74 +218,7 @@ class _MessagePageState extends State<MessagePage> {
             '点赞、评论、@提及、审核结果都会出现在这里'),
       ];
     }
-    final List<Widget> tiles = _notifs.map((n) {
-      final type = (n['type'] ?? '') as String;
-      final title = (n['title'] ?? '') as String;
-      final content = (n['content'] ?? '') as String;
-      final fromName = (n['fromUserName'] ?? '') as String;
-      final created = ((n['created'] ?? 0) as num).toInt();
-      final isRead = boolOf(n['isRead']);
-      final icon = _notifIcon(type);
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.accentSoft),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(icon, color: const Color(AppTheme.accent), size: 19),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(title,
-                            style: TextStyle(
-                              color: isRead
-                                  ? const Color(AppTheme.textSecondary)
-                                  : const Color(AppTheme.textPrimary),
-                              fontSize: 14,
-                              fontWeight:
-                                  isRead ? FontWeight.normal : FontWeight.w600,
-                            )),
-                      ),
-                      Text(timeAgo(created),
-                          style: const TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 11)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    fromName.isEmpty ? content : '$fromName：$content',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Color(AppTheme.textSecondary),
-                        fontSize: 13,
-                        height: 1.4),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }).toList();
+    final List<Widget> tiles = _notifs.map(buildNotifTile).toList();
     if (_hasMore) {
       tiles.add(GestureDetector(
         onTap: () => _load(),
@@ -307,72 +240,7 @@ class _MessagePageState extends State<MessagePage> {
       return [_empty(Icons.campaign_outlined, '暂无社区官方通知',
           '官方公告、活动提醒会在这里通知你')];
     }
-    return _official.map((m) {
-      final content = (m['content'] ?? '') as String;
-      final sender = (m['senderName'] ?? '') as String;
-      final created = ((m['created'] ?? 0) as num).toInt();
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.sky).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: const Icon(Icons.campaign_outlined,
-                  color: Color(AppTheme.sky), size: 19),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(sender.isEmpty ? '流萤社区官方' : sender,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(content,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textSecondary),
-                          fontSize: 13,
-                          height: 1.4)),
-                  const SizedBox(height: 4),
-                  Text(timeAgo(created),
-                      style: const TextStyle(
-                          color: Color(AppTheme.textTertiary), fontSize: 11)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }).toList();
-  }
-
-  IconData _notifIcon(String type) {
-    switch (type) {
-      case 'community_mention':
-        return Icons.alternate_email;
-      case 'community_audit':
-        return Icons.fact_check_outlined;
-      case 'community_interact':
-        return Icons.favorite_outline;
-      case 'community_follow':
-        return Icons.person_add_alt;
-      default:
-        return Icons.notifications_none;
-    }
+    return _official.map(buildOfficialTile).toList();
   }
 
   Widget _empty(IconData icon, String title, String subtitle,
@@ -466,4 +334,159 @@ class _MessagePageState extends State<MessagePage> {
       ),
     );
   }
+}
+
+// ==================== 顶层 tile 构建（公开，供渲染回归测试直接驱动） ====================
+
+/// 容错字符串化：null/数字/布尔/嵌套结构一律安全转字符串，杜绝类型强转崩溃
+String _strOf(dynamic v) => v == null ? '' : v.toString();
+
+/// 容错时间戳：支持 int/double/数字字符串，解析失败归 0
+int _numOf(dynamic v) {
+  if (v is num) return v.toInt();
+  if (v is String) {
+    final s = v.trim();
+    if (s.isEmpty) return 0;
+    return int.tryParse(s) ?? double.tryParse(s)?.toInt() ?? 0;
+  }
+  return 0;
+}
+
+/// 通知类型 → 图标
+IconData _notifIcon(String type) {
+  switch (type) {
+    case 'community_mention':
+      return Icons.alternate_email;
+    case 'community_audit':
+      return Icons.fact_check_outlined;
+    case 'community_interact':
+      return Icons.favorite_outline;
+    case 'community_follow':
+      return Icons.person_add_alt;
+    default:
+      return Icons.notifications_none;
+  }
+}
+
+/// 单条互动通知卡片（对任何脏数据都安全渲染）
+Widget buildNotifTile(Map<String, dynamic> n) {
+  final type = _strOf(n['type']);
+  final title = _strOf(n['title']);
+  final content = _strOf(n['content']);
+  final fromName = _strOf(n['fromUserName']);
+  final created = _numOf(n['created']);
+  final isRead = boolOf(n['isRead']);
+  final icon = _notifIcon(type);
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(AppTheme.card),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: const Color(AppTheme.accentSoft),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, color: const Color(AppTheme.accent), size: 19),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(title,
+                        style: TextStyle(
+                          color: isRead
+                              ? const Color(AppTheme.textSecondary)
+                              : const Color(AppTheme.textPrimary),
+                          fontSize: 14,
+                          fontWeight:
+                              isRead ? FontWeight.normal : FontWeight.w600,
+                        )),
+                  ),
+                  Text(timeAgo(created),
+                      style: const TextStyle(
+                          color: Color(AppTheme.textTertiary),
+                          fontSize: 11)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                fromName.isEmpty ? content : '$fromName：$content',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Color(AppTheme.textSecondary),
+                    fontSize: 13,
+                    height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// 单条社区官方通知卡片（对任何脏数据都安全渲染）
+Widget buildOfficialTile(Map<String, dynamic> m) {
+  final content = _strOf(m['content']);
+  final sender = _strOf(m['senderName']);
+  final created = _numOf(m['created']);
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(AppTheme.card),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: const Color(AppTheme.sky).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: const Icon(Icons.campaign_outlined,
+              color: Color(AppTheme.sky), size: 19),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(sender.isEmpty ? '流萤社区官方' : sender,
+                  style: const TextStyle(
+                      color: Color(AppTheme.textPrimary),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(content,
+                  style: const TextStyle(
+                      color: Color(AppTheme.textSecondary),
+                      fontSize: 13,
+                      height: 1.4)),
+              const SizedBox(height: 4),
+              Text(timeAgo(created),
+                  style: const TextStyle(
+                      color: Color(AppTheme.textTertiary), fontSize: 11)),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }

@@ -487,6 +487,7 @@ def _handle_official(self, c, u, api, method):
             " AND (receiver_user_id='' OR receiver_user_id=?) ORDER BY created ASC LIMIT 100",
             (after, uid)).fetchall()
         c.commit()
+        # 表列序：id, content, sender_name, receiver_user_id, created
         self._ok({"list": [{"id": r[0], "content": r[1], "senderName": r[2],
                             "created": r[4]} for r in rows]})
         return True

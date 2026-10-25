@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api/client.dart';
 import 'config.dart';
+import 'pages/feedback/feedback_page.dart';
 import 'pages/root_page.dart';
 
 void main() {
@@ -14,27 +15,75 @@ void main() {
   // 全局渲染兜底：任何页面渲染异常都显示可读错误页（深色+文案），
   // 杜绝"白屏/空白无反馈"。错误页自身必须极简，避免二次异常。
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    return const Scaffold(
-      backgroundColor: Color(AppTheme.bg),
-      body: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline_rounded,
-                  color: Color(0xFFFF6B6B), size: 44),
-              SizedBox(height: 14),
-              Text('页面渲染异常，请重启 App',
-                  style: TextStyle(
-                      color: Color(AppTheme.textPrimary),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600)),
-              SizedBox(height: 6),
-              Text('若仍出现请联系开发者反馈',
-                  style: TextStyle(
-                      color: Color(AppTheme.textTertiary), fontSize: 12)),
-            ],
+    final msg = details.exceptionAsString();
+    return Scaffold(
+      backgroundColor: const Color(AppTheme.bg),
+      body: Builder(
+        builder: (ctx) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    color: Color(0xFFFF6B6B), size: 44),
+                const SizedBox(height: 14),
+                const Text('页面渲染异常，请重启 App',
+                    style: TextStyle(
+                        color: Color(AppTheme.textPrimary),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                const Text('若仍出现请联系开发者反馈',
+                    style: TextStyle(
+                        color: Color(AppTheme.textTertiary), fontSize: 12)),
+                // 显示异常摘要（最多 4 行），便于用户截图反馈、快速定位
+                if (msg.trim().isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0x1AFFFFFF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      msg.trim(),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: Color(0xFFFF8A8A),
+                          fontSize: 11,
+                          height: 1.4),
+                    ),
+                  ),
+                ],
+                // 一键反馈：把异常摘要预填进意见反馈页，提交后开发者后台可见
+                const SizedBox(height: 18),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(AppTheme.accent),
+                    side: const BorderSide(color: Color(AppTheme.accent)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 22, vertical: 10),
+                  ),
+                  onPressed: () {
+                    Navigator.of(ctx).push(
+                      MaterialPageRoute(
+                        builder: (_) => FeedbackPage(
+                            initialContent:
+                                '【页面渲染异常】${msg.trim()}\n请帮我定位修复'),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.feedback_outlined, size: 16),
+                  label: const Text('反馈此问题',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
           ),
         ),
       ),

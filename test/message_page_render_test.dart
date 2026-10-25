@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:community_app/models/feed_item.dart';
 import 'package:community_app/pages/message/message_page.dart';
 
 void main() {
@@ -45,5 +46,22 @@ void main() {
       if (find.text(t).evaluate().isNotEmpty) visible.add(t);
     }
     expect(visible, isNotEmpty, reason: '官方通知 tab 也不能白屏');
+  });
+
+  test('消息页 tile 依赖的容错函数对脏数据不崩', () {
+    // boolOf：后端 isRead 可能为 0/1/null/'1'，全部安全
+    expect(boolOf(0), false);
+    expect(boolOf(1), true);
+    expect(boolOf(null), false);
+    expect(boolOf('1'), true);
+    expect(boolOf('0'), false);
+    // timeAgo：created 为 double 时间戳（后端 REAL）或 0/负数，全部安全
+    expect(timeAgo(1730000000), isNotEmpty);
+    expect(timeAgo(0), isNotEmpty); // 走日期分支
+    expect(timeAgo(-1), isNotEmpty);
+    expect(timeAgo(DateTime.now().millisecondsSinceEpoch ~/ 1000), '刚刚');
+    // countText 边界
+    expect(countText(0), '0');
+    expect(countText(12345), '1.2w');
   });
 }

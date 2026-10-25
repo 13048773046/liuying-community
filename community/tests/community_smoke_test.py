@@ -215,6 +215,10 @@ def _run(users, tokens, adm_tok):
     check("官方通知发布", s == 200)
     s, r = req("GET", "/official-messages", token=t1)
     check("官方通知读取(独立表)", s == 200 and len(r.get("list", [])) == 1)
+    om = r.get("list", [])[0] if r.get("list") else {}
+    check("官方通知字段正确", s == 200 and isinstance(om.get("created"), (int, float))
+          and om.get("senderName") == "流萤社区官方"
+          and isinstance(om.get("content"), str) and len(om.get("content", "")) > 0)
     s, r = req("POST", "/official-messages/read", {}, token=t1)
     check("官方已读", s == 200)
     s, r = req("GET", "/notifications/unread", token=t1)

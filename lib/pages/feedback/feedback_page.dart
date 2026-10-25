@@ -8,7 +8,10 @@ import '../../config.dart';
 import '../mine/login_page.dart';
 
 class FeedbackPage extends StatefulWidget {
-  const FeedbackPage({super.key});
+  const FeedbackPage({super.key, this.initialContent});
+
+  /// 预填内容（如错误页一键反馈携带的异常摘要）
+  final String? initialContent;
 
   @override
   State<FeedbackPage> createState() => _FeedbackPageState();
@@ -16,7 +19,8 @@ class FeedbackPage extends StatefulWidget {
 
 class _FeedbackPageState extends State<FeedbackPage> {
   String _type = 'bug';
-  final TextEditingController _content = TextEditingController();
+  late final TextEditingController _content =
+      TextEditingController(text: widget.initialContent ?? '');
   final TextEditingController _contact = TextEditingController();
   bool _submitting = false;
 
