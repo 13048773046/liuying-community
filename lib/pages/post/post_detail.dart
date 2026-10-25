@@ -12,6 +12,7 @@ import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../../widgets/image_box.dart';
 import '../../widgets/emoji_panel.dart';
+import '../mine/login_page.dart';
 import '../user/user_profile.dart';
 
 class PostDetailPage extends StatefulWidget {
@@ -122,6 +123,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
     final text = _commentCtrl.text.trim();
     if (text.isEmpty && _commentImage == null) {
       _toast('评论内容不能为空');
+      return;
+    }
+    // 登录检查：未登录 → 提示并跳登录页（避免 401 生硬报错）
+    if (ApiClient.token == null || ApiClient.token!.isEmpty) {
+      _toast('请先登录后评论（账号与流萤音乐互通）');
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
       return;
     }
     List<String> imgs = [];

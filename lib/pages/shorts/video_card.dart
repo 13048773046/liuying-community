@@ -12,6 +12,8 @@ import 'package:video_player/video_player.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
+import '../mine/login_page.dart';
+import 'comment_sheet.dart';
 
 class VideoCard extends StatefulWidget {
   final FeedItem item;
@@ -158,6 +160,25 @@ class _VideoCardState extends State<VideoCard> {
     // TODO: 接入 share_plus 后打开系统分享面板
   }
 
+  /// 打开评论面板：游客也可浏览评论；发送时才要求登录
+  Future<void> _openComments() async {
+    final added = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => CommentSheet(
+        postId: widget.item.id,
+        initialCount: _commentCount,
+      ),
+    );
+    if (!mounted) return;
+    // 面板内新增评论后回传 +1，同步侧栏计数
+    if (added != null && added > 0) {
+      setState(() => _commentCount += added);
+    }
+  }
+
+  /// 未登录：弹提示并跳转登录页（登录后自动恢复）
   void _needLogin() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -165,6 +186,12 @@ class _VideoCardState extends State<VideoCard> {
         duration: Duration(seconds: 2),
       ),
     );
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+    });
   }
 
   // ---------- UI ----------
@@ -371,7 +398,7 @@ class _VideoCardState extends State<VideoCard> {
             _RailAction(
               icon: Icons.chat_bubble_outline,
               count: _commentCount,
-              onTap: () => _needLogin(),
+              onTap: _openComments,
             ),
             _RailAction(
               icon: Icons.arrow_upward_outlined,
