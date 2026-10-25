@@ -11,6 +11,35 @@ import 'pages/root_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // 全局渲染兜底：任何页面渲染异常都显示可读错误页（深色+文案），
+  // 杜绝"白屏/空白无反馈"。错误页自身必须极简，避免二次异常。
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return const Scaffold(
+      backgroundColor: Color(AppTheme.bg),
+      body: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline_rounded,
+                  color: Color(0xFFFF6B6B), size: 44),
+              SizedBox(height: 14),
+              Text('页面渲染异常，请重启 App',
+                  style: TextStyle(
+                      color: Color(AppTheme.textPrimary),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+              SizedBox(height: 6),
+              Text('若仍出现请联系开发者反馈',
+                  style: TextStyle(
+                      color: Color(AppTheme.textTertiary), fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
   runApp(const CommunityApp());
 }
 
