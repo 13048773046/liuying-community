@@ -12,6 +12,8 @@ import '../favorites/favorites_page.dart';
 import '../feedback/feedback_page.dart';
 import '../user/user_profile.dart';
 import '../mine/login_page.dart';
+import '../mine/task_center_page.dart';
+import '../mine/frames_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -150,6 +152,13 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 12),
             _group('功能'),
+            _tile(Icons.emoji_events_outlined, '每日签到', () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const TaskCenterPage()))),
+            _tile(Icons.auto_awesome_outlined, '个性装扮', () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FramesPage()))),
             _tile(Icons.bookmark_border, '我的收藏', () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const FavoritesPage()))),

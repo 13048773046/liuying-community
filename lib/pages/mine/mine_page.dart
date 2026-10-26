@@ -32,7 +32,6 @@ class _MinePageState extends State<MinePage> {
   Map<String, dynamic> _level = {};
   List<String> _signins = [];
   bool _signing = false;
-  List<Map<String, dynamic>> _frames = [];
   String _myFrame = '';
   // A2 作品 Tab：帖子 / 收藏 / 稍后看
   int _tab = 0;
@@ -179,15 +178,11 @@ class _MinePageState extends State<MinePage> {
     try {
       final lv = await ApiClient.levelMe();
       final sg = await ApiClient.signins();
-      final fr = await ApiClient.frames();
       final mf = await ApiClient.myFrame();
       if (!mounted) return;
       setState(() {
         _level = Map<String, dynamic>.from(lv);
         _signins = ((sg['list'] ?? []) as List).map((e) => e.toString()).toList();
-        _frames = ((fr['list'] ?? []) as List)
-            .whereType<Map<String, dynamic>>()
-            .toList();
         _myFrame = (mf['frameId'] ?? '') as String;
       });
     } catch (_) {}
@@ -222,106 +217,6 @@ class _MinePageState extends State<MinePage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('$e'), backgroundColor: const Color(AppTheme.card)));
     }
-  }
-
-  Future<void> _openFrames() async {
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(AppTheme.card),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 10),
-              child: Text('个性装扮 · 头像框',
-                  style: TextStyle(
-                      color: Color(AppTheme.textPrimary),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-            ),
-            Flexible(
-              child: GridView.builder(
-                shrinkWrap: true,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3, mainAxisSpacing: 10, crossAxisSpacing: 10),
-                itemCount: _frames.length + 1,
-                padding: const EdgeInsets.all(16),
-                itemBuilder: (_, i) {
-                  if (i == 0) {
-                    return _frameCell(
-                        id: '', name: '无头像框', isDefault: true);
-                  }
-                  final f = _frames[i - 1];
-                  return _frameCell(
-                      id: (f['id'] ?? '') as String,
-                      name: (f['name'] ?? '') as String,
-                      isDefault: false);
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _frameCell({required String id, required String name, required bool isDefault}) {
-    final sel = _myFrame == id;
-    return GestureDetector(
-      onTap: () async {
-        try {
-          await ApiClient.equipFrame(id);
-          if (!mounted) return;
-          setState(() => _myFrame = id);
-          Navigator.pop(context);
-        } catch (e) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('$e'), backgroundColor: const Color(AppTheme.card)));
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.bg),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: sel ? const Color(AppTheme.accent) : const Color(AppTheme.border),
-            width: sel ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: sel
-                    ? Border.all(color: const Color(AppTheme.accent), width: 2)
-                    : null,
-              ),
-              child: CircleAvatar(
-                radius: 22,
-                backgroundColor: const Color(AppTheme.card),
-                child: const Icon(Icons.person, color: Color(AppTheme.textSecondary)),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Color(AppTheme.textSecondary), fontSize: 11)),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -780,16 +675,13 @@ class _MinePageState extends State<MinePage> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                // 轻量入口行：任务 / 个性装扮（签到已移左上角，反馈/关于移入设置页）
+                // 轻量入口：任务（签到在左上角；装扮/反馈/关于已移入设置页）
                 Row(
                   children: [
                     _pillEntry(Icons.emoji_events_outlined, '任务', () {
                       Navigator.push(context,
                           MaterialPageRoute(builder: (_) => const TaskCenterPage()));
                     }),
-                    const SizedBox(width: 8),
-                    _pillEntry(Icons.auto_awesome_outlined, '个性装扮',
-                        _openFrames),
                   ],
                 ),
               ],
