@@ -391,9 +391,11 @@ class ApiClient {
       get('/dm/messages',
           query: {'peer': peer, if (before > 0) 'before': '$before', 'limit': '$limit'});
 
-  /// 发送私信（互关校验在服务端）
-  static Future<Map<String, dynamic>> dmSend(String peer, String content) =>
-      post('/dm/send', body: {'peer': peer, 'content': content});
+  /// 发送私信（互关校验在服务端；type: text/image/video/location/card）
+  static Future<Map<String, dynamic>> dmSend(String peer, String content,
+          {String type = 'text'}) =>
+      post('/dm/send',
+          body: {'peer': peer, 'content': content, 'type': type});
 
   /// 标记某会话已读
   static Future<void> dmRead(String peer) async {

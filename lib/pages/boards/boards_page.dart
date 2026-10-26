@@ -1,4 +1,5 @@
-/// 版块页：多级版块 + 话题入口（板列表来自 /boards）
+/// 版块页：顶部一级 Tab 横滑 + 下方二级子版块列表（类抖音/QQ 频道式）
+/// 数据来自 /boards（含 children 二级分类）
 library;
 
 import 'package:flutter/material.dart';
@@ -36,6 +37,7 @@ class BoardsPage extends StatefulWidget {
 class _BoardsPageState extends State<BoardsPage> {
   List<Board> _boards = [];
   bool _loading = true;
+  int _sel = 0; // 选中的一级板块下标
 
   @override
   void initState() {
@@ -81,6 +83,7 @@ class _BoardsPageState extends State<BoardsPage> {
                 ),
               ),
             ),
+            if (!_loading && _boards.isNotEmpty) _topTabs(),
             Expanded(
               child: _loading
                   ? const Center(
@@ -91,18 +94,7 @@ class _BoardsPageState extends State<BoardsPage> {
                           child: Text('暂无版块',
                               style: TextStyle(
                                   color: Color(AppTheme.textSecondary))))
-                      : GridView.builder(
-                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 1.25,
-                          ),
-                          itemCount: _boards.length,
-                          itemBuilder: (_, i) => _boardCard(_boards[i]),
-                        ),
+                      : _subList(_boards[_sel]),
             ),
           ],
         ),
@@ -110,211 +102,151 @@ class _BoardsPageState extends State<BoardsPage> {
     );
   }
 
-  Widget _boardCard(Board b) {
-    final color = _parseColor(b.color);
-    final shown = b.children.take(2).toList();
-    final more = b.children.length - shown.length;
-    return GestureDetector(
-      onTap: () => _openBoard(b),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(b.icon,
-                      style: const TextStyle(fontSize: 18)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    b.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            if (b.children.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final c in shown)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(
-                            AppTheme.radiusPill),
-                      ),
-                      child: Text(
-                        '${c.icon} ${c.name}',
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 10.5),
-                      ),
-                    ),
-                  if (more > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(AppTheme.elevated),
-                        borderRadius: BorderRadius.circular(
-                            AppTheme.radiusPill),
-                      ),
-                      child: Text('+$more',
-                          style: const TextStyle(
-                              color: Color(AppTheme.textSecondary),
-                              fontSize: 10.5)),
-                    ),
-                ],
-            ),
-            if (b.children.isEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  b.postCount > 0 ? '${_fmt(b.postCount)} 帖子' : '新板块',
-                  style: const TextStyle(
-                      color: Color(AppTheme.textTertiary), fontSize: 11),
+  /// 顶部一级板块 Tab（横向滑，选中薄荷绿）
+  Widget _topTabs() {
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _boards.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final b = _boards[i];
+          final selected = i == _sel;
+          return GestureDetector(
+            onTap: () => setState(() => _sel = i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected
+                    ? const Color(AppTheme.accent).withValues(alpha: 0.16)
+                    : const Color(AppTheme.card),
+                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                border: Border.all(
+                    color: selected
+                        ? const Color(AppTheme.accent)
+                        : const Color(AppTheme.border),
+                    width: selected ? 1.2 : 0.5),
+              ),
+              child: Text(
+                '${b.icon} ${b.name}',
+                style: TextStyle(
+                  color: selected
+                      ? const Color(AppTheme.accent)
+                      : const Color(AppTheme.textSecondary),
+                  fontSize: 13,
+                  fontWeight:
+                      selected ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
-          ],
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  void _openBoard(Board b) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(AppTheme.card),
-      shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(AppTheme.radiusSheet))),
-      builder: (ctx) => SafeArea(
+  /// 二级子版块列表（选中一级下的 children）
+  Widget _subList(Board b) {
+    final color = _parseColor(b.color);
+    if (b.children.isEmpty) {
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: _parseColor(b.color).withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(b.icon,
-                        style: const TextStyle(fontSize: 16)),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(b.name,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-            if (b.children.isEmpty)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 4, 16, 20),
-                child: Text('该版块暂无子版块',
+            Text('${b.icon} ${b.name} 暂无子版块',
+                style: const TextStyle(
+                    color: Color(AppTheme.textSecondary), fontSize: 13)),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          BoardFeedPage(boardId: b.id, title: b.name))),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(AppTheme.accent),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                ),
+                child: const Text('进入板块',
                     style: TextStyle(
-                        color: Color(AppTheme.textSecondary),
-                        fontSize: 13)),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final c in b.children)
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => BoardFeedPage(
-                                      boardId: c.id, title: c.name)));
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _parseColor(b.color).withValues(alpha: 0.12),
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusPill),
-                          ),
-                          child: Text(
-                            '${c.icon} ${c.name}',
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 12.5),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            // 进入板块
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) =>
-                              BoardFeedPage(boardId: b.id, title: b.name)));
-                },
-                child: Container(
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(AppTheme.accent),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  ),
-                  child: const Text('进入板块',
-                      style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold)),
-                ),
+                        color: Colors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
               ),
             ),
           ],
         ),
-      ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
+      itemCount: b.children.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) {
+        final c = b.children[i];
+        return GestureDetector(
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) =>
+                      BoardFeedPage(boardId: c.id, title: c.name))),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(AppTheme.card),
+              borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(c.icon,
+                      style: const TextStyle(fontSize: 19)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(c.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(
+                        c.postCount > 0
+                            ? '${_fmt(c.postCount)} 帖子'
+                            : '新板块',
+                        style: const TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: Color(AppTheme.textTertiary), size: 20),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
