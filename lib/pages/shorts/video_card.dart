@@ -354,43 +354,37 @@ class _VideoCardState extends State<VideoCard> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 抖音式：作者头像（更大）+ 关注加号遮住头像右下角
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                _RailAvatar(
-                  avatar: a.avatar,
-                  size: 48,
-                  onTap: a.id.isEmpty
-                      ? null
-                      : () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => UserProfilePage(uid: a.id)),
-                          ),
-                ),
-                if (!_followed && a.id.isNotEmpty)
-                  Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: GestureDetector(
-                      onTap: _toggleFollow,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF4D6D),
-                          shape: BoxShape.circle,
-                          border:
-                              Border.all(color: Colors.white, width: 1.5),
-                        ),
-                        child:
-                            const Icon(Icons.add, size: 13, color: Colors.white),
+            // 抖音式：作者头像，关注加号在头像正下方水平居中（加大+间距拉开）
+            _RailAvatar(
+              avatar: a.avatar,
+              size: 48,
+              onTap: a.id.isEmpty
+                  ? null
+                  : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => UserProfilePage(uid: a.id)),
                       ),
-                    ),
-                  ),
-              ],
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 8),
+            if (!_followed && a.id.isNotEmpty)
+              Center(
+                child: GestureDetector(
+                  onTap: _toggleFollow,
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4D6D),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: const Icon(Icons.add, size: 17, color: Colors.white),
+                  ),
+                ),
+              )
+            else if (a.id.isNotEmpty)
+              const SizedBox(height: 26),
+            const SizedBox(height: 20),
             _RailAction(
               asset: 'assets/icons/heart.svg',
               color: _liked ? const Color(0xFFFF4D6D) : Colors.white,
@@ -665,7 +659,7 @@ class _RailAction extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.only(bottom: 20),
         child: Column(
           children: [
             // 无圆形卡片背景：网上下载的开源实心图标（抖音式操作栏）
