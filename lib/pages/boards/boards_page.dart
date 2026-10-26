@@ -88,8 +88,15 @@ class _BoardsPageState extends State<BoardsPage> {
                           child: Text('暂无版块',
                               style: TextStyle(
                                   color: Color(AppTheme.textSecondary))))
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                      : GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 1.25,
+                          ),
                           itemCount: _boards.length,
                           itemBuilder: (_, i) => _boardCard(_boards[i]),
                         ),
@@ -102,64 +109,162 @@ class _BoardsPageState extends State<BoardsPage> {
 
   Widget _boardCard(Board b) {
     final color = _parseColor(b.color);
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(AppTheme.card),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.16),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Text(b.icon,
-                    style: const TextStyle(fontSize: 20)),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                b.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          if (b.children.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+    final shown = b.children.take(2).toList();
+    final more = b.children.length - shown.length;
+    return GestureDetector(
+      onTap: () => _openBoard(b),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.card),
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                for (final c in b.children)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${c.icon} ${c.name}',
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 12),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(b.icon,
+                      style: const TextStyle(fontSize: 18)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    b.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                ),
               ],
             ),
+            const Spacer(),
+            if (b.children.isNotEmpty)
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final c in shown)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(
+                            AppTheme.radiusPill),
+                      ),
+                      child: Text(
+                        '${c.icon} ${c.name}',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 10.5),
+                      ),
+                    ),
+                  if (more > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(AppTheme.elevated),
+                        borderRadius: BorderRadius.circular(
+                            AppTheme.radiusPill),
+                      ),
+                      child: Text('+$more',
+                          style: const TextStyle(
+                              color: Color(AppTheme.textSecondary),
+                              fontSize: 10.5)),
+                    ),
+                ],
+            ),
           ],
-        ],
+        ),
+      ),
+    );
+  }
+
+  void _openBoard(Board b) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(AppTheme.card),
+      shape: const RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(AppTheme.radiusSheet))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: _parseColor(b.color).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(b.icon,
+                        style: const TextStyle(fontSize: 16)),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(b.name,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            if (b.children.isEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 20),
+                child: Text('该版块暂无子版块',
+                    style: TextStyle(
+                        color: Color(AppTheme.textSecondary),
+                        fontSize: 13)),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final c in b.children)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _parseColor(b.color).withValues(alpha: 0.12),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusPill),
+                        ),
+                        child: Text(
+                          '${c.icon} ${c.name}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 12.5),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

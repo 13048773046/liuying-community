@@ -43,11 +43,32 @@ class AppTheme {
   /// 深黑背景（同音乐 Theme.background）
   static const int bg = 0xFF121214;
 
+  /// 页面画布（比卡片更深的底层，参考小红书深色 tokens #0E0E11）
+  static const int canvas = 0xFF0E0E11;
+
   /// 深灰卡片（同音乐 Theme.card）
   static const int card = 0xFF1C1C1F;
 
+  /// 抬升表面（选中态/浮层/悬停，参考 #282828 层级）
+  static const int elevated = 0xFF232327;
+
   /// 卡片描边（同音乐 Theme.cardBorder）
   static const int border = 0xFF2A2A2E;
+
+  /// 细分割线（参考 rgba(255,255,255,.07)）
+  static const int hairline = 0xFF232326;
+
+  /// 点赞激活红（小红书心形红，避免与薄荷绿主色冲突）
+  static const int heart = 0xFFFF6B81;
+
+  /// 卡片圆角（小红书 12–16 取中）
+  static const double radiusCard = 14;
+
+  /// 弹层顶部圆角（底部 sheet）
+  static const double radiusSheet = 16;
+
+  /// 胶囊圆角（按钮）
+  static const double radiusPill = 999;
 
   /// 近白主文字（同音乐 Theme.textPrimary）
   static const int textPrimary = 0xFFECECEC;

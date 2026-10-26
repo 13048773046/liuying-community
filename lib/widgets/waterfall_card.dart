@@ -197,13 +197,13 @@ class WaterfallCard extends StatelessWidget {
 
   Widget _miniAvatar(String url, String name) {
     return Container(
-      width: 26,
-      height: 26,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white.withOpacity(0.25)),
       ),
-      child: UserAvatar(url: url, name: name, size: 26),
+      child: UserAvatar(url: url, name: name, size: 28),
     );
   }
 
@@ -253,32 +253,29 @@ class WaterfallCard extends StatelessWidget {
         ),
       );
     }
-    // 2~3 张：两列等方小图
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Column(
-        children: [
+    // 2~3 张：两列等方小图（图片顶到卡片边缘，卡片 clip 统一圆角）
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _sqImg(images[0], n > 2 ? 0 : 0)),
+            if (n > 1) ...[
+              const SizedBox(width: 3),
+              Expanded(child: _sqImg(images[1], n > 2 ? 0 : 0)),
+            ],
+          ],
+        ),
+        if (n > 2) ...[
+          const SizedBox(height: 3),
           Row(
             children: [
-              Expanded(child: _sqImg(images[0], n > 2 ? 5 : 3)),
-              if (n > 1) ...[
-                const SizedBox(width: 3),
-                Expanded(child: _sqImg(images[1], n > 2 ? 5 : 3)),
-              ],
+              Expanded(child: _sqImg(images[2], 0)),
+              const SizedBox(width: 3),
+              const Expanded(child: SizedBox()),
             ],
           ),
-          if (n > 2) ...[
-            const SizedBox(height: 3),
-            Row(
-              children: [
-                Expanded(child: _sqImg(images[2], 5)),
-                const SizedBox(width: 3),
-                const Expanded(child: SizedBox()),
-              ],
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 
@@ -338,7 +335,7 @@ class WaterfallCard extends StatelessWidget {
         Icon(icon,
             size: 15,
             color: active
-                ? const Color(0xFFFF6B81)
+                ? const Color(AppTheme.heart)
                 : const Color(AppTheme.textSecondary)),
         const SizedBox(width: 2.5),
         Text(

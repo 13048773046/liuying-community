@@ -206,23 +206,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// 胶囊分段指示器：推荐 / 关注
+  /// 文字 Tab + 2px 下划线（小红书式）：推荐 / 关注
   Widget _tabIndicator() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _seg(0, '推荐'),
-            _seg(1, '关注'),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _seg(0, '推荐'),
+          const SizedBox(width: 28),
+          _seg(1, '关注'),
+        ],
       ),
     );
   }
@@ -231,21 +225,34 @@ class _HomePageState extends State<HomePage> {
     final sel = _tab == i;
     return GestureDetector(
       onTap: () => _switchTab(i),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
-        decoration: BoxDecoration(
-          color: sel ? const Color(AppTheme.accent) : Colors.transparent,
-          borderRadius: BorderRadius.circular(9),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: sel ? Colors.black : const Color(AppTheme.textSecondary),
-            fontSize: 13.5,
-            fontWeight: sel ? FontWeight.bold : FontWeight.w500,
-          ),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: sel
+                    ? const Color(AppTheme.textPrimary)
+                    : const Color(AppTheme.textSecondary),
+                fontSize: 15,
+                fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              width: 20,
+              height: 2,
+              decoration: BoxDecoration(
+                color: sel ? const Color(AppTheme.accent) : Colors.transparent,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -274,8 +281,8 @@ class _HomePageState extends State<HomePage> {
         controller: _scroll,
         physics: const AlwaysScrollableScrollPhysics(),
         crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
         padding: const EdgeInsets.fromLTRB(12, 2, 12, 84),
         itemCount: _items.length + 1,
         itemBuilder: (_, i) {
