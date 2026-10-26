@@ -42,10 +42,6 @@ class WaterfallCard extends StatelessWidget {
                 child: _content(item.content, item.topic, item.type == 'text'),
               ),
             ],
-            if (!isVideo && item.images.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _images(item.images),
-            ],
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: _footerRow(isVideo),
@@ -220,62 +216,18 @@ class WaterfallCard extends StatelessWidget {
   }
 
   Widget _images(List<String> images) {
-    final n = images.length;
-    if (n == 1) {
-      return AspectRatio(
-        aspectRatio: 4 / 3,
-        child: CachedNetworkImage(
-          imageUrl: mediaUrl(images[0]),
-          fit: BoxFit.cover,
-          placeholder: (_, _) => Container(color: const Color(0xFF1C1C24)),
-          errorWidget: (_, _, _) => Container(
-            color: const Color(0xFF1C1C24),
-            child: const Icon(Icons.broken_image,
-                color: Color(AppTheme.textSecondary)),
-          ),
-        ),
-      );
-    }
-    // 2~3 张：两列等方小图（图片顶到卡片边缘，卡片 clip 统一圆角）
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(child: _sqImg(images[0], n > 2 ? 0 : 0)),
-            if (n > 1) ...[
-              const SizedBox(width: 3),
-              Expanded(child: _sqImg(images[1], n > 2 ? 0 : 0)),
-            ],
-          ],
-        ),
-        if (n > 2) ...[
-          const SizedBox(height: 3),
-          Row(
-            children: [
-              Expanded(child: _sqImg(images[2], 0)),
-              const SizedBox(width: 3),
-              const Expanded(child: SizedBox()),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _sqImg(String url, double radius) {
+    // 无论帖子有多少张图，瀑布流卡统一只显示第一张（图在上、文字在下）
+    if (images.isEmpty) return const SizedBox.shrink();
     return AspectRatio(
-      aspectRatio: 1,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: CachedNetworkImage(
-          imageUrl: mediaUrl(url),
-          fit: BoxFit.cover,
-          placeholder: (_, _) => Container(color: const Color(0xFF1C1C24)),
-          errorWidget: (_, _, _) => Container(
-            color: const Color(0xFF1C1C24),
-            child: const Icon(Icons.broken_image,
-                color: Color(AppTheme.textSecondary), size: 20),
-          ),
+      aspectRatio: 4 / 3,
+      child: CachedNetworkImage(
+        imageUrl: mediaUrl(images.first),
+        fit: BoxFit.cover,
+        placeholder: (_, _) => Container(color: const Color(0xFF1C1C24)),
+        errorWidget: (_, _, _) => Container(
+          color: const Color(0xFF1C1C24),
+          child: const Icon(Icons.broken_image,
+              color: Color(AppTheme.textSecondary)),
         ),
       ),
     );

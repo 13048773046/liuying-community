@@ -114,7 +114,8 @@ class CommunityApp extends StatelessWidget {
   }
 }
 
-/// 启动引导：展示品牌启动页（logo 圆角 + 名称 + 副标题，淡入缩放）→ 恢复 token → 进入主界面
+/// 启动引导：品牌启动页（logo 圆角 + 名称 + 标语，淡入缩放）
+/// → 恢复 token → 叠加渐变退出（启动页淡出 + 主界面淡入交叉过渡）
 class _Bootstrap extends StatefulWidget {
   const _Bootstrap();
 
@@ -144,63 +145,73 @@ class _BootstrapState extends State<_Bootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      // 品牌启动页：与流萤音乐 SplashView 一致（深底 + 圆角 logo + 名称副标题）
-      return Scaffold(
-        backgroundColor: const Color(AppTheme.bg),
-        body: Center(
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.85, end: 1),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOut,
-            onEnd: () => setState(() => _appeared = true),
-            builder: (_, scale, child) =>
-                Opacity(opacity: _appeared ? 1 : 0, child: child),
-            child: Transform.scale(
-              scale: _appeared ? 1 : 0.85,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 圆角 Logo：缩小版（96，圆角 24），风格与 iOS SplashView 一致
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Image.asset(
-                      'assets/logo.png',
-                      width: 96,
-                      height: 96,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
+    // 叠加渐变退出：启动页与主界面交叉淡化（启动页淡出 + 主界面淡入重叠）
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 450),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: _ready
+          ? const RootPage(key: ValueKey('root'))
+          : _splash(key: const ValueKey('splash')),
+    );
+  }
+
+  /// 品牌启动页：与流萤音乐 SplashView 一致（深底 + 圆角 logo + 名称 + 标语）
+  Widget _splash({Key? key}) {
+    return Scaffold(
+      key: key,
+      backgroundColor: const Color(AppTheme.bg),
+      body: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.85, end: 1),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOut,
+          onEnd: () => setState(() => _appeared = true),
+          builder: (_, scale, child) =>
+              Opacity(opacity: _appeared ? 1 : 0, child: child),
+          child: Transform.scale(
+            scale: _appeared ? 1 : 0.85,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 圆角 Logo：缩小版（96，圆角 24），风格与 iOS SplashView 一致
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    width: 96,
+                    height: 96,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                // 名称 + 标语：与 iOS 一致，淡入 + 上浮 10pt
+                Opacity(
+                  opacity: _appeared ? 1 : 0,
+                  child: Transform.translate(
+                    offset: Offset(0, _appeared ? 0 : 10),
+                    child: Column(
+                      children: const [
+                        Text('流萤社区',
+                            style: TextStyle(
+                                color: Color(AppTheme.textPrimary),
+                                fontSize: 34,
+                                fontWeight: FontWeight.bold)),
+                        SizedBox(height: 8),
+                        Text('让每一份热爱，如流萤般点亮夜晚',
+                            style: TextStyle(
+                                color: Color(AppTheme.textSecondary),
+                                fontSize: 14)),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 22),
-                  // 名称 + 标语：与 iOS 一致，淡入 + 上浮 10pt
-                  Opacity(
-                    opacity: _appeared ? 1 : 0,
-                    child: Transform.translate(
-                      offset: Offset(0, _appeared ? 0 : 10),
-                      child: Column(
-                        children: const [
-                          Text('流萤社区',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textPrimary),
-                                  fontSize: 34,
-                                  fontWeight: FontWeight.bold)),
-                          SizedBox(height: 8),
-                          Text('让每一份热爱，如流萤般点亮夜晚',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textSecondary),
-                                  fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
-      );
-    }
-    return const RootPage();
+      ),
+    );
   }
 }
