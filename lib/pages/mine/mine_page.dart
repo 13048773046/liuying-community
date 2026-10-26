@@ -2,7 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
@@ -10,14 +10,12 @@ import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
 import '../../widgets/user_avatar.dart';
-import '../../widgets/waterfall_card.dart';
-import '../feedback/feedback_page.dart';
 import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../settings/settings_page.dart';
-import '../user/user_profile.dart';
 import 'login_page.dart';
 import 'task_center_page.dart';
+import 'user_list_page.dart';
 
 class MinePage extends StatefulWidget {
   const MinePage({super.key});
@@ -396,80 +394,221 @@ class _MinePageState extends State<MinePage> {
     final next = _level['nextThreshold'];
     final today = DateTime.now().toString().split(' ')[0];
     final signedToday = _signins.contains(today);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 16:9 横幅（渐变 + 光晕，右上设置）
-        SizedBox(
-          height: 148,
-          width: double.infinity,
-          child: Stack(
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF1E3A31), Color(0xFF101318)],
-                  ),
+    // 整页滚动（对齐音乐版我的页）：背景头+资料+Tab+内容全部在同一 CustomScrollView
+    return RefreshIndicator(
+      color: const Color(AppTheme.accent),
+      backgroundColor: const Color(AppTheme.card),
+      onRefresh: () async {
+        await _loadMine(refresh: true);
+        await _loadFav(later: false, refresh: true);
+        await _loadFav(later: true, refresh: true);
+        await _loadExtras();
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (_tab == 0) {
+            if (n.metrics.extentAfter < 300) _loadMine(refresh: false);
+          } else {
+            if (n.metrics.extentAfter < 300) _loadFav(later: _tab == 2, refresh: false);
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _profileHeader(
+              user: user,
+              verified: verified,
+              verifiedLabel: verifiedLabel,
+              adminLevel: adminLevel,
+              followers: followers,
+              followings: followings,
+              signature: signature,
+              level: level,
+              exp: exp,
+              progress: progress,
+              next: next,
+              signedToday: signedToday,
+            )),
+            // 文字 Tab：帖子 / 收藏 / 稍后看
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: Row(
+                  children: [
+                    _mineSeg(0, '帖子'),
+                    const SizedBox(width: 28),
+                    _mineSeg(1, '收藏'),
+                    const SizedBox(width: 28),
+                    _mineSeg(2, '稍后看'),
+                  ],
                 ),
               ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
+            if (_tab == 0) _mineSliver() else _favSliver(later: _tab == 2),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 背景头 + 资料区 + 功能钮（对齐概念稿/音乐版：渐变背景 + 遮罩融合 + 左上签到 + 右上编辑资料/分享/设置）
+  Widget _profileHeader({
+    required Map<String, dynamic> user,
+    required bool verified,
+    required String verifiedLabel,
+    required int adminLevel,
+    required int followers,
+    required int followings,
+    required String signature,
+    required int level,
+    required int exp,
+    required num progress,
+    required Object? next,
+    required bool signedToday,
+  }) {
+    return Stack(
+      children: [
+        // 背景：深绿渐变（概念稿深色 + 薄荷绿氛围）
+        Container(
+          height: 330,
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1E3A31), Color(0xFF101318)],
+            ),
+          ),
+          child: Stack(
+            children: [
               // 光晕装饰圆
               Positioned(
-                right: -30,
-                top: -40,
+                right: -40,
+                top: -60,
                 child: Container(
-                  width: 130,
-                  height: 130,
+                  width: 170,
+                  height: 170,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(AppTheme.accent)
-                        .withValues(alpha: 0.08),
+                        .withValues(alpha: 0.09),
                   ),
                 ),
               ),
               Positioned(
-                left: 24,
-                bottom: 18,
-                child: Text('流萤社区',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 2)),
-              ),
-              // 设置入口（右上）
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IconButton(
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(
-                          builder: (_) => const SettingsPage())),
-                  icon: const Icon(Icons.settings_outlined,
-                      color: Color(AppTheme.textSecondary), size: 20),
+                left: -50,
+                bottom: 40,
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(AppTheme.sky).withValues(alpha: 0.05),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        // 头像叠层 + 资料区
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-          child: Transform.translate(
-            offset: const Offset(0, -34),
+        // 底部渐变遮罩：背景与内容自然融合（音乐版衔接方式）
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 110,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    const Color(AppTheme.bg).withValues(alpha: 0.92),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // 内容
+        Positioned.fill(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 顶部行：左上签到胶囊 + 右上 编辑资料/分享/设置
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 头像 76px（叠横幅） + 认证徽章
+                    // 左上角签到（概念稿/用户要求）
+                    GestureDetector(
+                      onTap: signedToday ? null : _signin,
+                      child: Container(
+                        height: 32,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              signedToday
+                                  ? Icons.check_circle
+                                  : Icons.calendar_today_outlined,
+                              color: signedToday
+                                  ? const Color(AppTheme.accent)
+                                  : Colors.white,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              signedToday ? '已签到' : '每日签到',
+                              style: TextStyle(
+                                color: signedToday
+                                    ? const Color(AppTheme.accent)
+                                    : Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    _roundIcon(Icons.edit_outlined, '编辑资料', _editProfile),
+                    const SizedBox(width: 8),
+                    _roundIcon(Icons.share_outlined, '分享', _shareProfile),
+                    const SizedBox(width: 8),
+                    _roundIcon(Icons.settings_outlined, '设置', () {
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const SettingsPage()));
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 26),
+                // slogan（概念稿：萤火相聚·点亮彼此）
+                const Text('萤火相聚·点亮彼此',
+                    style: TextStyle(
+                        color: Color(AppTheme.accent),
+                        fontSize: 13,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 10),
+                // 头像 + 昵称/简介
+                Row(
+                  children: [
                     Stack(
                       children: [
                         Container(
-                          width: 78,
-                          height: 78,
+                          width: 66,
+                          height: 66,
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
@@ -483,15 +622,15 @@ class _MinePageState extends State<MinePage> {
                           child: UserAvatar(
                               url: _avatar ?? '',
                               name: _name ?? '',
-                              size: 74),
+                              size: 62),
                         ),
                         if (verified || adminLevel > 0)
                           Positioned(
                             right: 0,
                             bottom: 0,
                             child: Container(
-                              width: 24,
-                              height: 24,
+                              width: 22,
+                              height: 22,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: const LinearGradient(
@@ -505,12 +644,10 @@ class _MinePageState extends State<MinePage> {
                               ),
                               alignment: Alignment.center,
                               child: Text(
-                                verified
-                                    ? 'V'
-                                    : (adminLevel == 1 ? '管' : '管'),
+                                verified ? 'V' : '管',
                                 style: const TextStyle(
                                     color: Colors.black,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w800,
                                     height: 1),
                               ),
@@ -518,198 +655,458 @@ class _MinePageState extends State<MinePage> {
                           ),
                       ],
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(_name ?? '用户',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          color: Color(AppTheme.textPrimary),
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                                if (verifiedLabel.isNotEmpty) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 5, vertical: 1.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(AppTheme.accentSoft),
-                                      borderRadius: BorderRadius.circular(5),
-                                    ),
-                                    child: Text(
-                                      verifiedLabel,
-                                      style: const TextStyle(
-                                          color: Color(AppTheme.accent),
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w600),
-                                    ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(_name ?? '用户',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: Color(AppTheme.textPrimary),
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.bold)),
+                              ),
+                              if (verifiedLabel.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        const Color(AppTheme.accentSoft),
+                                    borderRadius: BorderRadius.circular(5),
                                   ),
-                                ],
+                                  child: Text(
+                                    verifiedLabel,
+                                    style: const TextStyle(
+                                        color: Color(AppTheme.accent),
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                ),
                               ],
-                            ),
-                            if (signature.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(signature,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: Color(AppTheme.textSecondary),
-                                      fontSize: 12.5,
-                                      height: 1.4)),
                             ],
+                          ),
+                          if (signature.isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(signature,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Color(AppTheme.textSecondary),
+                                    fontSize: 12.5,
+                                    height: 1.4)),
                           ],
-                        ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                // 统计行：关注 / 粉丝 / 帖子
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Row(
-                    children: [
-                      _statItem('关注', _cnt(followings)),
-                      const SizedBox(width: 36),
-                      _statItem('粉丝', _cnt(followers)),
-                      const SizedBox(width: 36),
-                      _statItem('帖子', _cnt(_postCount)),
-                    ],
-                  ),
-                ),
-                // 等级进度条
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(AppTheme.accent)
-                              .withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text('Lv.$level',
-                            style: const TextStyle(
-                                color: Color(AppTheme.accent),
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(3),
-                          child: LinearProgressIndicator(
-                            value: progress.toDouble().clamp(0.0, 1.0),
-                            minHeight: 5,
-                            backgroundColor: const Color(AppTheme.card),
-                            color: const Color(AppTheme.accent),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        next == null ? '已满级' : '经验 $exp',
-                        style: const TextStyle(
-                            color: Color(AppTheme.textTertiary),
-                            fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-                // 编辑资料 pill
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: GestureDetector(
-                    onTap: () {
-                      final uid = ApiClient.userId;
-                      if (uid == null) return;
+                const SizedBox(height: 16),
+                // 统计行：关注 / 粉丝 / 帖子（点击进入列表/切 Tab）
+                Row(
+                  children: [
+                    _statTap(followings, '关注', () {
+                      if (ApiClient.userId == null) return;
                       Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  UserProfilePage(uid: uid)));
-                    },
-                    child: Container(
-                      height: 34,
-                      width: double.infinity,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusPill),
-                        border: Border.all(
-                            color: const Color(AppTheme.border)),
-                      ),
-                      child: const Text('编辑资料',
-                          style: TextStyle(
-                              color: Color(AppTheme.textPrimary),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500)),
+                              builder: (_) => UserListPage(
+                                  uid: ApiClient.userId!,
+                                  kind: 'followings',
+                                  title: '关注')));
+                    }),
+                    const SizedBox(width: 36),
+                    _statTap(followers, '粉丝', () {
+                      if (ApiClient.userId == null) return;
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => UserListPage(
+                                  uid: ApiClient.userId!,
+                                  kind: 'followers',
+                                  title: '粉丝')));
+                    }),
+                    const SizedBox(width: 36),
+                    GestureDetector(
+                      onTap: () => setState(() => _tab = 0),
+                      behavior: HitTestBehavior.opaque,
+                      child: _statItem('帖子', _cnt(_postCount)),
                     ),
-                  ),
+                  ],
                 ),
-                // 轻量入口行：任务 / 签到 / 装扮 / 反馈 / 关于
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Row(
-                    children: [
-                      _pillEntry(Icons.emoji_events_outlined, '任务', () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const TaskCenterPage()));
-                      }),
-                      const SizedBox(width: 8),
-                      _pillEntry(
-                          signedToday
-                              ? Icons.check_circle
-                              : Icons.calendar_today_outlined,
-                          signedToday ? '已签到' : '每日签到',
-                          signedToday ? null : _signin),
-                      const SizedBox(width: 8),
-                      _pillEntry(Icons.auto_awesome_outlined, '个性装扮',
-                          _openFrames),
-                      const SizedBox(width: 8),
-                      _pillEntry(Icons.feedback_outlined, '意见反馈', () {
-                        Navigator.push(context,
-                            MaterialPageRoute(
-                                builder: (_) => const FeedbackPage()));
-                      }),
-                      const SizedBox(width: 8),
-                      _pillEntry(Icons.info_outline, '关于', _showAbout),
-                    ],
-                  ),
+                const SizedBox(height: 12),
+                // 等级进度条
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(AppTheme.accent)
+                            .withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text('Lv.$level',
+                          style: const TextStyle(
+                              color: Color(AppTheme.accent),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: progress.toDouble().clamp(0.0, 1.0),
+                          minHeight: 5,
+                          backgroundColor: const Color(AppTheme.card),
+                          color: const Color(AppTheme.accent),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      next == null ? '已满级' : '经验 $exp',
+                      style: const TextStyle(
+                          color: Color(AppTheme.textTertiary),
+                          fontSize: 11),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // 轻量入口行：任务 / 个性装扮（签到已移左上角，反馈/关于移入设置页）
+                Row(
+                  children: [
+                    _pillEntry(Icons.emoji_events_outlined, '任务', () {
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const TaskCenterPage()));
+                    }),
+                    const SizedBox(width: 8),
+                    _pillEntry(Icons.auto_awesome_outlined, '个性装扮',
+                        _openFrames),
+                  ],
                 ),
               ],
             ),
           ),
         ),
-        // 文字 Tab：帖子 / 收藏 / 稍后看
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-          child: Row(
+      ],
+    );
+  }
+
+  /// 右上角圆形图标（半透明白底）
+  Widget _roundIcon(IconData icon, String tooltip, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, color: Colors.white, size: 17),
+      ),
+    );
+  }
+
+  /// 可点击统计项
+  Widget _statTap(int value, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: _statItem(label, _cnt(value)),
+    );
+  }
+
+  /// 编辑资料（昵称/简介）→ POST /user/me
+  Future<void> _editProfile() async {
+    final nameCtrl = TextEditingController(text: _name ?? '');
+    final sigCtrl = TextEditingController(text: (ApiClient.meSignature ?? ''));
+    var saving = false;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(AppTheme.card),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(
+              left: 16, right: 16, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _mineSeg(0, '帖子'),
-              const SizedBox(width: 28),
-              _mineSeg(1, '收藏'),
-              const SizedBox(width: 28),
-              _mineSeg(2, '稍后看'),
+              const Text('编辑资料',
+                  style: TextStyle(
+                      color: Color(AppTheme.textPrimary),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: nameCtrl,
+                maxLength: 20,
+                style: const TextStyle(color: Color(AppTheme.textPrimary)),
+                cursorColor: const Color(AppTheme.accent),
+                decoration: InputDecoration(
+                  labelText: '昵称',
+                  labelStyle: const TextStyle(
+                      color: Color(AppTheme.textSecondary)),
+                  filled: true,
+                  fillColor: const Color(AppTheme.bg),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: sigCtrl,
+                maxLength: 80,
+                maxLines: 2,
+                style: const TextStyle(color: Color(AppTheme.textPrimary)),
+                cursorColor: const Color(AppTheme.accent),
+                decoration: InputDecoration(
+                  labelText: '简介',
+                  labelStyle: const TextStyle(
+                      color: Color(AppTheme.textSecondary)),
+                  filled: true,
+                  fillColor: const Color(AppTheme.bg),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 14),
+              GestureDetector(
+                onTap: saving
+                    ? null
+                    : () async {
+                        setSt(() => saving = true);
+                        try {
+                          await ApiClient.updateProfile(
+                              name: nameCtrl.text.trim(),
+                              signature: sigCtrl.text.trim());
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          await _init();
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          setSt(() => saving = false);
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                              content: Text('$e'),
+                              backgroundColor: const Color(AppTheme.card)));
+                        }
+                      },
+                child: Container(
+                  width: double.infinity,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(AppTheme.accent),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.black))
+                      : const Text('保存',
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold)),
+                ),
+              ),
             ],
           ),
         ),
-        const SizedBox(height: 4),
-        // 作品内容
-        Expanded(child: _tabBody()),
-      ],
+      ),
+    );
+  }
+
+  /// 分享我的主页（复制链接）
+  void _shareProfile() {
+    final uid = ApiClient.userId ?? '';
+    final url = 'https://www.dbmt999.asia/community/share.html?uid=$uid';
+    Clipboard.setData(ClipboardData(text: url));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('主页链接已复制，去分享给好友吧'),
+        backgroundColor: Color(AppTheme.card),
+        behavior: SnackBarBehavior.floating));
+  }
+
+  /// 帖子 sliver：双列图片网格（对齐概念稿图片网格）
+  Widget _mineSliver() {
+    if (_mineLoading && _mine.isEmpty) {
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+            child: CircularProgressIndicator(
+                color: Color(AppTheme.accent))),
+      );
+    }
+    if (_mineLoaded && _mine.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.article_outlined,
+                size: 52, color: Color(AppTheme.textTertiary)),
+            const SizedBox(height: 10),
+            const Text('还没有发布过帖子',
+                style: TextStyle(
+                    color: Color(AppTheme.textSecondary), fontSize: 13)),
+            const SizedBox(height: 12),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(AppTheme.accent),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22)),
+              ),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const PostEditorPage(mode: 'text'))),
+              child: const Text('去发布'),
+            ),
+          ],
+        ),
+      );
+    }
+    return _imgSliver(_mine);
+  }
+
+  /// 收藏/稍后看 sliver
+  Widget _favSliver({required bool later}) {
+    final items = later ? _laters : _favs;
+    final loading = later ? _laterLoading : _favLoading;
+    final loaded = later ? _laterLoaded : _favLoaded;
+    if (loading && items.isEmpty) {
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+            child: CircularProgressIndicator(
+                color: Color(AppTheme.accent))),
+      );
+    }
+    if (loaded && items.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(later ? Icons.schedule_outlined : Icons.bookmark_border,
+                size: 52, color: const Color(AppTheme.textTertiary)),
+            const SizedBox(height: 10),
+            Text(later ? '暂无稍后看内容' : '暂无收藏内容',
+                style: const TextStyle(
+                    color: Color(AppTheme.textSecondary), fontSize: 13)),
+          ],
+        ),
+      );
+    }
+    return _imgSliver(items);
+  }
+
+  /// 双列图片网格
+  Widget _imgSliver(List<FeedItem> items) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 0.95,
+        ),
+        delegate: SliverChildBuilderDelegate((_, i) {
+          final it = items[i];
+          final thumb = (it.type == 'video' && it.cover.isNotEmpty)
+              ? it.cover
+              : (it.images.isNotEmpty ? it.images.first : '');
+          return GestureDetector(
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => PostDetailPage(postId: it.id))),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (thumb.isNotEmpty)
+                    Image.network(
+                      thumb.startsWith('http') ? thumb : mediaUrl(thumb),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                          color: const Color(AppTheme.elevated)),
+                    )
+                  else
+                    Container(
+                      color: const Color(AppTheme.card),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Text(it.content,
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Color(AppTheme.textSecondary),
+                                  fontSize: 12.5)),
+                        ),
+                      ),
+                    ),
+                  if (it.type == 'video')
+                    const Center(
+                      child: Icon(Icons.play_circle_fill,
+                          color: Colors.white, size: 30),
+                    ),
+                  // 底部渐变 + 数据
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.fromLTRB(8, 12, 8, 6),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Colors.black54],
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.favorite,
+                              size: 11, color: Colors.white),
+                          const SizedBox(width: 3),
+                          Text(_cnt(it.likeCount),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }, childCount: items.length),
+      ),
     );
   }
 
@@ -806,186 +1203,6 @@ class _MinePageState extends State<MinePage> {
     );
   }
 
-  Widget _tabBody() {
-    if (_tab == 0) return _mineGrid();
-    return _favGrid(later: _tab == 2);
-  }
 
-  /// 我的帖子：双列瀑布流（任务已移至任务中心，不再内嵌）
-  Widget _mineGrid() {
-    return RefreshIndicator(
-      onRefresh: () async {
-        await _loadMine(refresh: true);
-        await _loadExtras();
-      },
-      color: const Color(AppTheme.accent),
-      backgroundColor: const Color(AppTheme.card),
-      child: _mine.isEmpty && _mineLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent)))
-          : _mine.isEmpty && _mineLoaded
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    const SizedBox(height: 100),
-                    Center(
-                      child: Column(
-                        children: [
-                          const Icon(Icons.article_outlined,
-                              size: 52,
-                              color: Color(AppTheme.textTertiary)),
-                          const SizedBox(height: 10),
-                          const Text('还没有发布过帖子',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textSecondary),
-                                  fontSize: 13)),
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor:
-                                  const Color(AppTheme.accent),
-                              foregroundColor: Colors.black,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(22)),
-                            ),
-                            onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        const PostEditorPage(mode: 'text'))),
-                            child: const Text('去发布'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              : NotificationListener<ScrollNotification>(
-                  onNotification: (n) {
-                    if (n.metrics.extentAfter < 300) {
-                      _loadMine(refresh: false);
-                    }
-                    return false;
-                  },
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding:
-                        const EdgeInsets.fromLTRB(12, 4, 12, 20),
-                    children: [
-                      MasonryGridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        itemCount: _mine.length,
-                        itemBuilder: (_, i) => WaterfallCard(
-                          item: _mine[i],
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => PostDetailPage(
-                                      postId: _mine[i].id))),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-    );
-  }
 
-  /// 收藏 / 稍后看：双列瀑布流
-  Widget _favGrid({required bool later}) {
-    final items = later ? _laters : _favs;
-    final loading = later ? _laterLoading : _favLoading;
-    final loaded = later ? _laterLoaded : _favLoaded;
-    return RefreshIndicator(
-      onRefresh: () async => _loadFav(later: later, refresh: true),
-      color: const Color(AppTheme.accent),
-      backgroundColor: const Color(AppTheme.card),
-      child: items.isEmpty && loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent)))
-          : items.isEmpty && loaded
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    const SizedBox(height: 100),
-                    Center(
-                      child: Column(
-                        children: [
-                          Icon(
-                              later
-                                  ? Icons.schedule_outlined
-                                  : Icons.bookmark_border,
-                              size: 52,
-                              color: const Color(AppTheme.textTertiary)),
-                          const SizedBox(height: 10),
-                          Text(
-                              later ? '暂无稍后看内容' : '暂无收藏内容',
-                              style: const TextStyle(
-                                  color: Color(AppTheme.textSecondary),
-                                  fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              : NotificationListener<ScrollNotification>(
-                  onNotification: (n) {
-                    if (n.metrics.extentAfter < 300) {
-                      _loadFav(later: later, refresh: false);
-                    }
-                    return false;
-                  },
-                  child: MasonryGridView.count(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
-                    itemCount: items.length,
-                    itemBuilder: (_, i) => WaterfallCard(
-                      item: items[i],
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) =>
-                                  PostDetailPage(postId: items[i].id))),
-                    ),
-                  ),
-                ),
-    );
-  }
-
-  void _showAbout() {
-    showAboutDialog(
-      context: context,
-      applicationName: '流萤社区',
-      applicationVersion: '1.0.0',
-      applicationIcon: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-              colors: [Color(AppTheme.accent), Color(AppTheme.sky)]),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.center,
-        child: const Icon(Icons.public, color: Colors.black, size: 26),
-      ),
-      children: [
-        const Text('流萤社区 · 与流萤音乐同一账号体系\n'
-            '问题反馈请使用「意见反馈」入口',
-            style: TextStyle(
-                color: Color(AppTheme.textSecondary),
-                fontSize: 12,
-                height: 1.6)),
-      ],
-    );
-  }
 }
-

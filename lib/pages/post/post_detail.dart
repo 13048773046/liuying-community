@@ -27,6 +27,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   FeedItem? _post;
   bool _liked = false;
   bool _faved = false;
+  bool _latered = false;
   int _likeCount = 0;
   bool _loading = true;
   bool _following = false;
@@ -56,6 +57,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         _post = FeedItem.fromJson(pj);
         _liked = pj['liked'] ?? false;
         _faved = pj['faved'] ?? false;
+        _latered = pj['later'] ?? false;
         _likeCount = ((pj['likeCount'] ?? 0) as num).toInt();
         _loading = false;
       });
@@ -114,11 +116,118 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (_post == null) return;
     setState(() => _faved = !_faved);
     try {
-      await ApiClient.toggleFav(_post!.id);
+      await ApiClient.toggleFav(_post!.id, faved: _faved);
     } catch (_) {
       if (!mounted) return;
       setState(() => _faved = !_faved);
     }
+  }
+
+  Future<void> _toggleLater() async {
+    if (_post == null) return;
+    setState(() => _latered = !_latered);
+    try {
+      await ApiClient.toggleFav(_post!.id, kind: 'later', faved: _latered);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _latered = !_latered);
+    }
+  }
+
+  /// 收藏按钮弹层：收藏 / 稍后看 二选一（概念稿：稍后看独立入口）
+  Future<void> _showFavSheet() async {
+    if (_post == null) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(AppTheme.card),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 14),
+            const Text('收藏内容',
+                style: TextStyle(
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            const Text('选择收藏方式',
+                style: TextStyle(
+                    color: Color(AppTheme.textTertiary), fontSize: 12)),
+            const SizedBox(height: 12),
+            _favOption(
+              icon: _faved ? Icons.star_rounded : Icons.star_border_rounded,
+              label: '收藏',
+              sub: '在我的页「收藏」中查看',
+              active: _faved,
+              color: const Color(AppTheme.peach),
+              onTap: () {
+                Navigator.pop(ctx);
+                _toggleFav();
+              },
+            ),
+            _favOption(
+              icon: _latered ? Icons.schedule_rounded : Icons.schedule_outlined,
+              label: '稍后看',
+              sub: '在我的页「稍后看」中查看',
+              active: _latered,
+              color: const Color(AppTheme.sky),
+              onTap: () {
+                Navigator.pop(ctx);
+                _toggleLater();
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _favOption(
+      {required IconData icon,
+      required String label,
+      required String sub,
+      required bool active,
+      required Color color,
+      required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.bg),
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: active ? color : const Color(AppTheme.textSecondary), size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 2),
+                  Text(sub,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textTertiary), fontSize: 11)),
+                ],
+              ),
+            ),
+            if (active)
+              Icon(Icons.check_circle, color: color, size: 18),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _sendComment() async {
@@ -461,10 +570,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
             const Color(AppTheme.textSecondary), () {}),
         const SizedBox(width: 20),
         _actionItem(
-            _faved ? Icons.star_rounded : Icons.star_border_rounded,
+            _faved || _latered ? Icons.star_rounded : Icons.star_border_rounded,
             '收藏',
-            _faved ? const Color(AppTheme.peach) : const Color(AppTheme.textSecondary),
-            _toggleFav),
+            (_faved || _latered)
+                ? const Color(AppTheme.peach)
+                : const Color(AppTheme.textSecondary),
+            _showFavSheet),
         const Spacer(),
         _actionItem(Icons.share_outlined, '分享',
             const Color(AppTheme.textSecondary), () {}),

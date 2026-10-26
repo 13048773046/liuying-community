@@ -23,6 +23,7 @@ class ApiException implements Exception {
 class ApiClient {
   static String? token; // 全局登录态（内存缓存）
   static String? userId; // 当前登录用户 id（myProfile 成功后缓存）
+  static String? meSignature; // 当前登录用户简介（myProfile 成功后缓存）
 
   // ---------- 基础请求 ----------
 
@@ -402,8 +403,10 @@ class ApiClient {
 
   /// 收藏/取消收藏（kind=fav 收藏 | later 稍后看）
   static Future<Map<String, dynamic>> toggleFav(String postId,
-      {String kind = 'fav'}) =>
-      post('/post/$postId/$kind');
+          {String kind = 'fav', bool? faved}) =>
+      (faved == true)
+          ? delete('/post/$postId/$kind')
+          : post('/post/$postId/$kind');
 
   /// 分享计数上报（返回最新 count）
   static Future<Map<String, dynamic>> reportShare(String postId) =>
@@ -419,6 +422,7 @@ class ApiClient {
     final u = j['user'];
     if (u is Map && u['id'] != null) {
       userId = u['id'] as String;
+      meSignature = (u['signature'] ?? '') as String? ?? '';
     }
     return j;
   }
@@ -426,6 +430,22 @@ class ApiClient {
   /// 指定用户主页
   static Future<Map<String, dynamic>> userProfile(String uid) =>
       get('/user/$uid/profile');
+
+  /// 更新我的资料（昵称/简介）
+  static Future<Map<String, dynamic>> updateProfile(
+          {String? name, String? signature}) =>
+      post('/user/me', body: {
+        if (name != null && name.isNotEmpty) 'name': name,
+        if (signature != null) 'signature': signature,
+      });
+
+  /// 关注 / 粉丝列表
+  static Future<Map<String, dynamic>> userList(String uid,
+          {required String kind, int page = 1, int size = 20}) =>
+      get('/user/$uid/$kind', query: {
+        'page': '$page',
+        'size': '$size',
+      });
 
   // ---------- 评论（帖/视频共用） ----------
 
