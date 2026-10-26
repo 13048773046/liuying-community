@@ -675,15 +675,6 @@ class _MinePageState extends State<MinePage> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                // 轻量入口：任务（签到在左上角；装扮/反馈/关于已移入设置页）
-                Row(
-                  children: [
-                    _pillEntry(Icons.emoji_events_outlined, '任务', () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const TaskCenterPage()));
-                    }),
-                  ],
-                ),
               ],
             ),
           ),
@@ -1027,37 +1018,6 @@ class _MinePageState extends State<MinePage> {
     );
   }
 
-  Widget _pillEntry(IconData icon, String label, VoidCallback? onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          height: 34,
-          decoration: BoxDecoration(
-            color: const Color(AppTheme.card),
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon,
-                  size: 15,
-                  color: onTap == null
-                      ? const Color(AppTheme.accent)
-                      : const Color(AppTheme.textSecondary)),
-              const SizedBox(width: 5),
-              Text(label,
-                  style: const TextStyle(
-                      color: Color(AppTheme.textPrimary),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _mineSeg(int i, String label) {
     final sel = _tab == i;
