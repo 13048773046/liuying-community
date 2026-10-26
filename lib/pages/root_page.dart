@@ -71,9 +71,13 @@ class _RootPageState extends State<RootPage> {
         fit: StackFit.expand,
         children: [
           // 内容区：五个页面常驻（音乐端三页常驻等价）
-          // 非短视频页底部留白，避免悬浮导航遮挡列表最后一项
+          // 非短视频页底部留白=导航栏实际高度（6+23+2+14+4+safeBottom），
+          // 正好贴齐导航栏上沿，既不被遮挡也不露缝隙
           Padding(
-            padding: EdgeInsets.only(bottom: isShorts ? 0 : 78),
+            padding: EdgeInsets.only(
+                bottom: isShorts
+                    ? 0
+                    : 49 + MediaQuery.paddingOf(context).bottom),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -293,10 +297,10 @@ class _ShortsButtonInner extends StatelessWidget {
             ],
           ),
           child: SvgPicture.asset(
-            // 短视频页内显示发布 + 号，其他 tab 显示短视频图标
-            isActive ? 'assets/icons/add.svg' : 'assets/icons/play.svg',
-            width: isActive ? 26 : 22,
-            height: isActive ? 26 : 22,
+            // 短视频页内显示发布 + 号（小尺寸），其他 tab 显示圆形播放键
+            isActive ? 'assets/icons/add.svg' : 'assets/icons/play-circle.svg',
+            width: isActive ? 20 : 24,
+            height: isActive ? 20 : 24,
             colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
         ),
