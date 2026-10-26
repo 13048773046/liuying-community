@@ -12,6 +12,7 @@ import '../boards/boards_page.dart';
 import '../mine/login_page.dart';
 import '../post/post_detail.dart';
 import '../post/post_editor.dart';
+import '../search/search_page.dart';
 import '../user/user_profile.dart';
 import '../../widgets/waterfall_card.dart';
 
@@ -298,16 +299,30 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 顶部标题
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                '流萤社区',
-                style: TextStyle(
-                    color: Color(AppTheme.textPrimary),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5),
+            // 顶部标题 + 搜索 / 通知图标（概念稿对齐）
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 12, 2),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '流萤社区',
+                      style: TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5),
+                    ),
+                  ),
+                  _headerIcon(
+                    Icons.search,
+                    () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const SearchPage())),
+                  ),
+                  const SizedBox(width: 4),
+                ],
               ),
             ),
             // 版块分类横滑（概念稿：推荐/关注/游戏/生活/影音/科技）
@@ -358,6 +373,19 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 顶部普通图标按钮
+  Widget _headerIcon(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Icon(icon,
+            color: const Color(AppTheme.textPrimary), size: 22),
       ),
     );
   }

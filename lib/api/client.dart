@@ -180,6 +180,38 @@ class ApiClient {
     return j;
   }
 
+  // ---------- 搜索 ----------
+
+  /// 全局搜索：posts/videos/users/topics（type 留空 = 全部）
+  static Future<Map<String, dynamic>> search(String q,
+          {String type = '', int page = 1, int size = 20}) =>
+      get('/search', query: {
+        'q': q,
+        if (type.isNotEmpty) 'type': type,
+        'page': '$page',
+        'size': '$size',
+      });
+
+  /// 搜索联想：topics + users
+  static Future<Map<String, dynamic>> searchSuggest(String q) =>
+      get('/search/suggest', query: {'q': q});
+
+  /// 热门搜索词
+  static Future<List<Map<String, dynamic>>> searchHot() async {
+    final j = await get('/search/hot');
+    return ((j['list'] ?? []) as List)
+        .whereType<Map<String, dynamic>>()
+        .toList();
+  }
+
+  /// 运营位 Banner（空时前端回退默认推广卡）
+  static Future<List<Map<String, dynamic>>> banners() async {
+    final j = await get('/banners');
+    return ((j['list'] ?? []) as List)
+        .whereType<Map<String, dynamic>>()
+        .toList();
+  }
+
   // ---------- 信息流 ----------
 
   /// 信息流：tab=all|follow|recommend；type 留空 = 全部，video = 短视频流，post = 帖子流
