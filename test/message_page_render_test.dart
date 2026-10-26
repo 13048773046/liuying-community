@@ -1,5 +1,5 @@
 /// 消息页渲染回归：任何状态（加载/未登录 401/空数据/加载失败）都必须渲染出
-/// 可见内容，不允许白屏或渲染异常。新版为单一消息流（无 Tab）。
+/// 可见内容，不允许白屏或渲染异常。新版为二级架构（一级列表 = 互动/官方/私信）。
 library;
 
 import 'package:flutter/material.dart';
@@ -16,11 +16,10 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     // 无渲染异常
     expect(tester.takeException(), isNull);
-    // 最终必须出现可读内容之一：登录引导 / 空态 / 加载失败重试
+    // 最终必须出现可读内容之一：登录引导 / 加载失败重试
     final visibleTexts = <String>[];
     for (final t in [
       '登录后查看消息',
-      '暂无消息',
       '加载失败',
     ]) {
       if (find.text(t).evaluate().isNotEmpty) visibleTexts.add(t);
@@ -28,14 +27,14 @@ void main() {
     expect(visibleTexts, isNotEmpty, reason: '消息页不能白屏：必须渲染任一可读状态');
   });
 
-  testWidgets('消息页单消息流渲染：标题 + 提示文案可见', (tester) async {
+  testWidgets('消息页二级入口列表渲染：标题 + 提示文案可见', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: MessagePage()));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
     expect(find.text('消息'), findsOneWidget);
-    // 单流（无 Tab）下，任一可读终态仍可见
+    // 未登录或加载失败时，任一可读终态仍可见
     final visible = <String>[];
-    for (final t in ['登录后查看消息', '暂无消息', '加载失败']) {
+    for (final t in ['登录后查看消息', '加载失败']) {
       if (find.text(t).evaluate().isNotEmpty) visible.add(t);
     }
     expect(visible, isNotEmpty, reason: '消息页不能白屏');

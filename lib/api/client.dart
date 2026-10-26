@@ -378,6 +378,31 @@ class ApiClient {
     await post('/official-messages/read');
   }
 
+  // ---------- 私信 IM（1对1，仅互关可发） ----------
+
+  /// 会话列表
+  static Future<Map<String, dynamic>> dmConversations(
+          {int page = 1, int size = 20}) =>
+      get('/dm/conversations', query: {'page': '$page', 'size': '$size'});
+
+  /// 聊天记录（created 升序返回）
+  static Future<Map<String, dynamic>> dmMessages(
+          {required String peer, double before = 0, int limit = 30}) =>
+      get('/dm/messages',
+          query: {'peer': peer, if (before > 0) 'before': '$before', 'limit': '$limit'});
+
+  /// 发送私信（互关校验在服务端）
+  static Future<Map<String, dynamic>> dmSend(String peer, String content) =>
+      post('/dm/send', body: {'peer': peer, 'content': content});
+
+  /// 标记某会话已读
+  static Future<void> dmRead(String peer) async {
+    await post('/dm/read', body: {'peer': peer});
+  }
+
+  /// 私信总未读
+  static Future<Map<String, dynamic>> dmUnread() => get('/dm/unread');
+
   // ---------- 等级 / 签到 / 任务 ----------
 
   static Future<Map<String, dynamic>> levelMe() => get('/level/me');

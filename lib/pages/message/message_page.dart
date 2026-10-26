@@ -1,16 +1,21 @@
-/// 消息页：互动通知 + 社区官方通知 合并成单一消息流（小红书/抖音式）
+/// 消息页（二级架构）：一级列表 = 互动通知 / 官方通知 / 私信 三个入口
 ///
-/// - 所有通知按时间倒序混排，左侧类型图标（点赞/评论/关注/@提及/审核/官方）
-/// - 未读项标题高亮 + 图标右上角红点；已读项整体淡化
-/// - 空态 / 未登录引导 / 失败重试 三态完整
+/// - 一级列表项：类型图标 + 标题 + 副标题 + 右侧未读数字角标
+/// - 互动通知 → 二级列表页（/notifications，已隔离 community_%）
+/// - 官方通知 → 聊天框页（只读气泡，对齐音乐项目官方通知界面）
+/// - 私信     → 会话列表页 → 聊天页（WS 实时收发，仅互关可发）
+/// - 未读角标：NotificationsUnread + DM 未读，WS hello/notification/dm 实时驱动
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
-import '../../models/feed_item.dart';
+import '../../services/notify_bus.dart';
 import '../mine/login_page.dart';
+import 'dm_conversations_page.dart';
+import 'notif_list_page.dart';
+import 'official_messages_page.dart';
 
 class MessagePage extends StatefulWidget {
   const MessagePage({super.key});
@@ -20,107 +25,93 @@ class MessagePage extends StatefulWidget {
 }
 
 class _MessagePageState extends State<MessagePage> {
-  /// 合并后的消息流（每项带 '_src': 'notif' | 'official'）
-  List<Map<String, dynamic>> _items = [];
   bool _loading = true;
-  bool _hasMore = false;
-  int _page = 0;
-  bool _listLoading = false;
-  bool _needLogin = false; // 401 时引导登录
-  String? _loadError; // 网络/服务异常时的可读错误（显示重试按钮）
+  bool _needLogin = false;
+  String? _loadError;
+
+  int _interactUnread = 0;
+  int _officialUnread = 0;
+  int _dmUnread = 0;
 
   @override
   void initState() {
     super.initState();
-    _load(refresh: true);
+    _load();
+    // WS 实时驱动未读
+    NotifyBus.shared.unread.addListener(_onNotifyUnread);
+    NotifyBus.shared.dmUnread.addListener(_onDmUnread);
   }
 
-  Future<void> _load({bool refresh = false}) async {
-    if (_listLoading || (!_hasMore && !refresh)) return;
-    setState(() => _listLoading = true);
-    List<Map<String, dynamic>> notif = [];
-    List<Map<String, dynamic>> official = [];
+  @override
+  void dispose() {
+    NotifyBus.shared.unread.removeListener(_onNotifyUnread);
+    NotifyBus.shared.dmUnread.removeListener(_onDmUnread);
+    super.dispose();
+  }
+
+  void _onNotifyUnread() {
+    if (!mounted) return;
+    // 通知未读含互动 + 官方，这里用接口分项数据（WS 只给总数时做兜底）
+    setState(() {});
+  }
+
+  void _onDmUnread() {
+    if (!mounted) return;
+    setState(() => _dmUnread = NotifyBus.shared.currentDmUnread);
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
     String? err;
-    var authFail = false;
-    // 互动通知：支持分页
     try {
-      final j = await ApiClient.notifications(
-          page: refresh ? 1 : _page + 1, size: 20);
-      notif = ((j['list'] ?? []) as List)
-          .whereType<Map<String, dynamic>>()
-          .toList();
-      _hasMore = boolOf(j['hasMore']);
+      final j = await ApiClient.notificationsUnread();
+      if (!mounted) return;
+      setState(() {
+        _interactUnread = (j['unread'] ?? 0) as int;
+        _officialUnread = (j['officialUnread'] ?? 0) as int;
+        _loading = false;
+        _loadError = null;
+        _needLogin = false;
+      });
     } on ApiException catch (e) {
       if (e.code == 401) {
-        authFail = true;
+        setState(() {
+          _needLogin = true;
+          _loading = false;
+        });
       } else {
         err = e.message;
       }
     } catch (_) {
       err = '网络异常，请检查网络后重试';
     }
-    // 社区官方：一次全量
-    try {
-      final j = await ApiClient.officialMessages();
-      official = ((j['list'] ?? []) as List)
-          .whereType<Map<String, dynamic>>()
-          .toList();
-    } on ApiException catch (e) {
-      if (e.code == 401) authFail = true;
-    } catch (_) {}
-    if (!mounted) return;
-    setState(() {
-      _listLoading = false;
-      if (authFail) {
-        _needLogin = true;
-        _loadError = null;
-        _items = [];
+    if (err != null && mounted) {
+      setState(() {
         _loading = false;
-        return;
-      }
-      final merged = <Map<String, dynamic>>[
-        ...notif.map((n) => {...n, '_src': 'notif'}),
-        ...official.map((m) => {...m, '_src': 'official'}),
-      ];
-      merged.sort(
-          (a, b) => _numOf(b['created']).compareTo(_numOf(a['created'])));
-      if (refresh) {
-        _items = merged;
-        _page = 1;
-      } else {
-        _items.addAll(merged);
-        _page++;
-      }
-      _loading = false;
-      // 任一源失败且本次没有任何数据 → 显示错误态；否则静默（另一源仍展示）
-      _loadError = (err != null && merged.isEmpty) ? err : null;
-    });
-    if (refresh) {
-      // 拉到即标记已读（失败静默，不影响页面展示）
-      try {
-        await ApiClient.markNotificationsRead();
-      } catch (_) {}
-      try {
-        await ApiClient.markOfficialRead();
-      } catch (_) {}
+        _loadError = err;
+      });
     }
+    try {
+      final d = await ApiClient.dmUnread();
+      if (mounted) {
+        setState(() {
+          _dmUnread = (d['unread'] ?? 0) as int;
+        });
+        NotifyBus.shared.dmUnread.value = _dmUnread;
+      }
+    } catch (_) {}
   }
 
   Future<void> _goLogin() async {
     final ok = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const LoginPage()),
     );
-    if (ok == true) {
-      if (!mounted) return;
+    if (ok == true && mounted) {
       setState(() {
         _needLogin = false;
         _loadError = null;
-        _items = [];
-        _hasMore = false;
-        _loading = true;
-        _page = 0;
       });
-      _load(refresh: true);
+      _load();
     }
   }
 
@@ -132,22 +123,13 @@ class _MessagePageState extends State<MessagePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-              child: Row(
-                children: [
-                  const Text('消息',
-                      style: TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold)),
-                  const Spacer(),
-                  const Text('音乐官方通知请在音乐 App 内查看',
-                      style: TextStyle(
-                          color: Color(AppTheme.textTertiary),
-                          fontSize: 11)),
-                ],
-              ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Text('消息',
+                  style: TextStyle(
+                      color: Color(AppTheme.textPrimary),
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold)),
             ),
             Expanded(
               child: _loading
@@ -161,54 +143,121 @@ class _MessagePageState extends State<MessagePage> {
                           : RefreshIndicator(
                               color: const Color(AppTheme.accent),
                               backgroundColor: const Color(AppTheme.card),
-                              onRefresh: () => _load(refresh: true),
-                              child: _items.isEmpty
-                                  ? ListView(
-                                      children: [
-                                        _empty(
-                                            Icons.notifications_none,
-                                            '暂无消息',
-                                            '点赞、评论、@提及、新增关注、官方公告\n都会出现在这里'),
-                                      ],
-                                    )
-                                  : ListView.separated(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 16),
-                                      itemCount:
-                                          _items.length + (_hasMore ? 1 : 0),
-                                      separatorBuilder: (_, __) => const Divider(
-                                          height: 1,
-                                          indent: 68,
-                                          endIndent: 16,
-                                          color: Color(AppTheme.border)),
-                                      itemBuilder: (_, i) {
-                                        if (i == _items.length) {
-                                          return GestureDetector(
-                                            onTap: _load,
-                                            behavior:
-                                                HitTestBehavior.opaque,
-                                            child: const Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                  vertical: 14),
-                                              child: Center(
-                                                child: Text('加载更多',
-                                                    style: TextStyle(
-                                                        color: Color(
-                                                            AppTheme
-                                                                .textSecondary),
-                                                        fontSize: 13)),
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                        final it = _items[i];
-                                        return it['_src'] == 'official'
-                                            ? buildOfficialTile(it)
-                                            : buildNotifTile(it);
-                                      },
-                                    ),
+                              onRefresh: _load,
+                              child: ListView(
+                                padding: EdgeInsets.only(
+                                    bottom:
+                                        16 + MediaQuery.paddingOf(context).bottom),
+                                children: [
+                                  _entry(
+                                    icon: Icons.favorite_outline_rounded,
+                                    color: const Color(AppTheme.heart),
+                                    title: '互动通知',
+                                    subtitle: '点赞、评论、@提及、新增关注',
+                                    unread: _interactUnread,
+                                    onTap: () => _open(() => const NotifListPage()),
+                                  ),
+                                  _divider(),
+                                  _entry(
+                                    icon: Icons.campaign_outlined,
+                                    color: const Color(AppTheme.sky),
+                                    title: '官方通知',
+                                    subtitle: '官方公告与活动提醒',
+                                    unread: _officialUnread,
+                                    onTap: () => _open(
+                                        () => const OfficialMessagesPage()),
+                                  ),
+                                  _divider(),
+                                  _entry(
+                                    icon: Icons.forum_outlined,
+                                    color: const Color(AppTheme.accent),
+                                    title: '私信',
+                                    subtitle: '互相关注的好友消息',
+                                    unread: _dmUnread,
+                                    onTap: () => _open(
+                                        () => const DmConversationsPage()),
+                                  ),
+                                ],
+                              ),
                             ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(Widget Function() page) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => page()),
+    );
+    if (mounted) _load();
+  }
+
+  Widget _divider() => const Divider(
+      height: 1, indent: 68, endIndent: 16, color: Color(AppTheme.border));
+
+  Widget _entry({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required int unread,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: color, size: 21),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textTertiary),
+                          fontSize: 12)),
+                ],
+              ),
+            ),
+            if (unread > 0)
+              Container(
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF4D4F),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
+                ),
+              )
+            else
+              const Icon(Icons.chevron_right_rounded,
+                  color: Color(AppTheme.textTertiary), size: 20),
           ],
         ),
       ),
@@ -255,12 +304,11 @@ class _MessagePageState extends State<MessagePage> {
     );
   }
 
-  /// 未登录引导空态
   Widget _loginEmpty() {
     return _empty(
       Icons.lock_outline,
       '登录后查看消息',
-      '点赞、评论、@提及、审核结果\n登录后才会出现在这里',
+      '互动通知、官方通知、私信\n登录后才会出现',
       action: FilledButton(
         style: FilledButton.styleFrom(
           backgroundColor: const Color(AppTheme.accent),
@@ -276,7 +324,6 @@ class _MessagePageState extends State<MessagePage> {
     );
   }
 
-  /// 加载失败空态：可读错误 + 重试
   Widget _errorRetry() {
     return _empty(
       Icons.wifi_off_outlined,
@@ -290,217 +337,10 @@ class _MessagePageState extends State<MessagePage> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
         ),
-        onPressed: () {
-          setState(() {
-            _loadError = null;
-            _loading = true;
-            _items = [];
-            _hasMore = false;
-            _page = 0;
-          });
-          _load(refresh: true);
-        },
+        onPressed: _load,
         child: const Text('重新加载',
             style: TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
   }
-}
-
-// ==================== 顶层 tile 构建（公开，供渲染回归测试直接驱动） ====================
-
-/// 容错字符串化：null/数字/布尔/嵌套结构一律安全转字符串，杜绝类型强转崩溃
-String _strOf(dynamic v) => v == null ? '' : v.toString();
-
-/// 容错时间戳：支持 int/double/数字字符串，解析失败归 0
-int _numOf(dynamic v) {
-  if (v is num) return v.toInt();
-  if (v is String) {
-    final s = v.trim();
-    if (s.isEmpty) return 0;
-    return int.tryParse(s) ?? double.tryParse(s)?.toInt() ?? 0;
-  }
-  return 0;
-}
-
-/// 通知类型 → 图标 + 主题色（小红书式彩色图标底）
-(IconData, Color) _notifStyle(String type) {
-  final t = type.toLowerCase();
-  if (t.contains('like')) {
-    return (Icons.favorite_rounded, const Color(AppTheme.heart));
-  }
-  if (t.contains('comment') || t.contains('reply')) {
-    return (Icons.chat_bubble_rounded, const Color(AppTheme.sky));
-  }
-  if (t.contains('follow')) {
-    return (Icons.person_add_alt, const Color(AppTheme.accent));
-  }
-  if (t.contains('mention')) {
-    return (Icons.alternate_email, const Color(AppTheme.lilac));
-  }
-  if (t.contains('audit')) {
-    return (Icons.fact_check_outlined, const Color(0xFFFFB84D));
-  }
-  if (t.contains('interact')) {
-    return (Icons.favorite_outline, const Color(AppTheme.heart));
-  }
-  return (Icons.notifications_none, const Color(AppTheme.textSecondary));
-}
-
-/// 单条互动通知（小红书式：无卡片容器，分隔线列表；未读红点 + 标题高亮）
-Widget buildNotifTile(Map<String, dynamic> n) {
-  final type = _strOf(n['type']);
-  final title = _strOf(n['title']);
-  final content = _strOf(n['content']);
-  final fromName = _strOf(n['fromUserName']);
-  final created = _numOf(n['created']);
-  final isRead = boolOf(n['isRead']);
-  final (icon, color) = _notifStyle(type);
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 左侧类型图标（右上角未读红点）
-        Stack(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            if (!isRead)
-              Positioned(
-                right: -1,
-                top: -1,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF4D4F),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(AppTheme.bg)),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(title,
-                        style: TextStyle(
-                          color: isRead
-                              ? const Color(AppTheme.textSecondary)
-                              : const Color(AppTheme.textPrimary),
-                          fontSize: 14.5,
-                          fontWeight:
-                              isRead ? FontWeight.normal : FontWeight.w600,
-                        )),
-                  ),
-                  Text(timeAgo(created),
-                      style: const TextStyle(
-                          color: Color(AppTheme.textTertiary),
-                          fontSize: 11)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                fromName.isEmpty ? content : '$fromName：$content',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Color(AppTheme.textSecondary),
-                    fontSize: 13,
-                    height: 1.4),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-/// 单条社区官方通知（同风格：蓝色官方图标 + 时间）
-Widget buildOfficialTile(Map<String, dynamic> m) {
-  final content = _strOf(m['content']);
-  final sender = _strOf(m['senderName']);
-  final created = _numOf(m['created']);
-  final isRead = boolOf(m['isRead'] ?? true);
-  const color = Color(AppTheme.sky);
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Stack(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.campaign_outlined,
-                  color: color, size: 20),
-            ),
-            if (!isRead)
-              Positioned(
-                right: -1,
-                top: -1,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF4D4F),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(AppTheme.bg)),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(sender.isEmpty ? '流萤社区官方' : sender,
-                        style: const TextStyle(
-                            color: Color(AppTheme.textPrimary),
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                  Text(timeAgo(created),
-                      style: const TextStyle(
-                          color: Color(AppTheme.textTertiary),
-                          fontSize: 11)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(content,
-                  style: const TextStyle(
-                      color: Color(AppTheme.textSecondary),
-                      fontSize: 13,
-                      height: 1.4)),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
 }

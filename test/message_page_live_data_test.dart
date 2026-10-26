@@ -5,7 +5,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:community_app/pages/message/message_page.dart';
+import 'package:community_app/pages/message/notif_list_page.dart' show buildNotifTile;
+import 'package:community_app/pages/message/official_messages_page.dart';
 
 /// 线上 _handle_notifications 真实结构（社区端 + 音乐端共享表数据）
 final List<Map<String, dynamic>> kLiveNotifications = [
@@ -106,21 +107,20 @@ void main() {
     expect(textCount, greaterThan(0), reason: 'tile 不得空白');
   });
 
-  testWidgets('官方通知 tile：空 sender 显示默认名、字段缺失安全', (tester) async {
-    await tester.pumpWidget(host([
-      buildOfficialTile({
-        'content': '社区公告内容',
-        'senderName': '',
-        'created': 1792968585.5,
-      }),
-      buildOfficialTile({
-        'content': null,
-        'senderName': null,
-        'created': null,
-      }),
-    ]));
-    await tester.pumpAndSettle();
+  testWidgets('官方通知聊天页：标题可见且不白屏（含加载失败态）', (tester) async {
+    // 官方通知已改为聊天框页（只读气泡）；测试环境无网络 → 必走失败态，
+    // 断言标题与失败重试入口可见、无渲染异常即可
+    await tester.pumpWidget(const MaterialApp(
+      home: OfficialMessagesPage(),
+    ));
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
-    expect(find.text('流萤社区官方'), findsNWidgets(2));
+    expect(find.text('官方通知'), findsOneWidget);
+    // 任一可读内容可见（提示语 / 失败重试 / 加载中）
+    final visible = <String>[];
+    for (final t in ['仅流萤社区官方可发送，无法回复', '加载失败，下拉重试', '暂无官方通知']) {
+      if (find.text(t).evaluate().isNotEmpty) visible.add(t);
+    }
+    expect(visible, isNotEmpty, reason: '官方通知页不能白屏');
   });
 }

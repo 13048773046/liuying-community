@@ -20,6 +20,7 @@ class NotifyBus {
   static final NotifyBus shared = NotifyBus._();
 
   int _unread = 0;
+  int _dmUnread = 0;
   bool _connected = false;
   IOWebSocketChannel? _channel;
   StreamSubscription? _sub;
@@ -30,11 +31,20 @@ class NotifyBus {
   /// 未读数变化通知（驱动导航栏红点）
   final ValueNotifier<int> unread = ValueNotifier<int>(0);
 
+  /// 私信未读数（驱动消息页私信角标）
+  final ValueNotifier<int> dmUnread = ValueNotifier<int>(0);
+
   /// 新通知事件（消息页可监听实时刷新）
   final StreamController<Map<String, dynamic>> onNotification =
       StreamController.broadcast();
 
+  /// 新私信事件（{convId, from, content, created}，聊天页实时刷新）
+  final StreamController<Map<String, dynamic>> onDm =
+      StreamController.broadcast();
+
   int get currentUnread => _unread;
+
+  int get currentDmUnread => _dmUnread;
 
   bool get connected => _connected;
 
@@ -54,6 +64,7 @@ class NotifyBus {
     _channel = null;
     _connected = false;
     _setUnread(0);
+    _setDmUnread(0);
   }
 
   void _open() {
@@ -80,6 +91,12 @@ class NotifyBus {
       if (kind == 'hello' || kind == 'notification') {
         _setUnread(((j['unread'] ?? 0) as num).toInt());
       }
+      if (kind == 'dm') {
+        _setDmUnread(((j['unread'] ?? 0) as num).toInt());
+        if (j['dm'] != null) {
+          onDm.add(Map<String, dynamic>.from(j['dm'] as Map));
+        }
+      }
       if (kind == 'notification' && j['notification'] != null) {
         onNotification.add(Map<String, dynamic>.from(j['notification'] as Map));
       }
@@ -96,6 +113,12 @@ class NotifyBus {
     if (_manualClose || _token.isEmpty) return;
     _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 8), _open);
+  }
+
+  void _setDmUnread(int n) {
+    if (_dmUnread == n) return;
+    _dmUnread = n;
+    dmUnread.value = n;
   }
 
   void _setUnread(int n) {

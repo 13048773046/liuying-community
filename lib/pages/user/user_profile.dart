@@ -8,6 +8,7 @@ import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../post/post_detail.dart';
 import '../../widgets/image_box.dart';
+import '../message/dm_chat_page.dart';
 
 class UserProfilePage extends StatefulWidget {
   final String uid;
@@ -76,6 +77,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
       if (!mounted) return;
       setState(() => _listLoading = false);
     }
+  }
+
+  /// 打开与对方的私信聊天页（互关校验在服务端，未互关发送时提示）
+  Future<void> _openDm() async {
+    final u = _user;
+    if (u == null) return;
+    final peerName = (u['name'] ?? '') as String;
+    final peerAvatar = (u['avatar'] ?? '') as String;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+          builder: (_) => DmChatPage(
+              peerId: widget.uid, peerName: peerName, peerAvatar: peerAvatar)),
+    );
   }
 
   Future<void> _toggleFollow() async {
@@ -231,32 +245,57 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ],
         ),
         const SizedBox(height: 16),
-        // 关注按钮
-        GestureDetector(
-          onTap: _toggleFollow,
-          child: Container(
-            width: 120,
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              color: following
-                  ? const Color(AppTheme.card)
-                  : const Color(AppTheme.accent),
-              borderRadius: BorderRadius.circular(20),
-              border: following
-                  ? Border.all(color: const Color(AppTheme.border))
-                  : null,
+        // 关注 / 私信 按钮行
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: _toggleFollow,
+              child: Container(
+                width: 100,
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: following
+                      ? const Color(AppTheme.card)
+                      : const Color(AppTheme.accent),
+                  borderRadius: BorderRadius.circular(20),
+                  border: following
+                      ? Border.all(color: const Color(AppTheme.border))
+                      : null,
+                ),
+                child: Center(
+                  child: Text(following ? '已关注' : '+ 关注',
+                      style: TextStyle(
+                        color: following
+                            ? const Color(AppTheme.textSecondary)
+                            : Colors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      )),
+                ),
+              ),
             ),
-            child: Center(
-              child: Text(following ? '已关注' : '+ 关注',
-                  style: TextStyle(
-                    color: following
-                        ? const Color(AppTheme.textSecondary)
-                        : Colors.black,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  )),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: _openDm,
+              child: Container(
+                width: 100,
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: const Color(AppTheme.card),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(AppTheme.border)),
+                ),
+                child: const Center(
+                  child: Text('私信',
+                      style: TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );
