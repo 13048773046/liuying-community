@@ -13,6 +13,7 @@ import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../mine/login_page.dart';
+import '../user/user_profile.dart';
 import 'comment_sheet.dart';
 
 class VideoCard extends StatefulWidget {
@@ -316,16 +317,16 @@ class _VideoCardState extends State<VideoCard> {
       bottom: 0,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 8, 14),
+          // 底部避让透明导航栏：54(导航栏本体) + 底部安全区 + 12 间距
+          padding: EdgeInsets.fromLTRB(
+              14, 0, 8, 12 + _navBarHeight(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 作者行：头像 + 认证LOGO + 昵称 + 关注
+              // 作者行：昵称 + 认证LOGO（关注入口在右侧操作栏头像上）
               Row(
                 children: [
-                  _Avatar(a: a, size: 36),
-                  const SizedBox(width: 8),
                   Flexible(
                     child: Text(
                       a.name,
@@ -342,12 +343,6 @@ class _VideoCardState extends State<VideoCard> {
                     const SizedBox(width: 5),
                     const _VerifiedBadge(name: '管理员'),
                   ],
-                  const SizedBox(width: 8),
-                  _FollowButton(
-                    followed: _followed,
-                    self: a.id == '',
-                    onTap: _toggleFollow,
-                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -382,13 +377,42 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   Widget _buildActionRail() {
+    final a = widget.item.author;
     return Positioned(
       right: 10,
-      bottom: 84,
+      bottom: 20 + _navBarHeight(context),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 抖音式：作者头像 + 关注（点击头像进主页）
+            _RailAvatar(
+              avatar: a.avatar,
+              size: 40,
+              onTap: a.id.isEmpty
+                  ? null
+                  : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => UserProfilePage(uid: a.id)),
+                      ),
+            ),
+            const SizedBox(height: 6),
+            if (!_followed && a.id.isNotEmpty)
+              GestureDetector(
+                onTap: _toggleFollow,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF4D6D),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add, size: 15, color: Colors.white),
+                ),
+              )
+            else if (a.id.isNotEmpty)
+              const SizedBox(height: 22),
+            const SizedBox(height: 12),
             _RailAction(
               icon: _liked ? Icons.favorite : Icons.favorite_border,
               color: _liked ? const Color(0xFFFF4D6D) : Colors.white,
@@ -419,6 +443,11 @@ class _VideoCardState extends State<VideoCard> {
 }
 
 // ---------- 子组件 ----------
+
+/// 短视频 tab 透明导航栏高度（本体 54 = 6+22+2+14+6+4 与 _AppTabBar 布局同步）
+/// 内容需整体避让，背景（视频画面）可延伸到导航栏区域
+double _navBarHeight(BuildContext c) =>
+    54 + MediaQuery.viewPaddingOf(c).bottom;
 
 class _BottomGradient extends StatelessWidget {
   const _BottomGradient();
@@ -491,6 +520,38 @@ class _Avatar extends StatelessWidget {
             : const _AvatarFallback(),
       ),
     );
+  }
+}
+
+/// 操作栏作者头像（抖音式）：白描边圆环 + 可点击进主页
+class _RailAvatar extends StatelessWidget {
+  final String? avatar;
+  final double size;
+  final VoidCallback? onTap;
+  const _RailAvatar(
+      {required this.avatar, required this.size, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+      ),
+      child: ClipOval(
+        child: avatar != null && avatar!.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: avatar!,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => const _AvatarFallback(),
+              )
+            : const _AvatarFallback(),
+      ),
+    );
+    if (onTap == null) return child;
+    return GestureDetector(onTap: onTap, child: child);
   }
 }
 
