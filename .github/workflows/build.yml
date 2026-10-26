@@ -33,7 +33,7 @@ jobs:
 
   # ---------- iOS 未签名 IPA（无开发者证书，可 sideload/自签） ----------
   ios-unsigned-ipa:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -46,8 +46,7 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # macos-14 镜像默认 Xcode 15.x 编译不了 video_player_avfoundation 2.12 的
-      # Swift 6 并发语法，切到镜像自带的最新 Xcode（音乐项目同法已验证）
+      # 镜像自带最新 Xcode（video_player_avfoundation 需 Swift 6 并发语法支持）
       - name: Select latest Xcode
         run: |
           ls /Applications | grep -i xcode
