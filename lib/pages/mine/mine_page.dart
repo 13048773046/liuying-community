@@ -15,7 +15,6 @@ import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../settings/settings_page.dart';
 import 'login_page.dart';
-import 'task_center_page.dart';
 import 'user_list_page.dart';
 
 class MinePage extends StatefulWidget {

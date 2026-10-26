@@ -82,21 +82,7 @@ class WaterfallCard extends StatelessWidget {
                       color: Color(AppTheme.textSecondary)),
                 ),
         ),
-        // 中央播放钮
-        Center(
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.45),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.5)),
-            ),
-            child: const Icon(Icons.play_arrow_rounded,
-                color: Colors.white, size: 26),
-          ),
-        ),
-        // 时长角标
+        // 时长角标（对齐抖音/小红书瀑布流：封面无播放按钮，仅右下角时长）
         if (dur > 0)
           Positioned(
             right: 6,
@@ -104,7 +90,7 @@ class WaterfallCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(5),
               ),
               child: Text(_fmtDur(dur),
