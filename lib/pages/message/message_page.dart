@@ -1,18 +1,20 @@
-/// 消息页（二级架构）：一级列表 = 互动通知 / 官方通知 / 私信 三个入口
+/// 消息页（二级架构）：官方通知/互动通知 为入口项 + 私信会话直接平铺
 ///
-/// - 一级列表项：类型图标 + 标题 + 副标题 + 右侧未读数字角标
-/// - 互动通知 → 二级列表页（/notifications，已隔离 community_%）
-/// - 官方通知 → 聊天框页（只读气泡，对齐音乐项目官方通知界面）
-/// - 私信     → 会话列表页 → 聊天页（WS 实时收发，仅互关可发）
-/// - 未读角标：NotificationsUnread + DM 未读，WS hello/notification/dm 实时驱动
+/// - 顶部两个入口项：互动通知 / 官方通知（带未读数字角标）
+///   - 互动通知 → 二级列表页（/notifications，已隔离 community_%）
+///   - 官方通知 → 聊天框页（只读气泡，对齐音乐项目官方通知界面）
+/// - 私信：不设入口页，最近会话直接平铺在消息页（微信式），点会话进聊天框
+/// - 未读角标：NotificationsUnread + 会话项自身 unread，WS 实时驱动
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
 import '../mine/login_page.dart';
+import 'dm_chat_page.dart';
 import 'dm_conversations_page.dart';
 import 'notif_list_page.dart';
 import 'official_messages_page.dart';
@@ -31,15 +33,24 @@ class _MessagePageState extends State<MessagePage> {
 
   int _interactUnread = 0;
   int _officialUnread = 0;
-  int _dmUnread = 0;
+
+  /// 私信会话（直接平铺在一级列表）
+  List<Map<String, dynamic>> _dmConvs = [];
+  bool _dmLoading = false;
+  bool _dmHasMore = false;
+  int _dmPage = 0;
+  String? _dmError;
 
   @override
   void initState() {
     super.initState();
     _load();
-    // WS 实时驱动未读
+    // WS 实时驱动未读 / 会话
     NotifyBus.shared.unread.addListener(_onNotifyUnread);
     NotifyBus.shared.dmUnread.addListener(_onDmUnread);
+    NotifyBus.shared.onDm.stream.listen((_) {
+      if (mounted) _loadDm(refresh: true);
+    });
   }
 
   @override
@@ -51,13 +62,12 @@ class _MessagePageState extends State<MessagePage> {
 
   void _onNotifyUnread() {
     if (!mounted) return;
-    // 通知未读含互动 + 官方，这里用接口分项数据（WS 只给总数时做兜底）
     setState(() {});
   }
 
   void _onDmUnread() {
     if (!mounted) return;
-    setState(() => _dmUnread = NotifyBus.shared.currentDmUnread);
+    setState(() {});
   }
 
   Future<void> _load() async {
@@ -91,15 +101,54 @@ class _MessagePageState extends State<MessagePage> {
         _loadError = err;
       });
     }
+    await _loadDm(refresh: true);
+  }
+
+  Future<void> _loadDm({bool refresh = false}) async {
+    if (_dmLoading || (!_dmHasMore && !refresh)) return;
+    setState(() => _dmLoading = true);
     try {
+      final j = await ApiClient.dmConversations(
+          page: refresh ? 1 : _dmPage + 1, size: 20);
+      final list = ((j['list'] ?? []) as List)
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        if (refresh) {
+          _dmConvs = list;
+          _dmPage = 1;
+        } else {
+          _dmConvs.addAll(list);
+          _dmPage++;
+        }
+        _dmHasMore = boolOf(j['hasMore']);
+        _dmLoading = false;
+        _dmError = null;
+      });
+      // 同步全局私信未读
       final d = await ApiClient.dmUnread();
       if (mounted) {
-        setState(() {
-          _dmUnread = (d['unread'] ?? 0) as int;
-        });
-        NotifyBus.shared.dmUnread.value = _dmUnread;
+        setState(() {});
+        NotifyBus.shared.dmUnread.value = (d['unread'] ?? 0) as int;
       }
-    } catch (_) {}
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _dmLoading = false;
+        _dmError = e is ApiException ? e.message : '网络异常，请检查网络后重试';
+      });
+    }
+  }
+
+  Future<void> _openChat(Map<String, dynamic> it) async {
+    final peer = (it['peer'] ?? {}) as Map<String, dynamic>;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => DmChatPage(
+            peerId: (peer['id'] ?? '') as String,
+            peerName: (peer['name'] ?? '') as String,
+            peerAvatar: (peer['avatar'] ?? '') as String)));
+    if (mounted) _loadDm(refresh: true);
   }
 
   Future<void> _goLogin() async {
@@ -146,16 +195,18 @@ class _MessagePageState extends State<MessagePage> {
                               onRefresh: _load,
                               child: ListView(
                                 padding: EdgeInsets.only(
-                                    bottom:
-                                        16 + MediaQuery.paddingOf(context).bottom),
+                                    bottom: 16 +
+                                        MediaQuery.paddingOf(context).bottom),
                                 children: [
+                                  // 官方 / 互动 两个入口项
                                   _entry(
                                     icon: Icons.favorite_outline_rounded,
                                     color: const Color(AppTheme.heart),
                                     title: '互动通知',
                                     subtitle: '点赞、评论、@提及、新增关注',
                                     unread: _interactUnread,
-                                    onTap: () => _open(() => const NotifListPage()),
+                                    onTap: () =>
+                                        _open(() => const NotifListPage()),
                                   ),
                                   _divider(),
                                   _entry(
@@ -168,18 +219,91 @@ class _MessagePageState extends State<MessagePage> {
                                         () => const OfficialMessagesPage()),
                                   ),
                                   _divider(),
-                                  _entry(
-                                    icon: Icons.forum_outlined,
-                                    color: const Color(AppTheme.accent),
-                                    title: '私信',
-                                    subtitle: '互相关注的好友消息',
-                                    unread: _dmUnread,
-                                    onTap: () => _open(
-                                        () => const DmConversationsPage()),
+                                  // 私信分组标题
+                                  const Padding(
+                                    padding: EdgeInsets.fromLTRB(16, 16, 16, 6),
+                                    child: Text('私信',
+                                        style: TextStyle(
+                                            color: Color(AppTheme.textSecondary),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600)),
                                   ),
+                                  if (_dmError != null && _dmConvs.isEmpty)
+                                    _dmErrorTile(_dmError!)
+                                  else if (_dmLoading && _dmConvs.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 24),
+                                      child: Center(
+                                        child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Color(
+                                                    AppTheme.accent))),
+                                      ),
+                                    )
+                                  else if (_dmConvs.isEmpty)
+                                    const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 26),
+                                      child: Center(
+                                        child: Text('暂无私信，在互相关注的好友主页点「私信」发起',
+                                            style: TextStyle(
+                                                color: Color(
+                                                    AppTheme.textTertiary),
+                                                fontSize: 12.5)),
+                                      ),
+                                    )
+                                  else ...[
+                                    ..._dmConvs.map((it) => buildConvTile(it,
+                                        onTap: () => _openChat(it))),
+                                    if (_dmHasMore)
+                                      GestureDetector(
+                                        onTap: () => _loadDm(),
+                                        behavior: HitTestBehavior.opaque,
+                                        child: const Padding(
+                                          padding: EdgeInsets.symmetric(
+                                              vertical: 12),
+                                          child: Center(
+                                            child: Text('加载更多',
+                                                style: TextStyle(
+                                                    color: Color(
+                                                        AppTheme.textSecondary),
+                                                    fontSize: 13)),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ],
                               ),
                             ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dmErrorTile(String msg) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: Column(
+          children: [
+            Text(msg,
+                style: const TextStyle(
+                    color: Color(AppTheme.textTertiary), fontSize: 12.5)),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(AppTheme.accent),
+                side: const BorderSide(color: Color(AppTheme.accent)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18)),
+              ),
+              onPressed: () => _loadDm(refresh: true),
+              child: const Text('重新加载'),
             ),
           ],
         ),

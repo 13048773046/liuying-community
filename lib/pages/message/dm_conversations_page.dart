@@ -81,6 +81,16 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
     }
   }
 
+  Future<void> _openChat(Map<String, dynamic> it) async {
+    final peer = (it['peer'] ?? {}) as Map<String, dynamic>;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => DmChatPage(
+            peerId: (peer['id'] ?? '') as String,
+            peerName: (peer['name'] ?? '') as String,
+            peerAvatar: (peer['avatar'] ?? '') as String)));
+    if (mounted) _load(refresh: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,104 +160,13 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
                                   );
                                 }
                                 final it = _items[i];
-                                return _convTile(it);
+                                return buildConvTile(it, onTap: () => _openChat(it));
                               },
                             ),
                     ),
     );
   }
 
-  Widget _convTile(Map<String, dynamic> it) {
-    final peer = (it['peer'] ?? {}) as Map<String, dynamic>;
-    final pid = (peer['id'] ?? '') as String;
-    final name = (peer['name'] ?? '') as String;
-    final avatar = (peer['avatar'] ?? '') as String;
-    final lastMsg = (it['lastMsg'] ?? '') as String;
-    final lastTime = ((it['lastTime'] ?? 0) as num).toInt();
-    final unread = ((it['unread'] ?? 0) as num).toInt();
-    return InkWell(
-      onTap: () async {
-        await Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => DmChatPage(peerId: pid, peerName: name,
-                peerAvatar: avatar)));
-        if (mounted) _load(refresh: true);
-      },
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Row(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                UserAvatar(url: avatar, name: name, size: 48),
-                if (unread > 0)
-                  Positioned(
-                    right: -4,
-                    top: -4,
-                    child: Container(
-                      constraints: const BoxConstraints(
-                          minWidth: 18, minHeight: 18),
-                      padding: const EdgeInsets.symmetric(horizontal: 5),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF4D4F),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Text(
-                        unread > 99 ? '99+' : '$unread',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Color(AppTheme.textPrimary),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                      Text(timeAgo(lastTime),
-                          style: const TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 11)),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    lastMsg,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: unread > 0
-                          ? const Color(AppTheme.textPrimary)
-                          : const Color(AppTheme.textSecondary),
-                      fontSize: 13,
-                      fontWeight:
-                          unread > 0 ? FontWeight.w500 : FontWeight.normal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _empty() {
     return Padding(
@@ -355,4 +274,93 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
       ),
     );
   }
+}
+
+// ==================== 公共会话项（消息页一级列表复用） ====================
+
+/// 会话列表项：头像 + 名字 + 最后消息 + 时间 + 未读数字角标
+Widget buildConvTile(Map<String, dynamic> it, {required VoidCallback onTap}) {
+  final peer = (it['peer'] ?? {}) as Map<String, dynamic>;
+  final name = (peer['name'] ?? '') as String;
+  final avatar = (peer['avatar'] ?? '') as String;
+  final lastMsg = (it['lastMsg'] ?? '') as String;
+  final lastTime = ((it['lastTime'] ?? 0) as num).toInt();
+  final unread = ((it['unread'] ?? 0) as num).toInt();
+  return InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
+      child: Row(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              UserAvatar(url: avatar, name: name, size: 48),
+              if (unread > 0)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4D4F),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Text(
+                      unread > 99 ? '99+' : '$unread',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Color(AppTheme.textPrimary),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                    Text(timeAgo(lastTime),
+                        style: const TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 11)),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  lastMsg,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: unread > 0
+                        ? const Color(AppTheme.textPrimary)
+                        : const Color(AppTheme.textSecondary),
+                    fontSize: 13,
+                    fontWeight:
+                        unread > 0 ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
