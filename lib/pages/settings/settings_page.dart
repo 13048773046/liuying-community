@@ -107,7 +107,7 @@ class _SettingsPageState extends State<SettingsPage> {
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16+ MediaQuery.paddingOf(context).bottom),
         children: [
           if (ApiClient.token != null) ...[
             // 账号卡

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../utils/responsive.dart';
 import '../post/post_editor.dart';
 
 class TaskCenterPage extends StatefulWidget {
@@ -124,7 +125,7 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
                   onRefresh: _load,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24+ MediaQuery.paddingOf(context).bottom),
                     children: [
                       _campaignCard(),
                       const SizedBox(height: 14),
@@ -147,6 +148,7 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
 
   Widget _notLogin() {
     return ListView(
+      padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         const SizedBox(height: 120),
@@ -170,7 +172,7 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
           MaterialPageRoute(
               builder: (_) => const PostEditorPage(mode: 'text'))),
       child: Container(
-        height: 96,
+        height: rw(context, 96),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(

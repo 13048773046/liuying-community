@@ -124,7 +124,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   backgroundColor: const Color(AppTheme.card),
                   onRefresh: () => _load(),
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 20+ MediaQuery.paddingOf(context).bottom),
                     children: [
                       _header(),
                       const SizedBox(height: 18),

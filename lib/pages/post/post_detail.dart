@@ -519,32 +519,46 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 height: 1.55)),
         if (p.images.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: p.images
-                .map((img) => ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImageCompat(
-                        url: mediaUrl(img),
-                        width: (MediaQuery.of(context).size.width - 40 - 16) /
-                            (p.images.length == 1 ? 1 : 2),
-                        height: 160,
-                        fit: BoxFit.cover,
-                      ),
-                    ))
-                .toList(),
-          ),
+          // 多图：按张数等宽网格，AspectRatio 自适应屏幕（不再写死高度）
+          if (p.images.length == 1)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: CachedNetworkImageCompat(
+                  url: mediaUrl(p.images[0]),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: p.images
+                  .map((img) => ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: CachedNetworkImageCompat(
+                            url: mediaUrl(img),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
         ],
         if (p.isVideo) ...[
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: CachedNetworkImageCompat(
-              url: mediaUrl(p.cover == 'auto' ? '${p.video}.jpg' : p.cover),
-              width: double.infinity,
-              height: 300,
-              fit: BoxFit.cover,
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: CachedNetworkImageCompat(
+                url: mediaUrl(p.cover == 'auto' ? '${p.video}.jpg' : p.cover),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           const SizedBox(height: 6),

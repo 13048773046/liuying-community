@@ -144,6 +144,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
     if (_items.isEmpty) {
       return ListView(
+        padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
         children: [
           const SizedBox(height: 120),
           const Icon(Icons.bookmark_border,
@@ -172,7 +173,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
         crossAxisCount: 2,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+        padding: EdgeInsets.fromLTRB(12, 4, 12, 24+ MediaQuery.paddingOf(context).bottom),
         itemCount: _items.length + 1,
         itemBuilder: (_, i) {
           if (i == _items.length) {

@@ -17,6 +17,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../utils/responsive.dart';
 
 /// mode: text=发图文帖，video=发短视频
 class PostEditorPage extends StatefulWidget {
@@ -651,7 +652,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
     return GestureDetector(
       onTap: _pickVideo,
       child: Container(
-        height: 220,
+        height: rw(context, 220),
         width: double.infinity,
         decoration: BoxDecoration(
           color: const Color(AppTheme.bg),

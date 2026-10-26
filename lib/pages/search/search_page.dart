@@ -230,7 +230,7 @@ class _SearchPageState extends State<SearchPage> {
   // ---------- 默认：历史 + 热门 ----------
   Widget _defaultView() {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 24+ MediaQuery.paddingOf(context).bottom),
       children: [
         if (_history.isNotEmpty) ...[
           const Text('搜索历史',
@@ -366,6 +366,7 @@ class _SearchPageState extends State<SearchPage> {
   // ---------- 联想 ----------
   Widget _suggestView() {
     return ListView(
+      padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         for (final t in _sugTopics)
@@ -419,6 +420,7 @@ class _SearchPageState extends State<SearchPage> {
         _topicResults.isEmpty;
     if (empty) {
       return ListView(
+        padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
         children: [
           const SizedBox(height: 120),
           const Icon(Icons.search_off,
@@ -436,7 +438,7 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 24+ MediaQuery.paddingOf(context).bottom),
       children: [
         if (_userResults.isNotEmpty) ...[
           _sectionTitle('用户'),

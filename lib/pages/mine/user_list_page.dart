@@ -99,6 +99,7 @@ class _UserListPageState extends State<UserListPage> {
                   color: Color(AppTheme.accent), strokeWidth: 2.5))
           : _items.isEmpty
               ? ListView(
+                    padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
                   children: [
                     const SizedBox(height: 120),
                     Icon(widget.kind == 'followings'

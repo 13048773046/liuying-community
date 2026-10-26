@@ -70,7 +70,7 @@ class _FramesPageState extends State<FramesPage> {
           ? const Center(
               child: CircularProgressIndicator(color: Color(AppTheme.accent)))
           : GridView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16+ MediaQuery.paddingOf(context).bottom),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   mainAxisSpacing: 10,

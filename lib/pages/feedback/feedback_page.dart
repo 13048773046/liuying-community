@@ -82,7 +82,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16+ MediaQuery.paddingOf(context).bottom),
         children: [
           // 类型选择
           const Padding(
