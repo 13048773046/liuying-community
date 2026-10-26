@@ -17,6 +17,7 @@ import '../post/post_editor.dart';
 import '../settings/settings_page.dart';
 import '../user/user_profile.dart';
 import 'login_page.dart';
+import 'task_center_page.dart';
 
 class MinePage extends StatefulWidget {
   const MinePage({super.key});
@@ -35,7 +36,6 @@ class _MinePageState extends State<MinePage> {
   bool _signing = false;
   List<Map<String, dynamic>> _frames = [];
   String _myFrame = '';
-  List<Map<String, dynamic>> _tasks = [];
   // A2 作品 Tab：帖子 / 收藏 / 稍后看
   int _tab = 0;
   final List<FeedItem> _mine = [];
@@ -183,13 +183,6 @@ class _MinePageState extends State<MinePage> {
       final sg = await ApiClient.signins();
       final fr = await ApiClient.frames();
       final mf = await ApiClient.myFrame();
-      List<Map<String, dynamic>> tasks = [];
-      try {
-        final tj = await ApiClient.tasks();
-        tasks = ((tj['list'] ?? []) as List)
-            .whereType<Map<String, dynamic>>()
-            .toList();
-      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _level = Map<String, dynamic>.from(lv);
@@ -198,7 +191,6 @@ class _MinePageState extends State<MinePage> {
             .whereType<Map<String, dynamic>>()
             .toList();
         _myFrame = (mf['frameId'] ?? '') as String;
-        _tasks = tasks;
       });
     } catch (_) {}
   }
@@ -665,11 +657,18 @@ class _MinePageState extends State<MinePage> {
                     ),
                   ),
                 ),
-                // 轻量入口行：签到 / 装扮 / 反馈 / 关于
+                // 轻量入口行：任务 / 签到 / 装扮 / 反馈 / 关于
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Row(
                     children: [
+                      _pillEntry(Icons.emoji_events_outlined, '任务', () {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const TaskCenterPage()));
+                      }),
+                      const SizedBox(width: 8),
                       _pillEntry(
                           signedToday
                               ? Icons.check_circle
@@ -812,10 +811,8 @@ class _MinePageState extends State<MinePage> {
     return _favGrid(later: _tab == 2);
   }
 
-  /// 我的帖子：任务卡片（未完成时）+ 双列瀑布流
+  /// 我的帖子：双列瀑布流（任务已移至任务中心，不再内嵌）
   Widget _mineGrid() {
-    final openTasks =
-        _tasks.where((t) => boolOf(t['done']) != true).toList();
     return RefreshIndicator(
       onRefresh: () async {
         await _loadMine(refresh: true);
@@ -831,7 +828,6 @@ class _MinePageState extends State<MinePage> {
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    if (openTasks.isNotEmpty) ..._tasks.map(_taskTile),
                     const SizedBox(height: 100),
                     Center(
                       child: Column(
@@ -878,10 +874,6 @@ class _MinePageState extends State<MinePage> {
                     padding:
                         const EdgeInsets.fromLTRB(12, 4, 12, 20),
                     children: [
-                      if (openTasks.isNotEmpty) ...[
-                        ..._tasks.map(_taskTile),
-                        const SizedBox(height: 8),
-                      ],
                       MasonryGridView.count(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -995,96 +987,5 @@ class _MinePageState extends State<MinePage> {
       ],
     );
   }
-
-  Widget _taskTile(Map<String, dynamic> t) {
-    final name = (t['name'] ?? '') as String;
-    final desc = (t['desc'] ?? '') as String;
-    final reward = ((t['rewardExp'] ?? 0) as num).toInt();
-    final status = (t['status'] ?? '') as String; // pending | done | claimed
-    final claimed = status == 'claimed';
-    final done = status == 'done';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(AppTheme.card),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: claimed
-                  ? const Color(AppTheme.accentSoft)
-                  : const Color(AppTheme.bg),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              claimed ? Icons.check_circle : Icons.bolt,
-              color: claimed
-                  ? const Color(AppTheme.accent)
-                  : const Color(0xFFFFB84D),
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
-                    style: const TextStyle(
-                        color: Color(AppTheme.textPrimary), fontSize: 14)),
-                const SizedBox(height: 2),
-                Text(desc.isEmpty ? '奖励经验 +$reward' : '$desc · +$reward 经验',
-                    style: const TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 11)),
-              ],
-            ),
-          ),
-          if (claimed)
-            const Text('已领取',
-                style: TextStyle(
-                    color: Color(AppTheme.accent), fontSize: 12))
-          else if (done)
-            GestureDetector(
-              onTap: () async {
-                try {
-                  await ApiClient.claimTask(t['id'] as String);
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('已领取奖励'),
-                      backgroundColor: Color(AppTheme.card)));
-                  await _loadExtras();
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('$e'),
-                      backgroundColor: const Color(AppTheme.card)));
-                }
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(AppTheme.accent),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Text('领取',
-                    style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-              ),
-            )
-          else
-            const Text('未完成',
-                style:
-                    TextStyle(color: Color(AppTheme.textTertiary), fontSize: 12)),
-        ],
-      ),
-    );
-  }
 }
+

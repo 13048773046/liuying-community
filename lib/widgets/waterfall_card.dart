@@ -30,10 +30,11 @@ class WaterfallCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 概念稿卡片结构：图 → 正文 → 底部作者+互动数据行
             if (isVideo)
               _videoCover()
-            else
-              _authorRow(),
+            else if (item.images.isNotEmpty)
+              _images(item.images),
             if (!isVideo && item.content.isNotEmpty) ...[
               const SizedBox(height: 8),
               Padding(
@@ -111,87 +112,83 @@ class WaterfallCard extends StatelessWidget {
                       color: Colors.white, fontSize: 10.5)),
             ),
           ),
-        // 作者条（封面底部）
-        Positioned(
-          left: 8,
-          right: 8,
-          bottom: 34,
+      ],
+    );
+  }
+
+  /// 图文卡底部数据行：作者（左）+ 点赞/评论（右），对齐概念稿
+  Widget _footerRow(bool isVideo) {
+    final a = item.author;
+    return Row(
+      children: [
+        if (onAuthorTap != null)
+          GestureDetector(onTap: onAuthorTap, child: _miniAvatar(a.avatar, a.name))
+        else
+          _miniAvatar(a.avatar, a.name),
+        const SizedBox(width: 6),
+        Expanded(
           child: Row(
             children: [
-              _miniAvatar(item.author.avatar, item.author.name),
-              const SizedBox(width: 6),
-              Expanded(
+              Flexible(
                 child: Text(
-                  item.author.name,
+                  a.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      shadows: [Shadow(color: Colors.black54, blurRadius: 4)]),
+                      fontWeight: FontWeight.w600),
                 ),
               ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _authorRow() {
-    final a = item.author;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-      child: Row(
-        children: [
-          if (onAuthorTap != null)
-            GestureDetector(onTap: onAuthorTap, child: _miniAvatar(a.avatar, a.name))
-          else
-            _miniAvatar(a.avatar, a.name),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    a.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+              if (a.isAdmin) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [
+                          Color(AppTheme.accent),
+                          Color(AppTheme.sky)
+                        ]),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: const Text(
+                    '管',
+                    style: TextStyle(
                         color: Colors.white,
-                        fontSize: 12.5,
+                        fontSize: 8,
+                        height: 1.3,
                         fontWeight: FontWeight.w600),
                   ),
                 ),
-                if (a.isAdmin) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                          colors: [
-                            Color(AppTheme.accent),
-                            Color(AppTheme.sky)
-                          ]),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: const Text(
-                      '管',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                          height: 1.3,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
               ],
-            ),
+              if (item.featured) ...[
+                const SizedBox(width: 4),
+                const Text('★',
+                    style: TextStyle(
+                        color: Color(0xFFFFB84D),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
+              ],
+              if (item.sticky) ...[
+                const SizedBox(width: 4),
+                const Text('📌', style: TextStyle(fontSize: 10)),
+              ],
+              if (item.type == 'poll') ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.how_to_vote_outlined,
+                    size: 13, color: Color(AppTheme.lilac)),
+              ],
+            ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        _miniAction(Icons.favorite_rounded, item.likeCount, item.liked),
+        const SizedBox(width: 10),
+        _miniAction(
+            Icons.chat_bubble_outline_rounded, item.commentCount, false),
+      ],
     );
   }
 
@@ -295,36 +292,6 @@ class WaterfallCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _footerRow(bool isVideo) {
-    return Row(
-      children: [
-        _miniAction(Icons.favorite_rounded, item.likeCount, item.liked),
-        const SizedBox(width: 14),
-        _miniAction(
-            Icons.chat_bubble_outline_rounded, item.commentCount, false),
-        const SizedBox(width: 14),
-        _miniAction(Icons.arrow_upward_rounded, item.shareCount, false),
-        const Spacer(),
-        if (item.featured)
-          const Text('★',
-              style: TextStyle(
-                  color: Color(0xFFFFB84D),
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold)),
-        if (item.sticky) ...[
-          const SizedBox(width: 6),
-          const Text('📌', style: TextStyle(fontSize: 11)),
-        ],
-        if (item.type == 'poll')
-          const Padding(
-            padding: EdgeInsets.only(left: 6),
-            child: Icon(Icons.how_to_vote_outlined,
-                size: 14, color: Color(AppTheme.lilac)),
-          ),
-      ],
     );
   }
 
