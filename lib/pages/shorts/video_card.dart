@@ -408,7 +408,7 @@ class _VideoCardState extends State<VideoCard> {
               onTap: _share,
             ),
             _RailAction(
-              asset: 'assets/icons/bookmark.svg',
+              asset: 'assets/icons/star.svg',
               color: _faved ? const Color(0xFFFFB84D) : Colors.white,
               count: 0,
               onTap: _toggleFav,
