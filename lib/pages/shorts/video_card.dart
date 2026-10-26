@@ -7,6 +7,7 @@ library;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../api/client.dart';
@@ -391,23 +392,23 @@ class _VideoCardState extends State<VideoCard> {
             ),
             const SizedBox(height: 18),
             _RailAction(
-              icon: Icons.favorite_rounded,
+              asset: 'assets/icons/heart.svg',
               color: _liked ? const Color(0xFFFF4D6D) : Colors.white,
               count: _likeCount,
               onTap: _toggleLike,
             ),
             _RailAction(
-              icon: Icons.chat_bubble_rounded,
+              asset: 'assets/icons/chatbubble-ellipses.svg',
               count: _commentCount,
               onTap: _openComments,
             ),
             _RailAction(
-              icon: Icons.arrow_upward_rounded,
+              asset: 'assets/icons/arrow-redo.svg',
               count: _shareCount,
               onTap: _share,
             ),
             _RailAction(
-              icon: _faved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              asset: 'assets/icons/bookmark.svg',
               color: _faved ? const Color(0xFFFFB84D) : Colors.white,
               count: 0,
               onTap: _toggleFav,
@@ -647,12 +648,12 @@ class _ContentText extends StatelessWidget {
 }
 
 class _RailAction extends StatelessWidget {
-  final IconData icon;
+  final String asset; // assets/icons/*.svg（网上下载的开源实心图标）
   final Color color;
   final int count;
   final VoidCallback onTap;
   const _RailAction({
-    required this.icon,
+    required this.asset,
     required this.count,
     required this.onTap,
     this.color = Colors.white,
@@ -667,10 +668,13 @@ class _RailAction extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           children: [
-            // 无圆形卡片背景：实心白色圆润图标（抖音式操作栏）
-            Icon(icon, color: color, size: 27, shadows: const [
-              Shadow(color: Colors.black38, blurRadius: 6),
-            ]),
+            // 无圆形卡片背景：网上下载的开源实心图标（抖音式操作栏）
+            SvgPicture.asset(
+              asset,
+              width: 26,
+              height: 26,
+              colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+            ),
             if (count > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 3),
