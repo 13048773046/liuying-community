@@ -29,6 +29,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool _faved = false;
   int _likeCount = 0;
   bool _loading = true;
+  bool _following = false;
+  bool _followBusy = false;
   List<Map<String, dynamic>> _comments = [];
   int _cPage = 1;
   bool _cHasMore = false;
@@ -322,12 +324,66 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 ],
               ),
               const SizedBox(height: 3),
-              Text('Lv${a.level} · ${timeAgo(_post!.created)}',
-                  style: const TextStyle(
-                      color: Color(AppTheme.textTertiary), fontSize: 12)),
+              Text(
+                'Lv${a.level} · ${timeAgo(_post!.created)}'
+                '${_post!.tag.isNotEmpty ? ' · 来自${_post!.tag}' : ''}',
+                style: const TextStyle(
+                    color: Color(AppTheme.textTertiary), fontSize: 12),
+              ),
             ],
           ),
         ),
+        if (a.id != ApiClient.userId)
+          Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: GestureDetector(
+              onTap: _followBusy
+                  ? null
+                  : () async {
+                      setState(() => _followBusy = true);
+                      try {
+                        await ApiClient.toggleFollow(a.id);
+                        if (!mounted) return;
+                        setState(() {
+                          _following = !_following;
+                          _followBusy = false;
+                        });
+                      } catch (_) {
+                        if (!mounted) return;
+                        setState(() => _followBusy = false);
+                      }
+                    },
+              child: Container(
+                width: 62,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _following
+                      ? Colors.transparent
+                      : const Color(AppTheme.accent),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  border: _following
+                      ? Border.all(color: const Color(AppTheme.border))
+                      : null,
+                ),
+                child: _followBusy
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Color(AppTheme.accent)))
+                    : Text(
+                        _following ? '已关注' : '+ 关注',
+                        style: TextStyle(
+                            color: _following
+                                ? const Color(AppTheme.textSecondary)
+                                : Colors.black,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600),
+                      ),
+              ),
+            ),
+          ),
         if (_post!.sticky)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

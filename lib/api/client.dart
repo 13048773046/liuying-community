@@ -189,6 +189,7 @@ class ApiClient {
     int page = 1,
     int size = 10,
     String boardId = '',
+    String topic = '',
   }) async {
     final j = await get('/feed', query: {
       'tab': tab,
@@ -196,6 +197,7 @@ class ApiClient {
       'size': '$size',
       if (type.isNotEmpty) 'type': type,
       if (boardId.isNotEmpty) 'board_id': boardId,
+      if (topic.isNotEmpty) 'topic': topic,
     });
     return FeedPage.fromJson(j);
   }

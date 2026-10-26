@@ -5,18 +5,21 @@ import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import 'board_feed_page.dart';
 
 class Board {
   final String id;
   final String name;
   final String icon;
   final String color;
+  final int postCount;
   final List<Board> children;
   Board.fromJson(Map<String, dynamic> j)
       : id = (j['id'] ?? '') as String,
         name = (j['name'] ?? '') as String,
         icon = (j['icon'] ?? '') as String,
         color = (j['color'] ?? '#4CD9A5') as String,
+        postCount = ((j['post_count'] ?? j['postCount'] ?? 0) as num).toInt(),
         children = ((j['children'] ?? []) as List)
             .whereType<Map<String, dynamic>>()
             .map(Board.fromJson)
@@ -188,6 +191,15 @@ class _BoardsPageState extends State<BoardsPage> {
                     ),
                 ],
             ),
+            if (b.children.isEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  b.postCount > 0 ? '${_fmt(b.postCount)} 帖子' : '新板块',
+                  style: const TextStyle(
+                      color: Color(AppTheme.textTertiary), fontSize: 11),
+                ),
+              ),
           ],
         ),
       ),
@@ -246,27 +258,74 @@ class _BoardsPageState extends State<BoardsPage> {
                   runSpacing: 8,
                   children: [
                     for (final c in b.children)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _parseColor(b.color).withValues(alpha: 0.12),
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusPill),
-                        ),
-                        child: Text(
-                          '${c.icon} ${c.name}',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 12.5),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => BoardFeedPage(
+                                      boardId: c.id, title: c.name)));
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _parseColor(b.color).withValues(alpha: 0.12),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusPill),
+                          ),
+                          child: Text(
+                            '${c.icon} ${c.name}',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 12.5),
+                          ),
                         ),
                       ),
                   ],
                 ),
               ),
+            // 进入板块
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              BoardFeedPage(boardId: b.id, title: b.name)));
+                },
+                child: Container(
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(AppTheme.accent),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  ),
+                  child: const Text('进入板块',
+                      style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  String _fmt(int n) {
+    if (n >= 10000) {
+      final w = n / 10000;
+      return w >= 100
+          ? '${w.toStringAsFixed(0)}万'
+          : '${w.toStringAsFixed(1)}万';
+    }
+    return '$n';
   }
 
   Color _parseColor(String hex) {

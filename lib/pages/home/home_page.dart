@@ -8,11 +8,87 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
+import '../boards/boards_page.dart';
 import '../mine/login_page.dart';
 import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../user/user_profile.dart';
 import '../../widgets/waterfall_card.dart';
+
+/// 运营推广卡（概念稿：发帖赢好礼 → 跳发布器）
+class _CampaignCard extends StatelessWidget {
+  const _CampaignCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => const PostEditorPage(mode: 'text'))),
+      child: Container(
+        height: 76,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFF1E3A31), Color(0xFF14221E)],
+          ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+          border: Border.all(
+              color: const Color(AppTheme.accent).withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(AppTheme.accent).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.emoji_events_outlined,
+                  color: Color(AppTheme.accent), size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('发帖赢好礼',
+                      style: TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600)),
+                  SizedBox(height: 3),
+                  Text('晒出你的瞬间，赢取限定装扮',
+                      style: TextStyle(
+                          color: Color(AppTheme.textSecondary),
+                          fontSize: 12)),
+                ],
+              ),
+            ),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(AppTheme.accent),
+                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+              ),
+              child: const Text('立即参与',
+                  style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,17 +105,49 @@ class _HomePageState extends State<HomePage> {
   int _page = 0;
   bool _hasMore = true;
   final ScrollController _scroll = ScrollController();
+  // 版块分类横滑 + 话题 chips（对齐概念稿：标题 → 分类 → 话题 → Tab+换一批 → 推广卡 → 瀑布流）
+  final List<Board> _boards = [];
+  String _boardId = '';
+  final List<String> _topics = [];
+  String _topic = '';
 
   @override
   void initState() {
     super.initState();
     _load(refresh: true);
+    _loadMeta();
   }
 
   @override
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// 版块分类 + 热门话题（头部横滑条）
+  Future<void> _loadMeta() async {
+    try {
+      final bj = await ApiClient.get('/boards');
+      final tj = await ApiClient.topics();
+      if (!mounted) return;
+      setState(() {
+        _boards
+          ..clear()
+          ..addAll(((bj['list'] ?? []) as List)
+              .whereType<Map<String, dynamic>>()
+              .map(Board.fromJson)
+              .take(8));
+        _topics
+          ..clear()
+          ..addAll(((tj['list'] ?? []) as List)
+              .whereType<Map<String, dynamic>>()
+              .map((t) => (t['name'] ?? '') as String)
+              .where((n) => n.isNotEmpty)
+              .take(6));
+      });
+    } catch (_) {
+      if (!mounted) return;
+    }
   }
 
   Future<void> _load({bool refresh = false}) async {
@@ -50,6 +158,8 @@ class _HomePageState extends State<HomePage> {
         tab: _tab == 0 ? 'recommend' : 'follow',
         page: refresh ? 1 : _page + 1,
         size: 10,
+        boardId: _boardId,
+        topic: _topic,
       );
       if (!mounted) return;
       setState(() {
@@ -88,6 +198,19 @@ class _HomePageState extends State<HomePage> {
     if (_tab == i) return;
     setState(() {
       _tab = i;
+      _items.clear();
+      _page = 0;
+      _hasMore = true;
+      _loaded = false;
+    });
+    _load(refresh: true);
+  }
+
+  /// 切换版块分类 / 话题（过滤信息流）
+  void _filter(String boardId, String topic) {
+    setState(() {
+      _boardId = boardId;
+      _topic = topic;
       _items.clear();
       _page = 0;
       _hasMore = true;
@@ -187,10 +310,43 @@ class _HomePageState extends State<HomePage> {
                     letterSpacing: 0.5),
               ),
             ),
-            // 推荐 / 关注 指示器
+            // 版块分类横滑（概念稿：推荐/关注/游戏/生活/影音/科技）
+            if (_boards.isNotEmpty) _boardStrip(),
+            // 话题 chips（概念稿：#今日话题 #夏日挑战 #我的城市）
+            if (_topics.isNotEmpty) _topicStrip(),
+            // 推荐 / 关注 Tab + 换一批
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-              child: _tabIndicator(),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: Row(
+                children: [
+                  _tabIndicator(),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => _load(refresh: true),
+                    behavior: HitTestBehavior.opaque,
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.refresh, size: 14,
+                              color: Color(AppTheme.textTertiary)),
+                          SizedBox(width: 3),
+                          Text('换一批',
+                              style: TextStyle(
+                                  color: Color(AppTheme.textTertiary),
+                                  fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+            ),
+            // 运营推广卡（概念稿：发帖赢好礼）
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: _CampaignCard(),
             ),
             Expanded(
               child: RefreshIndicator(
@@ -202,6 +358,70 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 版块分类横滑条
+  Widget _boardStrip() {
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _chip('全部', _boardId.isEmpty, () => _filter('', _topic)),
+          for (final b in _boards) ...[
+            const SizedBox(width: 8),
+            _chip(b.name, _boardId == b.id, () => _filter(b.id, _topic)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 话题 chips 横滑条
+  Widget _topicStrip() {
+    return SizedBox(
+      height: 30,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _chip('#热门', _topic.isEmpty,
+              () => _filter(_boardId, '')),
+          for (final t in _topics) ...[
+            const SizedBox(width: 8),
+            _chip('#$t', _topic == t, () => _filter(_boardId, t)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, bool sel, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        decoration: BoxDecoration(
+          color: sel
+              ? const Color(AppTheme.accent).withValues(alpha: 0.16)
+              : const Color(AppTheme.card),
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+          border: sel
+              ? Border.all(
+                  color: const Color(AppTheme.accent).withValues(alpha: 0.6))
+              : null,
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: sel
+                    ? const Color(AppTheme.accent)
+                    : const Color(AppTheme.textPrimary),
+                fontSize: 12.5,
+                fontWeight: sel ? FontWeight.w600 : FontWeight.w400)),
       ),
     );
   }
