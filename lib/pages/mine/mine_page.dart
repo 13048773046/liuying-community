@@ -1,7 +1,6 @@
 /// 我的页（P0）：登录互通 + 等级进度 + 签到 + 个性装扮（头像框）+ 任务
 library;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,6 +8,7 @@ import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
+import '../../widgets/user_avatar.dart';
 import '../favorites/favorites_page.dart';
 import '../feedback/feedback_page.dart';
 import '../settings/settings_page.dart';
@@ -52,7 +52,10 @@ class _MinePageState extends State<MinePage> {
         setState(() {
           _me = user;
           _name = (user['name'] ?? '') as String;
-          _avatar = (user['avatar'] ?? '') as String;
+          // 头像：字段为空（未设置）→ 显示默认头像；否则按 uid 走音乐端头像接口
+          final avRaw = (user['avatar'] ?? '') as String;
+          _avatar =
+              avRaw.isEmpty ? '' : avatarUrlOf((user['id'] ?? '') as String);
           _loading = false;
         });
         await _loadExtras();
@@ -323,18 +326,10 @@ class _MinePageState extends State<MinePage> {
                               color: const Color(AppTheme.accent), width: 2.5)
                           : null,
                     ),
-                    child: ClipOval(
-                      child: (_avatar ?? '').isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: _avatar!,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, _, _) => const Icon(
-                                  Icons.person,
-                                  color: Color(AppTheme.textSecondary),
-                                  size: 34),
-                            )
-                          : const Icon(Icons.person,
-                              color: Color(AppTheme.textSecondary), size: 34),
+                    child: UserAvatar(
+                      url: _avatar ?? '',
+                      name: _name ?? '',
+                      size: 65,
                     ),
                   ),
                   const SizedBox(width: 14),

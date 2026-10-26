@@ -3,6 +3,7 @@ library;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'user_avatar.dart';
 
 import '../config.dart';
 import '../models/feed_item.dart';
@@ -117,7 +118,7 @@ class WaterfallCard extends StatelessWidget {
           bottom: 34,
           child: Row(
             children: [
-              _miniAvatar(item.author.avatar),
+              _miniAvatar(item.author.avatar, item.author.name),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -145,9 +146,9 @@ class WaterfallCard extends StatelessWidget {
       child: Row(
         children: [
           if (onAuthorTap != null)
-            GestureDetector(onTap: onAuthorTap, child: _miniAvatar(a.avatar))
+            GestureDetector(onTap: onAuthorTap, child: _miniAvatar(a.avatar, a.name))
           else
-            _miniAvatar(a.avatar),
+            _miniAvatar(a.avatar, a.name),
           const SizedBox(width: 6),
           Expanded(
             child: Row(
@@ -194,7 +195,7 @@ class WaterfallCard extends StatelessWidget {
     );
   }
 
-  Widget _miniAvatar(String url) {
+  Widget _miniAvatar(String url, String name) {
     return Container(
       width: 26,
       height: 26,
@@ -202,17 +203,7 @@ class WaterfallCard extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white.withOpacity(0.25)),
       ),
-      child: ClipOval(
-        child: url.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: url,
-                fit: BoxFit.cover,
-                errorWidget: (_, _, _) => const Icon(Icons.person,
-                    size: 14, color: Color(AppTheme.textSecondary)),
-              )
-            : const Icon(Icons.person,
-                size: 14, color: Color(AppTheme.textSecondary)),
-      ),
+      child: UserAvatar(url: url, name: name, size: 26),
     );
   }
 

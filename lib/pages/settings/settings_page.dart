@@ -1,12 +1,12 @@
 /// 设置页：账号信息 + 通用设置 + 关于社区 + 退出登录
 library;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../widgets/user_avatar.dart';
 import '../../services/notify_bus.dart';
 import '../favorites/favorites_page.dart';
 import '../feedback/feedback_page.dart';
@@ -90,7 +90,10 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final user = _me;
     final name = (user?['name'] ?? '') as String;
-    final avatar = (user?['avatar'] ?? '') as String;
+    final avRaw = (user?['avatar'] ?? '') as String;
+    final avatar = avRaw.isEmpty
+        ? ''
+        : avatarUrlOf((user?['id'] ?? '') as String);
     final email = (user?['email'] ?? '') as String;
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
@@ -114,21 +117,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               child: Row(
                 children: [
-                  ClipOval(
-                    child: avatar.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: avatar,
-                            width: 46,
-                            height: 46,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, _, _) => const Icon(
-                                Icons.person,
-                                color: Color(AppTheme.textSecondary),
-                                size: 30),
-                          )
-                        : const Icon(Icons.person,
-                            color: Color(AppTheme.textSecondary), size: 30),
-                  ),
+                  UserAvatar(url: avatar, name: name, size: 46),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

@@ -11,8 +11,26 @@ const String kMusicBase = 'https://www.dbmt999.asia/music';
 /// 媒体 URL 拼接
 String mediaUrl(String name) => '$kApiBase/media/$name';
 
-/// 头像 URL（可能为空串 → 用默认占位）
-String avatarUrl(String raw) => raw.isEmpty ? '' : raw;
+/// 头像 URL 拼接
+///
+/// 音乐端 users.avatar 存的是文件名（如 `{uid}_avatar.jpg`），头像正确访问路径是
+/// `GET /music/api/avatar/{uid}`（按用户 id 查文件）。此前前端把文件名直接当完整 URL
+/// 使用导致头像一律加载失败，这里统一修复：
+/// - 完整 URL（http/https）→ 原样返回
+/// - `{uid}_avatar.xxx` 文件名 → 提取 uid 拼 `/music/api/avatar/{uid}`
+/// - 其余无法识别 → 原样返回（兜底）
+String avatarUrl(String raw) {
+  if (raw.isEmpty) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  final m = RegExp(r'^([0-9a-zA-Z_\-]+)_avatar\.[a-zA-Z0-9]+$').firstMatch(raw);
+  if (m != null) return '$kMusicBase/api/avatar/${m.group(1)}';
+  return raw;
+}
+
+/// 按用户 id 直接取头像 URL（后端 /music/api/avatar/{uid} 按 id 查 users.avatar）。
+/// 优先使用此函数——只要有 uid 即可拿到头像，不依赖 avatar 字段格式。
+String avatarUrlOf(String uid) =>
+    uid.isEmpty ? '' : '$kMusicBase/api/avatar/$uid';
 
 /// 流萤系列视觉 —— 与流萤音乐 App（Theme.swift）完全一致
 class AppTheme {
