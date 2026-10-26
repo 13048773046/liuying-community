@@ -33,7 +33,7 @@ jobs:
 
   # ---------- iOS 未签名 IPA（无开发者证书，可 sideload/自签） ----------
   ios-unsigned-ipa:
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
