@@ -12,6 +12,7 @@ import 'home/home_page.dart';
 import 'message/message_page.dart';
 import 'mine/mine_page.dart';
 import 'boards/boards_page.dart';
+import 'post/post_editor.dart';
 import 'shorts/shorts_page.dart';
 
 class RootPage extends StatefulWidget {
@@ -249,13 +250,20 @@ class _ShortsButtonInner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 读取父级选中态（通过自定义 Inherited 不可靠，用静态通道）
+    // 读取父级选中态
     final sel = _ShortsSelectionScope.of(context)?.selection ?? 0;
     final isActive = sel == 2;
     return Center(
       child: GestureDetector(
         onTap: () {
-          _ShortsSelectionScope.of(context)?.onChanged(2);
+          if (isActive) {
+            // 短视频页内：中间按钮 = 发布入口（点击跳发布页）
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PostEditorPage(mode: 'video')),
+            );
+          } else {
+            _ShortsSelectionScope.of(context)?.onChanged(2);
+          }
         },
         child: Container(
           width: 46,
@@ -273,9 +281,10 @@ class _ShortsButtonInner extends StatelessWidget {
             ],
           ),
           child: Icon(
-            isActive ? Icons.ondemand_video : Icons.play_arrow_rounded,
+            // 短视频页内显示发布 + 号，其他 tab 显示短视频图标
+            isActive ? Icons.add_rounded : Icons.play_arrow_rounded,
             color: Colors.white,
-            size: isActive ? 22 : 26,
+            size: isActive ? 30 : 26,
           ),
         ),
       ),

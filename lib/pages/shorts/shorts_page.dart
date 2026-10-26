@@ -70,30 +70,7 @@ class _ShortsPageState extends State<ShortsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
-      floatingActionButton: Padding(
-        // 透明导航栏上方悬浮，不遮挡内容
-        padding: EdgeInsets.only(
-            bottom: 54 + MediaQuery.viewPaddingOf(context).bottom + 6),
-        child: FloatingActionButton.small(
-          onPressed: () async {
-            final ok = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                  builder: (_) => const PostEditorPage(mode: 'video')),
-            );
-            if (ok == true) {
-              _items.clear();
-              _page = 0;
-              _hasMore = true;
-              _loadMore();
-            }
-          },
-          backgroundColor: const Color(AppTheme.card),
-          foregroundColor: const Color(AppTheme.accent),
-          shape: const CircleBorder(),
-          elevation: 0,
-          child: const Icon(Icons.add_a_photo_outlined, size: 20),
-        ),
-      ),
+      // 发布入口已移至底部中间按钮（短视频页内显示发布 + 号）
       body: _items.isEmpty
           ? _buildLoading()
           : PageView.builder(

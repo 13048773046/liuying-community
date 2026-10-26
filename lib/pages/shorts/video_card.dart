@@ -223,8 +223,6 @@ class _VideoCardState extends State<VideoCard> {
           _buildBottomInfo(),
           // 右侧互动列
           _buildActionRail(),
-          // 顶部沉浸栏（短视频标题）
-          _buildTopBar(),
         ],
       ),
     );
@@ -276,36 +274,6 @@ class _VideoCardState extends State<VideoCard> {
       );
     }
     return const _MediaLoading();
-  }
-
-  Widget _buildTopBar() {
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.35),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.play_circle_fill, size: 15, color: Colors.white),
-                SizedBox(width: 4),
-                Text('短视频',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildBottomInfo() {
@@ -385,52 +353,61 @@ class _VideoCardState extends State<VideoCard> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 抖音式：作者头像 + 关注（点击头像进主页）
-            _RailAvatar(
-              avatar: a.avatar,
-              size: 40,
-              onTap: a.id.isEmpty
-                  ? null
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => UserProfilePage(uid: a.id)),
-                      ),
-            ),
-            const SizedBox(height: 6),
-            if (!_followed && a.id.isNotEmpty)
-              GestureDetector(
-                onTap: _toggleFollow,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFF4D6D),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.add, size: 15, color: Colors.white),
+            // 抖音式：作者头像（更大）+ 关注加号遮住头像右下角
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _RailAvatar(
+                  avatar: a.avatar,
+                  size: 48,
+                  onTap: a.id.isEmpty
+                      ? null
+                      : () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => UserProfilePage(uid: a.id)),
+                          ),
                 ),
-              )
-            else if (a.id.isNotEmpty)
-              const SizedBox(height: 22),
-            const SizedBox(height: 12),
+                if (!_followed && a.id.isNotEmpty)
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: GestureDetector(
+                      onTap: _toggleFollow,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF4D6D),
+                          shape: BoxShape.circle,
+                          border:
+                              Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child:
+                            const Icon(Icons.add, size: 13, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
             _RailAction(
-              icon: _liked ? Icons.favorite : Icons.favorite_border,
+              icon: Icons.favorite_rounded,
               color: _liked ? const Color(0xFFFF4D6D) : Colors.white,
               count: _likeCount,
               onTap: _toggleLike,
             ),
             _RailAction(
-              icon: Icons.chat_bubble_outline,
+              icon: Icons.chat_bubble_rounded,
               count: _commentCount,
               onTap: _openComments,
             ),
             _RailAction(
-              icon: Icons.arrow_upward_outlined,
+              icon: Icons.arrow_upward_rounded,
               count: _shareCount,
               onTap: _share,
             ),
             _RailAction(
-              icon: _faved ? Icons.bookmark : Icons.bookmark_border,
+              icon: _faved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
               color: _faved ? const Color(0xFFFFB84D) : Colors.white,
               count: 0,
               onTap: _toggleFav,
@@ -690,15 +667,10 @@ class _RailAction extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.32),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 21),
-            ),
+            // 无圆形卡片背景：实心白色圆润图标（抖音式操作栏）
+            Icon(icon, color: color, size: 27, shadows: const [
+              Shadow(color: Colors.black38, blurRadius: 6),
+            ]),
             if (count > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 3),
