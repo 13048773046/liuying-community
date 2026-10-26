@@ -4,6 +4,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
@@ -131,11 +132,11 @@ class _AppTabBar extends StatelessWidget {
           padding: const EdgeInsets.only(top: 6, bottom: 4),
           child: Row(
             children: [
-              _tabButton(Icons.home_outlined, Icons.home, '首页', 0),
-              _tabButton(Icons.grid_view_outlined, Icons.grid_view, '版块', 1),
+              _tabButton('assets/icons/home.svg', '首页', 0),
+              _tabButton('assets/icons/compass.svg', '版块', 1),
               const _ShortsCenterButton(),
-              _tabButtonWithBadge(Icons.notifications_none, Icons.notifications, '消息', 3),
-              _tabButton(Icons.person_outline, Icons.person, '我的', 4),
+              _tabButtonWithBadge('assets/icons/chatbubbles.svg', '消息', 3),
+              _tabButton('assets/icons/person.svg', '我的', 4),
             ],
           ),
         ),
@@ -143,7 +144,7 @@ class _AppTabBar extends StatelessWidget {
     );
   }
 
-  Widget _tabButton(IconData icon, IconData activeIcon, String label, int index) {
+  Widget _tabButton(String asset, String label, int index) {
     final selected = selection == index;
     final color = selected
         ? const Color(AppTheme.accent)
@@ -156,7 +157,12 @@ class _AppTabBar extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(selected ? activeIcon : icon, size: 22, color: color),
+              SvgPicture.asset(
+                asset,
+                width: 23,
+                height: 23,
+                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+              ),
               const SizedBox(height: 2),
               Text(
                 label,
@@ -174,8 +180,7 @@ class _AppTabBar extends StatelessWidget {
   }
 
   /// 消息 tab：右上角未读红点（复刻音乐端消息小红点）
-  Widget _tabButtonWithBadge(
-      IconData icon, IconData activeIcon, String label, int index) {
+  Widget _tabButtonWithBadge(String asset, String label, int index) {
     final selected = selection == index;
     final color = selected
         ? const Color(AppTheme.accent)
@@ -193,7 +198,13 @@ class _AppTabBar extends StatelessWidget {
                 builder: (_, n, __) => Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Icon(selected ? activeIcon : icon, size: 22, color: color),
+                    SvgPicture.asset(
+                      asset,
+                      width: 23,
+                      height: 23,
+                      colorFilter:
+                          ColorFilter.mode(color, BlendMode.srcIn),
+                    ),
                     if (n > 0)
                       Positioned(
                         right: -5,
@@ -266,6 +277,7 @@ class _ShortsButtonInner extends StatelessWidget {
           }
         },
         child: Container(
+          key: const ValueKey('shortsCenterBtn'),
           width: 46,
           height: 46,
           decoration: BoxDecoration(
@@ -280,11 +292,12 @@ class _ShortsButtonInner extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(
+          child: SvgPicture.asset(
             // 短视频页内显示发布 + 号，其他 tab 显示短视频图标
-            isActive ? Icons.add_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: isActive ? 30 : 26,
+            isActive ? 'assets/icons/add.svg' : 'assets/icons/play.svg',
+            width: isActive ? 26 : 22,
+            height: isActive ? 26 : 22,
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
         ),
       ),

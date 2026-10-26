@@ -22,7 +22,7 @@ void main() {
     // 找到底部导航的 5 个元素（中间是短视频圆钮，用 Icon 找）
     final homeTab = find.text('首页');
     final mineTab = find.text('我的');
-    final shortsBtn = find.byIcon(Icons.play_arrow_rounded);
+    final shortsBtn = find.byKey(const ValueKey('shortsCenterBtn'));
 
     expect(homeTab, findsOneWidget);
     expect(mineTab, findsOneWidget);

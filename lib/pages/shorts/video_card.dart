@@ -371,19 +371,19 @@ class _VideoCardState extends State<VideoCard> {
                 child: GestureDetector(
                   onTap: _toggleFollow,
                   child: Container(
-                    width: 26,
-                    height: 26,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
                       color: const Color(0xFFFF4D6D),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 1.5),
                     ),
-                    child: const Icon(Icons.add, size: 17, color: Colors.white),
+                    child: const Icon(Icons.add, size: 14, color: Colors.white),
                   ),
                 ),
               )
             else if (a.id.isNotEmpty)
-              const SizedBox(height: 26),
+              const SizedBox(height: 24),
             const SizedBox(height: 20),
             _RailAction(
               asset: 'assets/icons/heart.svg',
@@ -665,8 +665,8 @@ class _RailAction extends StatelessWidget {
             // 无圆形卡片背景：网上下载的开源实心图标（抖音式操作栏）
             SvgPicture.asset(
               asset,
-              width: 26,
-              height: 26,
+              width: 32,
+              height: 32,
               colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
             ),
             if (count > 0)
