@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
@@ -223,19 +224,30 @@ class _MinePageState extends State<MinePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
-      body: SafeArea(
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(AppTheme.accent)))
-            : ApiClient.token == null
-                ? _buildLoggedOut()
-                : RefreshIndicator(
-                    color: const Color(AppTheme.accent),
-                    backgroundColor: const Color(AppTheme.card),
-                    onRefresh: _loadExtras,
-                    child: _buildLoggedIn(),
-                  ),
-      ),
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(AppTheme.accent)))
+          : ApiClient.token == null
+              ? _buildLoggedOut()
+              : Stack(
+                  children: [
+                    // 背景层：从屏幕顶部（状态栏区域）延伸到头部，内容不延伸
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _bgLayer(),
+                    ),
+                    SafeArea(
+                      child: RefreshIndicator(
+                        color: const Color(AppTheme.accent),
+                        backgroundColor: const Color(AppTheme.card),
+                        onRefresh: _loadExtras,
+                        child: _buildLoggedIn(),
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 
@@ -348,6 +360,91 @@ class _MinePageState extends State<MinePage> {
     );
   }
 
+  /// 背景层：音乐设置的用户背景图（无图回退深绿渐变），
+  /// 从屏幕顶部（状态栏区域）延伸到头部；底部遮罩与内容自然融合。
+  Widget _bgLayer() {
+    final topInset = MediaQuery.of(context).padding.top;
+    final uid = ApiClient.userId ?? '';
+    final bg = ((_me ?? const {})['background'] ?? '') as String;
+    final hasBg = uid.isNotEmpty && bg.isNotEmpty;
+    return Container(
+      height: 330 + topInset,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: hasBg
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1E3A31), Color(0xFF101318)],
+              ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (hasBg) ...[
+            CachedNetworkImage(
+              imageUrl: '$kMusicBase/api/background/$uid',
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const _BgGradient(),
+              errorWidget: (_, __, ___) => const _BgGradient(),
+            ),
+            // 深色蒙层：保证白色文字在背景图上可读
+            Container(color: Colors.black.withValues(alpha: 0.3)),
+          ] else ...[
+            // 光晕装饰圆
+            Positioned(
+              right: -40,
+              top: -60,
+              child: Container(
+                width: 170,
+                height: 170,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color:
+                      const Color(AppTheme.accent).withValues(alpha: 0.09),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -50,
+              bottom: 40,
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(AppTheme.sky).withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+          ],
+          // 底部渐变遮罩：背景与内容自然融合（音乐版衔接方式）
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 110,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      const Color(AppTheme.bg).withValues(alpha: 0.92),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 背景头 + 资料区 + 功能钮（对齐概念稿/音乐版：渐变背景 + 遮罩融合 + 左上签到 + 右上编辑资料/分享/设置）
   Widget _profileHeader({
     required Map<String, dynamic> user,
@@ -363,78 +460,12 @@ class _MinePageState extends State<MinePage> {
     required Object? next,
     required bool signedToday,
   }) {
-    return Stack(
-      children: [
-        // 背景：深绿渐变（概念稿深色 + 薄荷绿氛围）
-        Container(
-          height: 330,
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1E3A31), Color(0xFF101318)],
-            ),
-          ),
-          child: Stack(
-            children: [
-              // 光晕装饰圆
-              Positioned(
-                right: -40,
-                top: -60,
-                child: Container(
-                  width: 170,
-                  height: 170,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(AppTheme.accent)
-                        .withValues(alpha: 0.09),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: -50,
-                bottom: 40,
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(AppTheme.sky).withValues(alpha: 0.05),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // 底部渐变遮罩：背景与内容自然融合（音乐版衔接方式）
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: 110,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    const Color(AppTheme.bg).withValues(alpha: 0.92),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        // 内容
-        Positioned.fill(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+    // 内容区（背景由外部 _bgLayer 提供：延伸到状态栏，内容 SafeArea 不延伸）
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
                 // 顶部行：左上签到胶囊 + 右上 编辑资料/分享/设置
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -675,11 +706,8 @@ class _MinePageState extends State<MinePage> {
                   ],
                 ),
                 const SizedBox(height: 14),
-              ],
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1054,7 +1082,22 @@ class _MinePageState extends State<MinePage> {
       ),
     );
   }
+}
 
+/// 默认背景渐变（无背景图 / 加载中 / 加载失败时使用）
+class _BgGradient extends StatelessWidget {
+  const _BgGradient();
 
-
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E3A31), Color(0xFF101318)],
+        ),
+      ),
+    );
+  }
 }
