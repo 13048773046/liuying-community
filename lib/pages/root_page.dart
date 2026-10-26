@@ -297,10 +297,10 @@ class _ShortsButtonInner extends StatelessWidget {
             ],
           ),
           child: SvgPicture.asset(
-            // 短视频页内显示发布 + 号（小尺寸），其他 tab 显示圆形播放键
+            // 短视频页内显示发布 + 号（更小），其他 tab 显示圆形播放键
             isActive ? 'assets/icons/add.svg' : 'assets/icons/play-circle.svg',
-            width: isActive ? 20 : 24,
-            height: isActive ? 20 : 24,
+            width: isActive ? 16 : 24,
+            height: isActive ? 16 : 24,
             colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
         ),
