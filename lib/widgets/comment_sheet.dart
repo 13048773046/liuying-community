@@ -328,7 +328,7 @@ class _CommentSheetState extends State<CommentSheet> {
       ));
     }
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.5,
+      height: MediaQuery.of(context).size.height * 0.65,
       child: Column(
           children: [
             // 拖拽条

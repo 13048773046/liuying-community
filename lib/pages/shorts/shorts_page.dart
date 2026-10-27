@@ -71,6 +71,8 @@ class _ShortsPageState extends State<ShortsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
+      // 键盘弹出只顶弹窗输入框，页面（视频/导航栏）不被顶起
+      resizeToAvoidBottomInset: false,
       // 发布入口已移至底部中间按钮（短视频页内显示发布 + 号）
       body: _items.isEmpty
           ? _buildLoading()

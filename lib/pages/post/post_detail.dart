@@ -278,6 +278,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
+      // 键盘弹出只顶弹窗输入框，页面内嵌评论列表/媒体不被顶起
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         backgroundColor: const Color(AppTheme.bg),
         elevation: 0,
