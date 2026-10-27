@@ -213,6 +213,39 @@ class ApiClient {
         .toList();
   }
 
+  /// 排行榜：type=post|topic|user
+  static Future<Map<String, dynamic>> rankings(String type,
+          {int limit = 20}) =>
+      get('/rankings', query: {'type': type, 'limit': '$limit'});
+
+  /// 热门话题（含 post_count）
+  static Future<List<Map<String, dynamic>>> topicsHot() async {
+    final j = await get('/topics', query: {'hot': '1'});
+    return ((j['list'] ?? []) as List)
+        .whereType<Map<String, dynamic>>()
+        .toList();
+  }
+
+  /// 举报（post/comment）
+  static Future<Map<String, dynamic>> report(
+          String targetType, String targetId, String reason) =>
+      post('/report',
+          body: {
+            'targetType': targetType,
+            'targetId': targetId,
+            'reason': reason,
+          });
+
+  /// 领取任务奖励
+  static Future<Map<String, dynamic>> taskClaim(String taskId) =>
+      post('/tasks/$taskId/claim');
+
+  /// 投票
+  static Future<Map<String, dynamic>> pollVote(
+          String postId, int option) =>
+      post('/poll/vote',
+          body: {'postId': postId, 'option': option});
+
   // ---------- 信息流 ----------
 
   /// 信息流：tab=all|follow|recommend；type 留空 = 全部，video = 短视频流，post = 帖子流

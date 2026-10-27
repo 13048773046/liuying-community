@@ -13,6 +13,9 @@ import '../mine/task_center_page.dart';
 import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../search/search_page.dart';
+import '../discover/ranking_page.dart';
+import '../discover/topic_page.dart';
+import '../../widgets/banner_carousel.dart';
 import '../user/user_profile.dart';
 import '../../widgets/waterfall_card.dart';
 
@@ -205,9 +208,58 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
+            // 首页运营栏：话题 / 排行榜 入口（三组全做入口）
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+              child: Row(
+                children: [
+                  _opsPill(
+                    Icons.local_fire_department_rounded,
+                    '话题',
+                    () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const TopicPage())),
+                  ),
+                  const SizedBox(width: 10),
+                  _opsPill(
+                    Icons.leaderboard_rounded,
+                    '排行榜',
+                    () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const RankingPage())),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const TaskCenterPage())),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.emoji_events_outlined,
+                            color: Color(AppTheme.accent), size: 15),
+                        SizedBox(width: 3),
+                        Text('任务中心',
+                            style: TextStyle(
+                                color: Color(AppTheme.accent),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Banner 运营位轮播
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 10, 16, 4),
+              child: BannerCarousel(),
+            ),
             // 关注 / 推荐 Tab + 换一批（截图对齐：关注在前，默认选中推荐）
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
               child: Row(
                 children: [
                   _tabIndicator(),
@@ -257,6 +309,33 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(8),
         child: Icon(icon,
             color: const Color(AppTheme.textPrimary), size: 22),
+      ),
+    );
+  }
+
+  /// 运营栏胶囊入口
+  Widget _opsPill(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.card),
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+          border: Border.all(color: const Color(AppTheme.border)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(AppTheme.accent), size: 14),
+            const SizedBox(width: 4),
+            Text(label,
+                style: const TextStyle(
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }

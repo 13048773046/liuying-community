@@ -4,6 +4,7 @@ library;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'user_avatar.dart';
+import 'poll_card.dart';
 
 import '../config.dart';
 import '../models/feed_item.dart';
@@ -40,6 +41,16 @@ class WaterfallCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: _content(item.content, item.topic, item.type == 'text'),
+              ),
+            ],
+            if (item.poll != null) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: PollCard(
+                  postId: item.id,
+                  poll: item.poll!,
+                ),
               ),
             ],
             Padding(

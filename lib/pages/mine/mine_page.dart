@@ -983,6 +983,29 @@ class _MinePageState extends State<MinePage> {
                       child: Icon(Icons.play_circle_fill,
                           color: Colors.white, size: 30),
                     ),
+                  // 我的帖子审核三态角标（待审 0 / 拒绝 2，作者可见）
+                  if (it.auditStatus == 0 || it.auditStatus == 2)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: it.auditStatus == 0
+                              ? const Color(0xFFFFB84D)
+                              : const Color(0xFFE4574F),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          it.auditStatus == 0 ? '审核中' : '已拒绝',
+                          style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
                   // 底部渐变 + 数据
                   Positioned(
                     left: 0,

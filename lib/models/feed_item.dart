@@ -55,6 +55,10 @@ class FeedItem {
   final bool faved;
   final bool sticky;
   final bool featured;
+  final int auditStatus; // 0 待审 / 1 通过 / 2 拒绝
+  final String auditReason;
+  final bool takenDown;
+  final Map<String, dynamic>? poll; // 投票帖：question/options/votes/voted/closed
   final int created;
   final Author author;
 
@@ -79,6 +83,12 @@ class FeedItem {
         faved = boolOf(j['faved']),
         sticky = boolOf(j['sticky']),
         featured = boolOf(j['featured']),
+        auditStatus = ((j['auditStatus'] ?? 0) as num).toInt(),
+        auditReason = (j['auditReason'] ?? '') as String,
+        takenDown = boolOf(j['takenDown']),
+        poll = (j['poll'] is Map<String, dynamic>)
+            ? (j['poll'] as Map<String, dynamic>)
+            : null,
         created = ((j['created'] ?? 0) as num).toInt(),
         author = Author.fromJson((j['author'] ?? {}) as Map<String, dynamic>);
 

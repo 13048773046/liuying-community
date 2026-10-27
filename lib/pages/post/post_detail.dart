@@ -11,6 +11,7 @@ import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../../widgets/image_box.dart';
+import '../../widgets/poll_card.dart';
 import '../../widgets/emoji_panel.dart';
 import '../mine/login_page.dart';
 import '../user/user_profile.dart';
@@ -132,6 +133,75 @@ class _PostDetailPageState extends State<PostDetailPage> {
       if (!mounted) return;
       setState(() => _latered = !_latered);
     }
+  }
+
+  /// 举报弹窗（帖子/评论通用）
+  Future<void> _report(String targetType, String targetId) async {
+    if (ApiClient.token == null) {
+      if (!mounted) return;
+      Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()));
+      return;
+    }
+    const reasons = ['垃圾广告', '色情低俗', '不实信息', '人身攻击', '违法违规', '其他'];
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(AppTheme.card),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 14),
+            const Text('举报',
+                style: TextStyle(
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text('请选择举报原因，我们会尽快核实处理',
+                style: TextStyle(
+                    color: Color(AppTheme.textTertiary), fontSize: 12)),
+            const SizedBox(height: 8),
+            for (final r in reasons)
+              ListTile(
+                dense: true,
+                title: Text(r,
+                    style: const TextStyle(
+                        color: Color(AppTheme.textPrimary),
+                        fontSize: 13.5)),
+                trailing: const Icon(Icons.chevron_right_rounded,
+                    size: 18, color: Color(AppTheme.textTertiary)),
+                onTap: () => Navigator.pop(ctx, r),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    try {
+      await ApiClient.report(targetType, targetId, picked);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('已收到举报，我们会尽快处理'),
+        backgroundColor: Color(AppTheme.card),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e is ApiException ? e.message : '举报失败，请稍后再试'),
+        backgroundColor: const Color(AppTheme.card),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  void _reportPost() {
+    if (_post == null) return;
+    _report('post', _post!.id);
   }
 
   /// 收藏按钮弹层：收藏 / 稍后看 二选一（概念稿：稍后看独立入口）
@@ -289,6 +359,27 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 color: Color(AppTheme.textPrimary),
                 fontSize: 16,
                 fontWeight: FontWeight.w600)),
+        actions: [
+          if (_post != null && _post!.author.id != ApiClient.userId)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_horiz_rounded,
+                  color: Color(AppTheme.textPrimary)),
+              color: const Color(AppTheme.card),
+              onSelected: (v) {
+                if (v == 'report') _reportPost();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: 'report',
+                    child: Text('举报',
+                        style: TextStyle(
+                            color: Color(AppTheme.textPrimary),
+                            fontSize: 13.5))),
+              ],
+            )
+          else
+            const SizedBox(width: 8),
+        ],
       ),
       body: _loading
           ? const Center(
@@ -325,6 +416,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                                 fontSize: 12)),
                                       ))
                                   .toList(),
+                            ),
+                          ],
+                          if (_post!.poll != null) ...[
+                            const SizedBox(height: 10),
+                            PollCard(
+                              postId: _post!.id,
+                              poll: _post!.poll!,
+                              onChanged: () {
+                                if (!mounted) return;
+                                setState(() {});
+                              },
                             ),
                           ],
                           const SizedBox(height: 14),
@@ -615,6 +717,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
     final author = (c['author'] ?? const {}) as Map;
     final name = (author['name'] ?? '用户') as String;
     final avatar = (author['avatar'] ?? '') as String;
+    final adminLevel = ((author['adminLevel'] ?? 0) as num).toInt();
+    final adminName = (author['adminName'] ?? '') as String;
+    final cid = (c['id'] ?? '') as String;
     final content = (c['content'] ?? '') as String;
     final images = (c['images'] ?? const []) as List;
     final sticker = (c['sticker'] ?? '') as String;
@@ -640,9 +745,29 @@ class _PostDetailPageState extends State<PostDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
-                    style: const TextStyle(
-                        color: Color(AppTheme.textSecondary), fontSize: 12)),
+                Row(
+                  children: [
+                    Text(name,
+                        style: const TextStyle(
+                            color: Color(AppTheme.textSecondary),
+                            fontSize: 12)),
+                    if (adminLevel > 0) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(AppTheme.accentSoft),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(adminName.isEmpty ? '认证' : adminName,
+                            style: const TextStyle(
+                                color: Color(AppTheme.accent),
+                                fontSize: 9)),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 4),
                 if (sticker.isNotEmpty)
                   Padding(
@@ -670,9 +795,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   ),
                 ],
                 const SizedBox(height: 4),
-                Text(timeAgo(created),
-                    style: const TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 11)),
+                Row(
+                  children: [
+                    Text(timeAgo(created),
+                        style: const TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 11)),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => _report('comment', cid),
+                      child: const Text('举报',
+                          style: TextStyle(
+                              color: Color(AppTheme.textTertiary),
+                              fontSize: 10.5)),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

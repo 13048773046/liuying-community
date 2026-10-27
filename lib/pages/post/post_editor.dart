@@ -44,6 +44,8 @@ class _PostEditorPageState extends State<PostEditorPage> {
   List<Map<String, dynamic>> _boards = [];
   bool _boardsLoaded = false;
   bool _publishing = false;
+  // 投票编辑（仅图文模式）：{question, options[]}
+  Map<String, dynamic>? _poll;
   double _uploadProgress = 0;
 
   bool get isVideo => widget.mode == 'video';
@@ -172,6 +174,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
           'content': content,
           'images': names,
           'boardId': _boardId,
+          if (_poll != null) 'poll': _poll,
         });
         if (!mounted) return;
         Navigator.pop(context, true);
@@ -503,9 +506,13 @@ class _PostEditorPageState extends State<PostEditorPage> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
               children: [
-                _toolChip('#话题', () => _insertAt(' #')),
+                _toolChip('#话题', _pickTopic),
                 const SizedBox(width: 6),
                 _toolChip('@好友', () => _insertAt(' @')),
+                if (!isVideo) ...[
+                  const SizedBox(width: 6),
+                  _toolChip(_poll == null ? '投票' : '✎ 投票', _editPoll),
+                ],
                 const Spacer(),
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _contentCtrl,
@@ -522,6 +529,61 @@ class _PostEditorPageState extends State<PostEditorPage> {
               ],
             ),
           ),
+          if (_poll != null) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(AppTheme.bg),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(AppTheme.border)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.how_to_vote_rounded,
+                        size: 16, color: Color(AppTheme.lilac)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (_poll!['question'] ?? '') as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            (((_poll!['options'] ?? []) as List)
+                                .map((e) => e.toString())
+                                .join(' / ')),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Color(AppTheme.textTertiary),
+                                fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _poll = null),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.close_rounded,
+                            size: 16,
+                            color: Color(AppTheme.textTertiary)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -554,6 +616,260 @@ class _PostEditorPageState extends State<PostEditorPage> {
       selection: TextSelection.collapsed(offset: start + s.length),
     );
     setState(() {});
+  }
+
+  /// 话题选择器：从热门话题列表选一个插入 #话题
+  Future<void> _pickTopic() async {
+    List<Map<String, dynamic>> topics;
+    try {
+      topics = await ApiClient.topicsHot();
+    } catch (_) {
+      topics = [];
+    }
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(AppTheme.card),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (bc) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Text('选择话题',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+            ),
+            const Divider(height: 1, color: Color(AppTheme.border)),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight:
+                      MediaQuery.of(bc).size.height * 0.45),
+              child: topics.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('暂无话题，可手动输入 #话题#',
+                          style: TextStyle(
+                              color: Color(AppTheme.textSecondary),
+                              fontSize: 12.5)),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: topics.length,
+                      itemBuilder: (_, i) {
+                        final t = topics[i];
+                        final name = (t['name'] ?? '') as String;
+                        return ListTile(
+                          dense: true,
+                          leading: const Text('#',
+                              style: TextStyle(
+                                  color: Color(AppTheme.accent),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold)),
+                          title: Text(name,
+                              style: const TextStyle(
+                                  color: Color(AppTheme.textPrimary),
+                                  fontSize: 13.5)),
+                          subtitle: Text(
+                              '${(t['count'] ?? 0)} 帖参与',
+                              style: const TextStyle(
+                                  color: Color(AppTheme.textTertiary),
+                                  fontSize: 10.5)),
+                          onTap: () => Navigator.pop(bc, name),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && picked.isNotEmpty) {
+      _insertAt(' #$picked# ');
+    }
+  }
+
+  /// 投票编辑器：问题 + 2~4 选项
+  Future<void> _editPoll() async {
+    final qCtrl = TextEditingController(
+        text: (_poll?['question'] ?? '') as String);
+    final opts = List<String>.from(
+        ((_poll?['options'] ?? []) as List).map((e) => e.toString()));
+    if (opts.isEmpty) {
+      opts.addAll(['', '']);
+    }
+    final optCtrls = [for (final o in opts) TextEditingController(text: o)];
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(AppTheme.card),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (bc) => StatefulBuilder(
+        builder: (bc, setB) {
+          Widget btn() {
+            final q = qCtrl.text.trim();
+            final os = optCtrls.map((c) => c.text.trim()).where((x) => x.isNotEmpty).toList();
+            final valid = q.isNotEmpty && os.length >= 2;
+            return GestureDetector(
+              onTap: !valid
+                  ? null
+                  : () {
+                      setState(() {
+                        _poll = {
+                          'question': q,
+                          'options': os,
+                        };
+                      });
+                      Navigator.pop(bc, true);
+                    },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: valid
+                      ? const Color(AppTheme.accent)
+                      : const Color(AppTheme.textTertiary),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(valid ? '完成' : '问题与至少 2 个选项',
+                    style: TextStyle(
+                        color: valid
+                            ? Colors.black
+                            : const Color(AppTheme.bg),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600)),
+              ),
+            );
+          }
+
+          Widget optField(int i) {
+            return Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: optCtrls[i],
+                    maxLength: 40,
+                    style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: '选项 ${i + 1}',
+                      hintStyle: const TextStyle(
+                          color: Color(AppTheme.textTertiary)),
+                      filled: true,
+                      fillColor: const Color(AppTheme.bg),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: Color(AppTheme.border)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: Color(AppTheme.border)),
+                      ),
+                    ),
+                  ),
+                ),
+                if (optCtrls.length > 2)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        size: 16, color: Color(AppTheme.textTertiary)),
+                    onPressed: () => setB(() {
+                      optCtrls.removeAt(i).dispose();
+                    }),
+                  ),
+              ],
+            );
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(bc).viewInsets.bottom,
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('发起投票',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: qCtrl,
+                      maxLength: 60,
+                      style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                      decoration: InputDecoration(
+                        counterText: '',
+                        hintText: '投票问题',
+                        hintStyle: const TextStyle(
+                            color: Color(AppTheme.textTertiary)),
+                        filled: true,
+                        fillColor: const Color(AppTheme.bg),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: Color(AppTheme.border)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: Color(AppTheme.border)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    for (var i = 0; i < optCtrls.length; i++) ...[
+                      optField(i),
+                      const SizedBox(height: 8),
+                    ],
+                    if (optCtrls.length < 4)
+                      GestureDetector(
+                        onTap: () => setB(() {
+                          optCtrls.add(TextEditingController());
+                        }),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add_circle_outline,
+                                size: 16, color: Color(AppTheme.lilac)),
+                            SizedBox(width: 6),
+                            Text('添加选项',
+                                style: TextStyle(
+                                    color: Color(AppTheme.lilac),
+                                    fontSize: 12.5)),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    btn(),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    // 清理控制器（本轮局部创建，直接释放）
+    for (final c in optCtrls) {
+      c.dispose();
+    }
+    qCtrl.dispose();
+    if (saved == true && mounted) setState(() {});
   }
 
   // ---------- 图文图片区 ----------
