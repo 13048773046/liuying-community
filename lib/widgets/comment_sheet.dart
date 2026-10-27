@@ -22,6 +22,9 @@ import 'image_box.dart';
 
 enum _PanelMode { none, emoji, image, at }
 
+/// 跨评论弹窗事件：任一弹窗新增评论后广播，打开中的列表弹窗自动刷新
+final ValueNotifier<int> commentAddedBus = ValueNotifier<int>(0);
+
 /// 打开评论弹窗；[onChanged] 评论数变化回调
 /// [pureInput]=true：纯输入弹窗（仅输入栏+表情/图片/@面板，不含评论列表），
 /// 供帖子/视频详情页底部「说点什么…」使用：弹出即唤起输入法
@@ -84,6 +87,7 @@ class _CommentSheetState extends State<CommentSheet> {
     super.initState();
     if (!widget.pureInput) {
       _load(refresh: true);
+      commentAddedBus.addListener(_onBusAdded);
     } else {
       // 纯输入弹窗：打开即唤起输入法
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -94,29 +98,40 @@ class _CommentSheetState extends State<CommentSheet> {
 
   @override
   void dispose() {
+    commentAddedBus.removeListener(_onBusAdded);
     _ctrl.dispose();
     super.dispose();
   }
 
+  /// 其他弹窗新增评论后：刷新本列表并回传最新评论数
+  void _onBusAdded() {
+    if (!mounted) return;
+    _load(refresh: true);
+    widget.onChanged?.call(_total);
+  }
+
+  int _total = 0;
+
   Future<void> _load({bool refresh = false}) async {
-    if (refresh) {
-      setState(() {
+    if (_loading) return;
+    setState(() {
+      if (refresh) {
         _page = 1;
-        _loading = true;
-      });
-    } else {
-      _page += 1;
-    }
+      }
+      _loading = true;
+    });
     try {
       final j = await ApiClient.comments(widget.postId, page: _page, size: 20);
       final list = ((j['list'] ?? []) as List)
           .whereType<Map<String, dynamic>>()
           .toList();
       final hasMore = (j['hasMore'] ?? false) == true;
+      final total = j['total'];
       if (!mounted) return;
       setState(() {
         _comments = refresh ? list : [..._comments, ...list];
         _hasMore = hasMore;
+        _total = total is int ? total : _comments.length;
         _loading = false;
       });
     } catch (_) {
@@ -235,8 +250,14 @@ class _CommentSheetState extends State<CommentSheet> {
         _sticker = null;
         _sending = false;
       });
+      if (widget.pureInput) {
+        // 纯输入弹窗：发送成功即关闭，广播让打开的列表弹窗刷新
+        commentAddedBus.value += 1;
+        Navigator.of(context).pop();
+        return;
+      }
       await _load(refresh: true);
-      widget.onChanged?.call(_comments.length);
+      widget.onChanged?.call(_total > 0 ? _total : _comments.length);
     } catch (e) {
       if (!mounted) return;
       setState(() => _sending = false);

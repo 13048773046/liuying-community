@@ -15,7 +15,7 @@ import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../mine/login_page.dart';
 import '../user/user_profile.dart';
-import 'comment_sheet.dart';
+import '../../widgets/comment_sheet.dart';
 
 class VideoCard extends StatefulWidget {
   final FeedItem item;
@@ -162,22 +162,23 @@ class _VideoCardState extends State<VideoCard> {
     // TODO: 接入 share_plus 后打开系统分享面板
   }
 
-  /// 打开评论面板：游客也可浏览评论；发送时才要求登录
+  /// 打开评论：抖音式完整弹窗（评论列表 + 输入栏）；
+  /// 评论数为 0 时，同时叠一个纯输入弹窗并唤起输入法，直接发第一条
   Future<void> _openComments() async {
-    final added = await showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => CommentSheet(
-        postId: widget.item.id,
-        initialCount: _commentCount,
-      ),
+    final needInput = _commentCount <= 0;
+    final full = showCommentSheet(
+      context,
+      postId: widget.item.id,
+      onChanged: (n) {
+        if (!mounted) return;
+        setState(() => _commentCount = n);
+      },
     );
-    if (!mounted) return;
-    // 面板内新增评论后回传 +1，同步侧栏计数
-    if (added != null && added > 0) {
-      setState(() => _commentCount += added);
+    if (needInput) {
+      await showCommentSheet(context,
+          postId: widget.item.id, pureInput: true);
     }
+    await full;
   }
 
   /// 未登录：弹提示并跳转登录页（登录后自动恢复）
