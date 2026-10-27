@@ -15,6 +15,8 @@ import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../settings/settings_page.dart';
 import 'login_page.dart';
+import 'edit_profile_page.dart';
+import 'audit_page.dart';
 import 'user_list_page.dart';
 
 class MinePage extends StatefulWidget {
@@ -459,6 +461,14 @@ class _MinePageState extends State<MinePage> {
     required Object? next,
     required bool signedToday,
   }) {
+    final _parts = <String>[];
+    final _g = (user['gender'] ?? '') as String;
+    final _a = (user['age'] ?? 0) as num;
+    final _c = (user['city'] ?? '') as String;
+    if (_g.isNotEmpty) _parts.add(_g);
+    if (_a > 0) _parts.add('$_a岁');
+    if (_c.isNotEmpty) _parts.add(_c);
+    final metaLine = _parts.join(' · ');
     // 内容区（背景由外部 _bgLayer 提供：延伸到状态栏，内容 SafeArea 不延伸）
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -507,6 +517,10 @@ class _MinePageState extends State<MinePage> {
                       ),
                     ),
                     const Spacer(),
+                    if (adminLevel > 0) ...[
+                      _roundIcon(Icons.shield_outlined, '内容审核', _openAudit),
+                      const SizedBox(width: 8),
+                    ],
                     _roundIcon(Icons.edit_outlined, '编辑资料', _editProfile),
                     const SizedBox(width: 8),
                     _roundIcon(Icons.share_outlined, '分享', _shareProfile),
@@ -627,6 +641,13 @@ class _MinePageState extends State<MinePage> {
                                     fontSize: 12.5,
                                     height: 1.4)),
                           ],
+                          if (metaLine.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(metaLine,
+                                style: const TextStyle(
+                                    color: Color(AppTheme.textTertiary),
+                                    fontSize: 11.5)),
+                          ],
                         ],
                       ),
                     ),
@@ -736,112 +757,21 @@ class _MinePageState extends State<MinePage> {
     );
   }
 
-  /// 编辑资料（昵称/简介）→ POST /user/me
+  /// 编辑资料 → 独立编辑页（头像/昵称/签名/性别/年龄/地址/邮箱）
   Future<void> _editProfile() async {
-    final nameCtrl = TextEditingController(text: _name ?? '');
-    final sigCtrl = TextEditingController(text: (ApiClient.meSignature ?? ''));
-    var saving = false;
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(AppTheme.card),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(
-              left: 16, right: 16, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('编辑资料',
-                  style: TextStyle(
-                      color: Color(AppTheme.textPrimary),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 14),
-              TextField(
-                controller: nameCtrl,
-                maxLength: 20,
-                style: const TextStyle(color: Color(AppTheme.textPrimary)),
-                cursorColor: const Color(AppTheme.accent),
-                decoration: InputDecoration(
-                  labelText: '昵称',
-                  labelStyle: const TextStyle(
-                      color: Color(AppTheme.textSecondary)),
-                  filled: true,
-                  fillColor: const Color(AppTheme.bg),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: sigCtrl,
-                maxLength: 80,
-                maxLines: 2,
-                style: const TextStyle(color: Color(AppTheme.textPrimary)),
-                cursorColor: const Color(AppTheme.accent),
-                decoration: InputDecoration(
-                  labelText: '简介',
-                  labelStyle: const TextStyle(
-                      color: Color(AppTheme.textSecondary)),
-                  filled: true,
-                  fillColor: const Color(AppTheme.bg),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 14),
-              GestureDetector(
-                onTap: saving
-                    ? null
-                    : () async {
-                        setSt(() => saving = true);
-                        try {
-                          await ApiClient.updateProfile(
-                              name: nameCtrl.text.trim(),
-                              signature: sigCtrl.text.trim());
-                          if (!ctx.mounted) return;
-                          Navigator.pop(ctx);
-                          await _init();
-                        } catch (e) {
-                          if (!ctx.mounted) return;
-                          setSt(() => saving = false);
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                              content: Text('$e'),
-                              backgroundColor: const Color(AppTheme.card)));
-                        }
-                      },
-                child: Container(
-                  width: double.infinity,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(AppTheme.accent),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  ),
-                  child: saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.black))
-                      : const Text('保存',
-                          style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => EditProfilePage(user: _me ?? const {})),
     );
+    if (changed == true && mounted) {
+      await _init();
+    }
+  }
+
+  /// 内容审核入口（仅管理员）：App 内审核列表
+  void _openAudit() {
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => const AuditPage()));
   }
 
   /// 分享我的主页（复制链接）
@@ -983,26 +913,49 @@ class _MinePageState extends State<MinePage> {
                       child: Icon(Icons.play_circle_fill,
                           color: Colors.white, size: 30),
                     ),
-                  // 我的帖子审核三态角标（待审 0 / 拒绝 2，作者可见）
+                  // 我的帖子审核状态提示条（顶部通栏，待审/拒绝可见）
                   if (it.auditStatus == 0 || it.auditStatus == 2)
                     Positioned(
-                      top: 6,
-                      left: 6,
+                      top: 0,
+                      left: 0,
+                      right: 0,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                        height: 22,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           color: it.auditStatus == 0
                               ? const Color(0xFFFFB84D)
                               : const Color(0xFFE4574F),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12)),
                         ),
-                        child: Text(
-                          it.auditStatus == 0 ? '审核中' : '已拒绝',
-                          style: const TextStyle(
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          children: [
+                            Icon(
+                              it.auditStatus == 0
+                                  ? Icons.hourglass_top
+                                  : Icons.block,
+                              size: 12,
                               color: Colors.black,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                it.auditStatus == 0
+                                    ? '审核中 · 通过后对所有人可见'
+                                    : (it.auditReason?.isNotEmpty == true
+                                        ? '已拒绝：${it.auditReason}'
+                                        : '已拒绝'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

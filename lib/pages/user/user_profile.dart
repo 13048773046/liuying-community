@@ -185,6 +185,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final followers = ((u['followers'] ?? 0) as num).toInt();
     final followings = ((u['followings'] ?? 0) as num).toInt();
     final following = boolOf(u['following']);
+    final gender = (u['gender'] ?? '') as String;
+    final age = (u['age'] ?? 0) as num;
+    final city = (u['city'] ?? '') as String;
+    final signature = (u['signature'] ?? '') as String;
+    final parts = <String>[];
+    if (gender.isNotEmpty) parts.add(gender);
+    if (age > 0) parts.add('$age岁');
+    if (city.isNotEmpty) parts.add(city);
+    final metaLine = parts.join(' · ');
     return Column(
       children: [
         // 头像（带头像框）
@@ -236,6 +245,26 @@ class _UserProfilePageState extends State<UserProfilePage> {
         Text('Lv.$level · 流萤社区',
             style: const TextStyle(
                 color: Color(AppTheme.textTertiary), fontSize: 13)),
+        if (metaLine.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(metaLine,
+              style: const TextStyle(
+                  color: Color(AppTheme.textTertiary), fontSize: 12)),
+        ],
+        if (signature.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(signature,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Color(AppTheme.textSecondary),
+                    fontSize: 12.5,
+                    height: 1.4)),
+          ),
+        ],
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,

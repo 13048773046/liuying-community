@@ -491,13 +491,65 @@ class ApiClient {
   static Future<Map<String, dynamic>> userProfile(String uid) =>
       get('/user/$uid/profile');
 
-  /// 更新我的资料（昵称/简介）
-  static Future<Map<String, dynamic>> updateProfile(
-          {String? name, String? signature}) =>
+  /// 更新我的资料（昵称/签名/性别/年龄/地址；邮箱需带验证码）
+  static Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? signature,
+    String? gender,
+    int? age,
+    String? city,
+    String? email,
+    String? code,
+  }) =>
       post('/user/me', body: {
         if (name != null && name.isNotEmpty) 'name': name,
         if (signature != null) 'signature': signature,
+        if (gender != null) 'gender': gender,
+        if (age != null) 'age': age,
+        if (city != null) 'city': city,
+        if (email != null && email.isNotEmpty) 'email': email,
+        if (code != null && code.isNotEmpty) 'code': code,
       });
+
+  /// 发送邮箱验证码（社区改绑邮箱，5 分钟有效）
+  static Future<Map<String, dynamic>> sendEmailCodeCommunity(String email) =>
+      post('/user/email-code', body: {'email': email});
+
+  /// 上传头像（multipart，写音乐 files 目录 + users.avatar）
+  static Future<Map<String, dynamic>> uploadAvatar(File file) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/user/me/avatar'));
+    if (token != null && token!.isNotEmpty) {
+      req.headers['Authorization'] = 'Bearer $token';
+    }
+    req.files.add(await http.MultipartFile.fromPath('avatar', file.path));
+    final streamed = await req.send().timeout(const Duration(seconds: 60));
+    final r = await http.Response.fromStream(streamed);
+    return _unwrap(r);
+  }
+
+  // ---------- 管理员审核（App 内入口，普通 token 鉴权） ----------
+
+  /// 审核列表：audit=0 待审 / 1 通过 / 2 已拒绝（管理员）
+  static Future<Map<String, dynamic>> adminPosts({int? audit, int page = 1}) =>
+      get('/admin/posts', query: {
+        if (audit != null) 'audit': '$audit',
+        'page': '$page',
+      });
+
+  /// 审核动作：audit(通过/拒绝) / pin(置顶) / featured(精华) / takedown(下架)
+  static Future<Map<String, dynamic>> adminAction(
+      String postId, String action,
+      {String? reason}) async {
+    Map<String, dynamic> body = {};
+    if (action == 'audit') {
+      if (reason != null && reason.isNotEmpty) {
+        body = {'action': 'reject', 'reason': reason};
+      } else {
+        body = {'action': 'approve'};
+      }
+    }
+    return post('/admin/posts/$postId/$action', body: body);
+  }
 
   /// 关注 / 粉丝列表
   static Future<Map<String, dynamic>> userList(String uid,
