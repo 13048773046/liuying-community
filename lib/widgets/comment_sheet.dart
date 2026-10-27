@@ -340,7 +340,7 @@ class _CommentSheetState extends State<CommentSheet> {
             ),
             const Divider(color: Color(AppTheme.border), height: 1),
             // 待发预览（表情包/图片，二选一；light 模式无）
-            if (!widget.light && (_sticker != null || _img != null))
+            if (!_lightMode && (_sticker != null || _img != null))
               Container(
                 height: 76,
                 padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
@@ -389,12 +389,12 @@ class _CommentSheetState extends State<CommentSheet> {
                 ),
               ),
             // 输入栏（light：仅「说点什么…」入口，点击打开完整评论弹窗）
-            if (widget.light)
+            if (_lightMode)
               GestureDetector(
                 onTap: () {
-                  Navigator.of(context).pop();
-                  showCommentSheet(context,
-                      postId: widget.postId, onChanged: widget.onChanged);
+                  setState(() => _lightMode = false);
+                  Future<void>.delayed(const Duration(milliseconds: 120),
+                      () => _focusNode.requestFocus());
                 },
                 behavior: HitTestBehavior.opaque,
                 child: Container(
@@ -508,7 +508,7 @@ class _CommentSheetState extends State<CommentSheet> {
               ),
             ),
             // 面板（表情/图片，占输入法位置；light 模式无）
-            if (widget.light)
+            if (_lightMode)
               const SizedBox.shrink()
             else
               AnimatedSize(
@@ -532,6 +532,7 @@ class _CommentSheetState extends State<CommentSheet> {
   }
 
   final FocusNode _focusNode = FocusNode();
+  late bool _lightMode = widget.light;
 
   Widget _imagePanel() {
     return Column(
