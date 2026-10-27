@@ -4,6 +4,10 @@ library;
 
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:photo_view/photo_view_gallery.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
@@ -279,12 +283,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
           icon: const Icon(Icons.arrow_back, color: Color(AppTheme.textPrimary)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(_post?.isVideo == true ? '视频详情' : '帖子详情',
-            style: const TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                fontWeight: FontWeight.w600)),
+        title: null, // 对齐参考图：顶部仅返回/分享/更多
         actions: [
+          if (_post != null)
+            IconButton(
+              tooltip: '分享',
+              icon: const Icon(Icons.ios_share,
+                  color: Color(AppTheme.textPrimary), size: 22),
+              onPressed: () => _sharePost(),
+            ),
           if (_post != null && _post!.author.id != ApiClient.userId)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_horiz_rounded,
@@ -543,27 +550,110 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
+  /// 分享帖子：底部面板（复制链接等）
+  void _sharePost() {
+    final p = _post;
+    if (p == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(AppTheme.card),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+              child: Text('分享帖子',
+                  style: TextStyle(
+                      color: Color(AppTheme.textPrimary),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+            ),
+            const Divider(color: Color(AppTheme.border), height: 18),
+            ListTile(
+              leading: const Icon(Icons.link,
+                  color: Color(AppTheme.accent)),
+              title: const Text('复制链接',
+                  style: TextStyle(
+                      color: Color(AppTheme.textPrimary), fontSize: 14)),
+              onTap: () {
+                Navigator.pop(ctx);
+                Clipboard.setData(ClipboardData(text: 'https://www.dbmt999.asia/post/${p.id}'));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('链接已复制'), duration: Duration(seconds: 1)));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.ios_share,
+                  color: Color(AppTheme.sky)),
+              title: const Text('分享给好友',
+                  style: TextStyle(
+                      color: Color(AppTheme.textPrimary), fontSize: 14)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('暂未开放，敬请期待'), duration: Duration(seconds: 1)));
+              },
+            ),
+            const SizedBox(height: 6),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 全屏图片查看器：多图左右滑 + 双指缩放（开源 photo_view）
+  void _openGallery(int index) {
+    final imgs = _post?.images ?? const <String>[];
+    if (imgs.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          body: PhotoViewGallery.builder(
+            itemCount: imgs.length,
+            pageController: PageController(initialPage: index),
+            onPageChanged: (_) {},
+            builder: (_, i) => PhotoViewGalleryPageOptions(
+              imageProvider: NetworkImage(mediaUrl(imgs[i])),
+              minScale: PhotoViewComputedScale.contained,
+              maxScale: PhotoViewComputedScale.covered * 2.5,
+              heroAttributes: i == index
+                  ? PhotoViewHeroAttributes(tag: 'post-gallery-$i')
+                  : null,
+            ),
+            backgroundDecoration: const BoxDecoration(color: Colors.black),
+            scrollDirection: Axis.horizontal,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _contentBlock() {
     final p = _post!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(p.content,
-            style: const TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                height: 1.55)),
+        _HighlightContent(
+          text: p.content,
+          topics: p.topic,
+          mentions: p.mentions,
+        ),
         if (p.images.isNotEmpty) ...[
           const SizedBox(height: 12),
-          // 多图：按张数等宽网格，AspectRatio 自适应屏幕（不再写死高度）
+          // 多图：网格展示，点击任意一张 → 全屏缩放查看器（双指缩放 + 左右滑）
           if (p.images.length == 1)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
-                child: CachedNetworkImageCompat(
-                  url: mediaUrl(p.images[0]),
-                  fit: BoxFit.cover,
+            GestureDetector(
+              onTap: () => _openGallery(0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: CachedNetworkImageCompat(
+                    url: mediaUrl(p.images[0]),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             )
@@ -571,37 +661,29 @@ class _PostDetailPageState extends State<PostDetailPage> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: p.images
-                  .map((img) => ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: CachedNetworkImageCompat(
-                            url: mediaUrl(img),
-                            fit: BoxFit.cover,
-                          ),
+              children: [
+                for (var i = 0; i < p.images.length; i++)
+                  GestureDetector(
+                    onTap: () => _openGallery(i),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: CachedNetworkImageCompat(
+                          url: mediaUrl(p.images[i]),
+                          fit: BoxFit.cover,
                         ),
-                      ))
-                  .toList(),
+                      ),
+                    ),
+                  ),
+              ],
             ),
         ],
         if (p.isVideo) ...[
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: CachedNetworkImageCompat(
-                url: mediaUrl(p.cover == 'auto' ? '${p.video}.jpg' : p.cover),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Center(
-            child: Text('完整视频请到「短视频」页观看',
-                style: TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 11)),
+          _InlineVideo(
+            url: mediaUrl(p.video),
+            coverUrl: mediaUrl(p.cover == 'auto' ? '${p.video}.jpg' : p.cover),
           ),
         ],
       ],
@@ -840,4 +922,158 @@ class _PostDetailPageState extends State<PostDetailPage> {
         });
   }
 
+}
+
+// ---------- 详情页辅助组件 ----------
+
+/// 正文高亮：话题 #xxx（主题色）+ @提及（天蓝），与短视频卡一致
+class _HighlightContent extends StatelessWidget {
+  final String text;
+  final List<String> topics;
+  final List<String> mentions;
+  const _HighlightContent(
+      {required this.text, required this.topics, required this.mentions});
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    final RegExp kw = RegExp(
+        '(#(?:${topics.map(RegExp.escape).join('|')}))|(@(?:${mentions.map(RegExp.escape).join('|')}))');
+    final spans = <TextSpan>[];
+    if (topics.isEmpty && mentions.isEmpty) {
+      spans.add(TextSpan(text: text));
+    } else {
+      var last = 0;
+      for (final m in kw.allMatches(text)) {
+        if (m.start > last) {
+          spans.add(TextSpan(text: text.substring(last, m.start)));
+        }
+        final isTopic = m.group(1) != null;
+        spans.add(TextSpan(
+          text: m.group(0),
+          style: TextStyle(
+            color: isTopic
+                ? const Color(AppTheme.lilac)
+                : const Color(AppTheme.sky),
+            fontWeight: FontWeight.w600,
+          ),
+        ));
+        last = m.end;
+      }
+      if (last < text.length) {
+        spans.add(TextSpan(text: text.substring(last)));
+      }
+    }
+    return Text.rich(
+      TextSpan(
+        style: const TextStyle(
+            color: Color(AppTheme.textPrimary), fontSize: 16, height: 1.55),
+        children: spans,
+      ),
+    );
+  }
+}
+
+/// 视频帖详情内嵌播放器：点击播放/暂停，加载失败回退封面
+class _InlineVideo extends StatefulWidget {
+  final String url;
+  final String coverUrl;
+  const _InlineVideo({required this.url, required this.coverUrl});
+
+  @override
+  State<_InlineVideo> createState() => _InlineVideoState();
+}
+
+class _InlineVideoState extends State<_InlineVideo> {
+  VideoPlayerController? _vc;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final c = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+      await c.initialize();
+      if (!mounted) {
+        c.dispose();
+        return;
+      }
+      setState(() => _vc = c);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _failed = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _vc?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = _vc;
+    if (v != null && v.value.isInitialized && !_failed) {
+      return GestureDetector(
+        onTap: () {
+          setState(() {
+            if (v.value.isPlaying) {
+              v.pause();
+            } else {
+              v.play();
+            }
+          });
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: v.value.size.width,
+                    height: v.value.size.height,
+                    child: VideoPlayer(v),
+                  ),
+                ),
+                Center(
+                  child: Icon(
+                    v.value.isPlaying
+                        ? Icons.pause_circle_filled_rounded
+                        : Icons.play_circle_fill_rounded,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    size: 52,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: _init,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: CachedNetworkImageCompat(
+            url: widget.coverUrl,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
 }

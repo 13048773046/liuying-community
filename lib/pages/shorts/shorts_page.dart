@@ -41,7 +41,8 @@ class _ShortsPageState extends State<ShortsPage> {
     if (_loading || !_hasMore) return;
     setState(() => _loading = true);
     try {
-      final p = await ApiClient.feed(type: 'video', page: _page + 1, size: 6);
+      // 同源混合：与首页同一内容池（视频+图片/图文帖全类型混排）
+      final p = await ApiClient.feed(page: _page + 1, size: 6);
       if (!mounted) return;
       setState(() {
         _page = p.page;
@@ -107,7 +108,7 @@ class _ShortsPageState extends State<ShortsPage> {
           ),
           const SizedBox(height: 14),
           Text(
-            _loading ? '加载短视频…' : '暂时没有短视频',
+            _loading ? '加载内容…' : '暂时没有内容',
             style: const TextStyle(color: Color(AppTheme.textSecondary), fontSize: 13),
           ),
         ],

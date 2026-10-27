@@ -15,6 +15,7 @@ import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../mine/login_page.dart';
 import '../user/user_profile.dart';
+import '../post/post_detail.dart';
 import '../../widgets/comment_sheet.dart';
 
 class VideoCard extends StatefulWidget {
@@ -226,6 +227,12 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   Widget _buildMedia() {
+    // 图片/图文帖：全屏铺图（多图左右滑，与抖音图集一致），复用同一布局壳
+    if (!widget.item.isVideo) {
+      final imgs = widget.item.images;
+      if (imgs.isEmpty) return const _MediaLoading();
+      return _ImageMedia(images: imgs, onDoubleTap: _toggleLike);
+    }
     final v = _video;
     if (v != null && v.value.isInitialized && !_failed) {
       return FittedBox(
@@ -312,12 +319,30 @@ class _VideoCardState extends State<VideoCard> {
               ),
               const SizedBox(height: 8),
               // 文案：话题高亮 + @提及高亮
+              // 图文帖：正文收起两行 + 「展开」按钮，点击进入帖子详情（抖音式）
               if (f.content.isNotEmpty)
                 _ContentText(
                   text: f.content,
                   topics: f.topic,
                   mentions: f.mentions,
+                  maxLines: widget.item.isVideo ? null : 2,
                 ),
+              if (!widget.item.isVideo && f.content.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PostDetailPage(postId: widget.item.id),
+                        ),
+                      ),
+                  child: const Text('展开',
+                      style: TextStyle(
+                          color: Color(AppTheme.accent),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ],
               const SizedBox(height: 6),
               // 话题 tag 行
               if (f.topic.isNotEmpty)
@@ -415,6 +440,76 @@ class _VideoCardState extends State<VideoCard> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// 图片/图文帖的全屏媒体区：复用视频卡同一布局壳
+/// - 单图：全屏铺满（cover）
+/// - 多图：左右滑动切换（与抖音图集一致），右下角页码指示
+/// - 双击点赞
+class _ImageMedia extends StatefulWidget {
+  final List<String> images;
+  final VoidCallback onDoubleTap;
+
+  const _ImageMedia({required this.images, required this.onDoubleTap});
+
+  @override
+  State<_ImageMedia> createState() => _ImageMediaState();
+}
+
+class _ImageMediaState extends State<_ImageMedia> {
+  int _idx = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final imgs = widget.images;
+    if (imgs.length == 1) {
+      return GestureDetector(
+        onDoubleTap: widget.onDoubleTap,
+        child: CachedNetworkImage(
+          imageUrl: mediaUrl(imgs.first),
+          fit: BoxFit.cover,
+          placeholder: (_, __) => const _MediaLoading(),
+          errorWidget: (_, __, ___) => const _MediaLoading(),
+        ),
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          itemCount: imgs.length,
+          onPageChanged: (i) => setState(() => _idx = i),
+          itemBuilder: (_, i) => GestureDetector(
+            onDoubleTap: widget.onDoubleTap,
+            child: CachedNetworkImage(
+              imageUrl: mediaUrl(imgs[i]),
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const _MediaLoading(),
+              errorWidget: (_, __, ___) => const _MediaLoading(),
+            ),
+          ),
+        ),
+        // 页码指示（右下角，抖音图集式）
+        Positioned(
+          right: 12,
+          bottom: 18 + _navBarHeight(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.45),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${_idx + 1}/${imgs.length}',
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -601,8 +696,12 @@ class _ContentText extends StatelessWidget {
   final String text;
   final List<String> topics;
   final List<String> mentions;
+  final int? maxLines;
   const _ContentText(
-      {required this.text, required this.topics, required this.mentions});
+      {required this.text,
+      required this.topics,
+      required this.mentions,
+      this.maxLines});
 
   @override
   Widget build(BuildContext context) {
@@ -635,13 +734,13 @@ class _ContentText extends StatelessWidget {
       }
     }
     return Text.rich(
+      maxLines: maxLines,
+      overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
       TextSpan(
         style: const TextStyle(
             color: Colors.white, fontSize: 13.5, height: 1.45),
         children: spans,
       ),
-      maxLines: 3,
-      overflow: TextOverflow.ellipsis,
     );
   }
 }
