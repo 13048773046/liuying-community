@@ -12,6 +12,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../../widgets/emoji_panel.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../api/client.dart';
@@ -40,6 +42,10 @@ class DmChatPage extends StatefulWidget {
 class _DmChatPageState extends State<DmChatPage> {
   final List<Map<String, dynamic>> _msgs = [];
   final TextEditingController _input = TextEditingController();
+  final FocusNode _inputFocus = FocusNode();
+  bool _panelOpen = false; // QQ 式占位面板（收起输入法后占住输入法位置）
+  bool _emojiMode = false; // 面板当前是否为表情网格
+
   final ScrollController _scroll = ScrollController();
   bool _loading = true;
   bool _loadError = false;
@@ -196,81 +202,133 @@ class _DmChatPageState extends State<DmChatPage> {
     });
   }
 
-  // ---------- QQ 式发送面板 ----------
+  // ---------- QQ 式占位面板（非弹窗：收起输入法，面板占住输入法位置） ----------
 
-  void _openPanel() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(AppTheme.card),
-      shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(AppTheme.radiusSheet))),
-      builder: (ctx) {
-        final items = <(IconData, String, VoidCallback)>[
-          (Icons.photo_library_rounded, '相册', () => _pickImage(ImageSource.gallery)),
-          (Icons.photo_camera_rounded, '拍照', () => _pickImage(ImageSource.camera)),
-          (Icons.videocam_rounded, '视频', () => _pickVideo()),
-          (Icons.location_on_rounded, '位置', _sendLocation),
-          (Icons.person_rounded, '名片', _sendCard),
-        ];
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+  void _togglePanel() {
+    setState(() {
+      if (_panelOpen) {
+        _panelOpen = false;
+        _emojiMode = false;
+      } else {
+        FocusScope.of(context).unfocus();
+        _panelOpen = true;
+        _emojiMode = false;
+      }
+    });
+  }
+
+  void _closePanel() {
+    if (_panelOpen) {
+      setState(() {
+        _panelOpen = false;
+        _emojiMode = false;
+      });
+    }
+  }
+
+  /// 占位面板（QQ 式：相册/拍照/视频/位置/名片 + 表情入口）
+  Widget _sendPanel() {
+    if (!_panelOpen) return const SizedBox.shrink();
+    if (_emojiMode) {
+      return Container(
+        height: 224,
+        color: const Color(AppTheme.bg),
+        child: EmojiPanel(
+          initialFav: true,
+          onPick: (e) async {
+            final img = (e['image'] ?? '') as String;
+            if (img.isEmpty) return;
+            _closePanel();
+            try {
+              await _sendMedia('image', mediaUrl(img));
+            } catch (err) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('表情发送失败'),
+                backgroundColor: const Color(AppTheme.card),
+              ));
+            }
+          },
+        ),
+      );
+    }
+    final items = <(IconData, String, VoidCallback)>[
+      (Icons.photo_library_rounded, '相册', () {
+        _closePanel();
+        _pickImage(ImageSource.gallery);
+      }),
+      (Icons.photo_camera_rounded, '拍照', () {
+        _closePanel();
+        _pickImage(ImageSource.camera);
+      }),
+      (Icons.videocam_rounded, '视频', () {
+        _closePanel();
+        _pickVideo();
+      }),
+      (Icons.location_on_rounded, '位置', () {
+        _closePanel();
+        _sendLocation();
+      }),
+      (Icons.person_rounded, '名片', () {
+        _closePanel();
+        _sendCard();
+      }),
+      (Icons.emoji_emotions_outlined, '表情', () {
+        setState(() => _emojiMode = true);
+      }),
+    ];
+    return Container(
+      height: 224,
+      color: const Color(AppTheme.bg),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('发送',
+              style: TextStyle(
+                  color: Color(AppTheme.textPrimary),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          Expanded(
+            child: GridView.count(
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.9,
               children: [
-                const Text('发送',
-                    style: TextStyle(
-                        color: Color(AppTheme.textPrimary),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
-                const SizedBox(height: 14),
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 4,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 0.82,
-                  children: [
-                    for (final (icon, label, act) in items)
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          act();
-                        },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                color: const Color(AppTheme.bg),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(icon,
-                                  color: const Color(AppTheme.accent),
-                                  size: 26),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(label,
-                                style: const TextStyle(
-                                    color: Color(AppTheme.textSecondary),
-                                    fontSize: 11)),
-                          ],
+                for (final (icon, label, act) in items)
+                  GestureDetector(
+                    onTap: act,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: const Color(AppTheme.card),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(icon,
+                              color: const Color(AppTheme.accent),
+                              size: 26),
                         ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
+                        const SizedBox(height: 6),
+                        Text(label,
+                            style: const TextStyle(
+                                color: Color(AppTheme.textSecondary),
+                                fontSize: 11)),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -397,6 +455,7 @@ class _DmChatPageState extends State<DmChatPage> {
                         },
                       ),
           ),
+          _sendPanel(),
           _inputBar(),
         ],
       ),
@@ -658,6 +717,7 @@ class _DmChatPageState extends State<DmChatPage> {
                 ),
                 child: TextField(
                   controller: _input,
+                  focusNode: _inputFocus,
                   minLines: 1,
                   maxLines: 4,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -669,6 +729,7 @@ class _DmChatPageState extends State<DmChatPage> {
                     isCollapsed: true,
                     contentPadding: EdgeInsets.symmetric(vertical: 10),
                   ),
+                  onTap: _closePanel,
                   onSubmitted: (_) => _send(),
                 ),
               ),
@@ -676,7 +737,7 @@ class _DmChatPageState extends State<DmChatPage> {
             const SizedBox(width: 6),
             // 加号：弹出 QQ 式发送面板
             GestureDetector(
-              onTap: _openPanel,
+              onTap: _togglePanel,
               child: Container(
                 width: 38,
                 height: 38,

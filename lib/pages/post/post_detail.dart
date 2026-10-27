@@ -2,17 +2,15 @@
 /// 评论区支持：文字评论、图片评论（≤1 图）、表情包（占位，官方素材到达后接入）
 library;
 
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
 import '../../widgets/image_box.dart';
 import '../../widgets/poll_card.dart';
-import '../../widgets/emoji_panel.dart';
+import '../../widgets/comment_sheet.dart';
 import '../mine/login_page.dart';
 import '../user/user_profile.dart';
 
@@ -33,15 +31,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool _loading = true;
   bool _following = false;
   bool _followBusy = false;
-  List<Map<String, dynamic>> _comments = [];
-  int _cPage = 1;
-  bool _cHasMore = false;
-  bool _cLoading = false;
-
-  final _commentCtrl = TextEditingController();
-  File? _commentImage;
-  String? _commentSticker;
-  final _picker = ImagePicker();
+  int _cCount = 0;
 
   @override
   void initState() {
@@ -62,37 +52,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
         _likeCount = ((pj['likeCount'] ?? 0) as num).toInt();
         _loading = false;
       });
-      await _loadComments(refresh: true);
+      _cCount = _post!.commentCount;
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadComments({bool refresh = false}) async {
-    if (_cLoading || (!_cHasMore && !refresh)) return;
-    setState(() => _cLoading = true);
-    try {
-      final j = await ApiClient.comments(widget.postId,
-          page: refresh ? 1 : _cPage + 1, size: 20);
-      if (!mounted) return;
-      setState(() {
-        final list = ((j['list'] ?? []) as List)
-            .whereType<Map<String, dynamic>>()
-            .toList();
-        if (refresh) {
-          _comments = list;
-          _cPage = 1;
-        } else {
-          _comments.addAll(list);
-          _cPage++;
-        }
-        _cHasMore = boolOf(j['hasMore']);
-        _cLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _cLoading = false);
     }
   }
 
@@ -300,49 +263,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Future<void> _sendComment() async {
-    final text = _commentCtrl.text.trim();
-    if (text.isEmpty && _commentImage == null) {
-      _toast('评论内容不能为空');
-      return;
-    }
-    // 登录检查：未登录 → 提示并跳登录页（避免 401 生硬报错）
-    if (ApiClient.token == null || ApiClient.token!.isEmpty) {
-      _toast('请先登录后评论（账号与流萤音乐互通）');
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-      );
-      return;
-    }
-    List<String> imgs = [];
-    try {
-      if (_commentImage != null) {
-        final j = await ApiClient.uploadImage(_commentImage!.path);
-        imgs = [j['name'] as String];
-      }
-      await ApiClient.addComment(widget.postId, text,
-          images: imgs, sticker: _commentSticker);
-      if (!mounted) return;
-      _commentCtrl.clear();
-      setState(() {
-        _commentImage = null;
-        _commentSticker = null;
-      });
-      _toast('评论成功');
-      await _loadComments(refresh: true);
-    } catch (e) {
-      _toast('评论失败：$e');
-    }
-  }
-
-  void _toast(String s) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(s), backgroundColor: const Color(AppTheme.card)));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -433,42 +353,26 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           _actionBar(),
                           const Divider(
                               color: Color(AppTheme.border), height: 28),
-                          Row(
-                            children: [
-                              const Text('评论',
-                                  style: TextStyle(
-                                      color: Color(AppTheme.textPrimary),
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600)),
-                              const SizedBox(width: 6),
-                              Text('${_post!.commentCount}',
-                                  style: const TextStyle(
-                                      color: Color(AppTheme.textTertiary),
-                                      fontSize: 13)),
-                              const Spacer(),
-                              if (_cHasMore)
-                                GestureDetector(
-                                  onTap: () => _loadComments(),
-                                  child: const Text('加载更多',
-                                      style: TextStyle(
-                                          color: Color(AppTheme.textSecondary),
-                                          fontSize: 12)),
-                                ),
-                            ],
+                          GestureDetector(
+                            onTap: _openComments,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.chat_bubble_outline,
+                                    color: Color(AppTheme.textSecondary),
+                                    size: 17),
+                                const SizedBox(width: 8),
+                                Text('$_cCount 条评论',
+                                    style: const TextStyle(
+                                        color: Color(AppTheme.textSecondary),
+                                        fontSize: 13.5)),
+                                const Spacer(),
+                                const Icon(Icons.keyboard_arrow_up_rounded,
+                                    color: Color(AppTheme.textTertiary),
+                                    size: 20),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          if (_comments.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Center(
-                                child: Text('还没有评论，来抢沙发',
-                                    style: TextStyle(
-                                        color: Color(AppTheme.textTertiary),
-                                        fontSize: 13)),
-                              ),
-                            )
-                          else
-                            ..._comments.map((c) => _commentTile(c)),
+                          const SizedBox(height: 6),
                         ],
                       ),
                     ),
@@ -675,15 +579,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Widget _actionBar() {
-    final p = _post!;
     return Row(
       children: [
         _actionItem(Icons.thumb_up_alt_rounded, '${countText(_likeCount)}',
             _liked ? const Color(AppTheme.accent) : const Color(AppTheme.textSecondary),
             _toggleLike),
         const SizedBox(width: 20),
-        _actionItem(Icons.comment_rounded, '${countText(p.commentCount)}',
-            const Color(AppTheme.textSecondary), () {}),
+        _actionItem(Icons.comment_rounded, '${countText(_cCount)}',
+            const Color(AppTheme.textSecondary), _openComments),
         const SizedBox(width: 20),
         _actionItem(
             _faved || _latered ? Icons.star_rounded : Icons.star_border_rounded,
@@ -713,240 +616,58 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Widget _commentTile(Map<String, dynamic> c) {
-    final author = (c['author'] ?? const {}) as Map;
-    final name = (author['name'] ?? '用户') as String;
-    final avatar = (author['avatar'] ?? '') as String;
-    final adminLevel = ((author['adminLevel'] ?? 0) as num).toInt();
-    final adminName = (author['adminName'] ?? '') as String;
-    final cid = (c['id'] ?? '') as String;
-    final content = (c['content'] ?? '') as String;
-    final images = (c['images'] ?? const []) as List;
-    final sticker = (c['sticker'] ?? '') as String;
-    final created = ((c['created'] ?? 0) as num).toInt();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: const Color(AppTheme.card),
-            backgroundImage: avatar.isNotEmpty
-                ? NetworkImage(avatarUrl(avatar))
-                : null,
-            child: avatar.isEmpty
-                ? const Icon(Icons.person,
-                    size: 15, color: Color(AppTheme.textSecondary))
-                : null,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(name,
-                        style: const TextStyle(
-                            color: Color(AppTheme.textSecondary),
-                            fontSize: 12)),
-                    if (adminLevel > 0) ...[
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(AppTheme.accentSoft),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(adminName.isEmpty ? '认证' : adminName,
-                            style: const TextStyle(
-                                color: Color(AppTheme.accent),
-                                fontSize: 9)),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (sticker.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: CachedNetworkImageCompat(
-                        url: mediaUrl(sticker),
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.contain),
-                  )
-                else if (content.isNotEmpty)
-                  Text(content,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary), fontSize: 14, height: 1.4)),
-                if (images.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImageCompat(
-                      url: mediaUrl(images.first.toString()),
-                      width: 140,
-                      height: 140,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(timeAgo(created),
-                        style: const TextStyle(
-                            color: Color(AppTheme.textTertiary),
-                            fontSize: 11)),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => _report('comment', cid),
-                      child: const Text('举报',
-                          style: TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 10.5)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _commentInput() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      decoration: const BoxDecoration(
-        color: Color(AppTheme.card),
-        border: Border(top: BorderSide(color: Color(AppTheme.border), width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            GestureDetector(
-              onTap: () async {
-                final v = await _picker.pickImage(source: ImageSource.gallery);
-                if (v != null) {
-                  setState(() => _commentImage = File(v.path));
-                }
-              },
-              child: _commentImage != null
-                  ? Stack(clipBehavior: Clip.none, children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.file(_commentImage!,
-                            width: 34, height: 34, fit: BoxFit.cover),
-                      ),
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _commentImage = null),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.close,
-                                size: 10, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ])
-                  : const Icon(Icons.image_outlined,
-                      color: Color(AppTheme.textSecondary), size: 24),
-            ),
-            const SizedBox(width: 4),
-            // 表情包按钮（图片与表情互斥，与服务端校验一致）
-            GestureDetector(
-              onTap: () async {
-                final e = await showEmojiPanel(context);
-                if (e != null) {
-                  setState(() {
-                    _commentSticker = (e['image'] ?? '') as String;
-                    _commentImage = null;
-                  });
-                }
-              },
-              child: _commentSticker != null
-                  ? Stack(clipBehavior: Clip.none, children: [
-                      CachedNetworkImageCompat(
-                          url: mediaUrl(_commentSticker!),
-                          width: 34,
-                          height: 34,
-                          fit: BoxFit.contain),
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _commentSticker = null),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.close,
-                                size: 10, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ])
-                  : const Icon(Icons.emoji_emotions_outlined,
-                      color: Color(AppTheme.textSecondary), size: 24),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: const Color(AppTheme.bg),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: TextField(
-                  controller: _commentCtrl,
-                  maxLines: 3,
-                  minLines: 1,
-                  style: const TextStyle(
-                      color: Color(AppTheme.textPrimary), fontSize: 14),
-                  decoration: const InputDecoration(
-                    hintText: '友善评论，理性发言',
-                    hintStyle: TextStyle(color: Color(AppTheme.textTertiary)),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 10),
-                  ),
+    return GestureDetector(
+      onTap: _openComments,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        decoration: const BoxDecoration(
+          color: Color(AppTheme.card),
+          border: Border(top: BorderSide(color: Color(AppTheme.border), width: 0.5)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              const CircleAvatar(
+                radius: 14,
+                backgroundColor: Color(AppTheme.elevated),
+                child: Icon(Icons.person,
+                    size: 15, color: Color(AppTheme.textSecondary)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: const Text('说点什么...',
+                      style: TextStyle(
+                          color: Color(AppTheme.textTertiary),
+                          fontSize: 14)),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _sendComment,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(AppTheme.accent),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Text('发送',
-                    style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              const Icon(Icons.emoji_emotions_outlined,
+                  color: Color(AppTheme.textTertiary), size: 20),
+              const SizedBox(width: 14),
+              const Icon(Icons.image_outlined,
+                  color: Color(AppTheme.textTertiary), size: 20),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  /// 打开抖音式评论弹窗
+  Future<void> _openComments() async {
+    if (_post == null) return;
+    await showCommentSheet(context,
+        postId: _post!.id,
+        onChanged: (n) {
+          if (!mounted) return;
+          setState(() => _cCount = n);
+        });
+  }
+
 }

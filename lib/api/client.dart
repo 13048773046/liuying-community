@@ -527,6 +527,40 @@ class ApiClient {
     return _unwrap(r);
   }
 
+  // ---------- 表情包 ----------
+
+  /// 官方表情包全量
+  static Future<Map<String, dynamic>> emojis() => get('/emojis');
+
+  /// 我的收藏表情
+  static Future<Map<String, dynamic>> emojiFavs() => get('/emojis/favs');
+
+  /// 收藏/取消收藏表情
+  static Future<Map<String, dynamic>> emojiFav(String emojiId,
+          {bool fav = true}) async {
+    if (fav) {
+      return post('/emoji/fav', body: {'emojiId': emojiId});
+    }
+    final r = await http
+        .delete(Uri.parse('$kApiBase/emoji/fav'),
+            headers: _headers(), body: jsonEncode({'emojiId': emojiId}))
+        .timeout(const Duration(seconds: 20));
+    return _unwrap(r);
+  }
+
+  /// 上传自定义表情（图片/GIF，自动加入收藏）
+  static Future<Map<String, dynamic>> uploadCustomEmoji(File file) async {
+    final req = http.MultipartRequest(
+        'POST', Uri.parse('$kApiBase/emojis/custom'));
+    if (token != null && token!.isNotEmpty) {
+      req.headers['Authorization'] = 'Bearer $token';
+    }
+    req.files.add(await http.MultipartFile.fromPath('image', file.path));
+    final streamed = await req.send().timeout(const Duration(seconds: 60));
+    final r = await http.Response.fromStream(streamed);
+    return _unwrap(r);
+  }
+
   // ---------- 管理员审核（App 内入口，普通 token 鉴权） ----------
 
   /// 审核列表：audit=0 待审 / 1 通过 / 2 已拒绝（管理员）
