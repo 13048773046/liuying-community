@@ -177,124 +177,139 @@ class _HomePageState extends State<HomePage> {
         child: const Icon(Icons.edit, size: 22),
       ),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 顶部标题 + 搜索 / 任务按钮（概念稿对齐，铃铛按用户要求不显示）
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 12, 2),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      '流萤社区',
-                      style: TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5),
-                    ),
-                  ),
-                  _taskButton(),
-                  const SizedBox(width: 10),
-                  _headerIcon(
-                    Icons.search,
-                    () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const SearchPage())),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-              ),
-            ),
-            // 首页运营栏：话题 / 排行榜 入口（三组全做入口）
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-              child: Row(
-                children: [
-                  _opsPill(
-                    Icons.local_fire_department_rounded,
-                    '话题',
-                    () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const TopicPage())),
-                  ),
-                  const SizedBox(width: 10),
-                  _opsPill(
-                    Icons.leaderboard_rounded,
-                    '排行榜',
-                    () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const RankingPage())),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const TaskCenterPage())),
-                    child: const Row(
+        // 整页滚动：标题/运营栏/Banner/Tab 全部随内容一起滚走（不吸顶）
+        child: RefreshIndicator(
+          onRefresh: () => _load(refresh: true),
+          color: const Color(AppTheme.accent),
+          backgroundColor: const Color(AppTheme.card),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.extentAfter < 400) _load();
+              return false;
+            },
+            child: CustomScrollView(
+              controller: _scroll,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                // 顶部标题 + 搜索 / 任务按钮
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 12, 2),
+                    child: Row(
                       children: [
-                        Icon(Icons.emoji_events_outlined,
-                            color: Color(AppTheme.accent), size: 15),
-                        SizedBox(width: 3),
-                        Text('任务中心',
+                        const Expanded(
+                          child: Text(
+                            '流萤社区',
                             style: TextStyle(
-                                color: Color(AppTheme.accent),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                                color: Color(AppTheme.textPrimary),
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5),
+                          ),
+                        ),
+                        _taskButton(),
+                        const SizedBox(width: 10),
+                        _headerIcon(
+                          Icons.search,
+                          () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const SearchPage())),
+                        ),
+                        const SizedBox(width: 4),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            // Banner 运营位轮播
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: BannerCarousel(),
-            ),
-            // 关注 / 推荐 Tab + 换一批（截图对齐：关注在前，默认选中推荐）
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-              child: Row(
-                children: [
-                  _tabIndicator(),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => _load(refresh: true),
-                    behavior: HitTestBehavior.opaque,
-                    child: const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: Row(
-                        children: [
-                          Icon(Icons.refresh, size: 14,
-                              color: Color(AppTheme.textTertiary)),
-                          SizedBox(width: 3),
-                          Text('换一批',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textTertiary),
-                                  fontSize: 12)),
-                        ],
-                      ),
+                ),
+                // 首页运营栏：话题 / 排行榜 入口
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                    child: Row(
+                      children: [
+                        _opsPill(
+                          Icons.local_fire_department_rounded,
+                          '话题',
+                          () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const TopicPage())),
+                        ),
+                        const SizedBox(width: 10),
+                        _opsPill(
+                          Icons.leaderboard_rounded,
+                          '排行榜',
+                          () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const RankingPage())),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const TaskCenterPage())),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.emoji_events_outlined,
+                                  color: Color(AppTheme.accent), size: 15),
+                              SizedBox(width: 3),
+                              Text('任务中心',
+                                  style: TextStyle(
+                                      color: Color(AppTheme.accent),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                ],
-              ),
+                ),
+                // Banner 运营位轮播（无限自动）
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: BannerCarousel(),
+                  ),
+                ),
+                // 关注 / 推荐 Tab + 换一批
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+                    child: Row(
+                      children: [
+                        _tabIndicator(),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => _load(refresh: true),
+                          behavior: HitTestBehavior.opaque,
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Row(
+                              children: [
+                                Icon(Icons.refresh, size: 14,
+                                    color: Color(AppTheme.textTertiary)),
+                                SizedBox(width: 3),
+                                Text('换一批',
+                                    style: TextStyle(
+                                        color: Color(AppTheme.textTertiary),
+                                        fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ),
+                ),
+                // 瀑布流信息流
+                _feedSliver(),
+              ],
             ),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => _load(refresh: true),
-                color: const Color(AppTheme.accent),
-                backgroundColor: const Color(AppTheme.card),
-                child: _body(),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -422,33 +437,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _body() {
+  /// 瀑布流信息流（sliver 版，整页滚动）
+  Widget _feedSliver() {
     if (!_loaded) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 200),
-          Center(
-            child: CircularProgressIndicator(
-                color: Color(AppTheme.accent), strokeWidth: 2.5),
-          ),
-        ],
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: CircularProgressIndicator(
+              color: Color(AppTheme.accent), strokeWidth: 2.5),
+        ),
       );
     }
     if (_items.isEmpty) return _empty();
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (n.metrics.extentAfter < 400) _load();
-        return false;
-      },
-      child: MasonryGridView.count(
-        controller: _scroll,
-        physics: const AlwaysScrollableScrollPhysics(),
+    return SliverPadding(
+      padding: EdgeInsets.fromLTRB(
+          12, 2, 12, 24 + MediaQuery.paddingOf(context).bottom),
+      sliver: SliverMasonryGrid.count(
         crossAxisCount: 2,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        padding: const EdgeInsets.fromLTRB(12, 2, 12, 84),
-        itemCount: _items.length + 1,
+        childCount: _items.length + 1,
         itemBuilder: (_, i) {
           if (i == _items.length) {
             return Padding(
@@ -469,33 +477,39 @@ class _HomePageState extends State<HomePage> {
             );
           }
           final it = _items[i];
-          return WaterfallCard(
-            item: it,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => PostDetailPage(postId: it.id))),
-            onAuthorTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => UserProfilePage(uid: it.author.id))),
-          );
+          return _card(it);
         },
       ),
     );
   }
 
+  /// 信息流卡片（复用瀑布流卡片组件）
+  Widget _card(FeedItem it) {
+    return WaterfallCard(
+      item: it,
+      onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => PostDetailPage(postId: it.id))),
+      onAuthorTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => UserProfilePage(uid: it.author.id))),
+    );
+  }
+
+
   Widget _empty() {
     final notLogin = _tab == 1 && ApiClient.token == null;
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 120),
-        Icon(notLogin ? Icons.lock_outline : Icons.inbox_outlined,
-            size: 56, color: const Color(AppTheme.textTertiary)),
-        const SizedBox(height: 12),
-        Center(
-          child: Text(
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(notLogin ? Icons.lock_outline : Icons.inbox_outlined,
+              size: 56, color: const Color(AppTheme.textTertiary)),
+          const SizedBox(height: 12),
+          Text(
             notLogin
                 ? '登录后查看关注动态'
                 : _tab == 1
@@ -503,31 +517,40 @@ class _HomePageState extends State<HomePage> {
                     : '还没有内容，去发第一帖吧',
             textAlign: TextAlign.center,
             style: const TextStyle(
-                color: Color(AppTheme.textSecondary),
-                fontSize: 13.5,
-                height: 1.6),
+                color: Color(AppTheme.textSecondary), fontSize: 13.5),
           ),
-        ),
-        if (notLogin)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Center(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(AppTheme.accent),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(22)),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 28, vertical: 10),
-                ),
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const LoginPage())),
-                child: const Text('去登录', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          if (!notLogin)
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(AppTheme.accent),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22)),
               ),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const PostEditorPage(mode: 'text'))),
+              child: const Text('去发布'),
+            )
+          else
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(AppTheme.accent),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22)),
+              ),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const LoginPage())),
+              child: const Text('去登录'),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
+
 }

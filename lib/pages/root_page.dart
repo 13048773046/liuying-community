@@ -16,6 +16,10 @@ import 'boards/boards_page.dart';
 import 'post/post_editor.dart';
 import 'shorts/shorts_page.dart';
 
+/// 底部导航内容区高度（不含系统 safeBottom）：图标23+间距2+文字13+内边距12+外Padding10=60
+/// 内容区底部留白必须与此一致，否则导航栏上方会露出缝隙或被遮住
+const double kTabBarContentH = 60;
+
 class RootPage extends StatefulWidget {
   const RootPage({super.key});
 
@@ -77,7 +81,7 @@ class _RootPageState extends State<RootPage> {
             padding: EdgeInsets.only(
                 bottom: isShorts
                     ? 0
-                    : 49 + MediaQuery.paddingOf(context).bottom),
+                    : kTabBarContentH + MediaQuery.paddingOf(context).bottom),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -168,12 +172,15 @@ class _AppTabBar extends StatelessWidget {
                 colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
               ),
               const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10.5,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              SizedBox(
+                height: 13,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10.5,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
                 ),
               ),
             ],
@@ -233,12 +240,15 @@ class _AppTabBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10.5,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              SizedBox(
+                height: 13,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10.5,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
                 ),
               ),
             ],
