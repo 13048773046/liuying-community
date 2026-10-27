@@ -19,10 +19,15 @@ class InputPanelHost extends StatefulWidget {
     this.panel,
     this.surfaceColor,
     this.fallbackHeight = 260,
+    this.absorbInsets = true,
   });
 
   /// 输入栏（固定在面板/键盘上方，位置不动）
   final Widget inputBar;
+
+  /// 键盘态是否自行用键盘高度补位（默认 true）；
+  /// 外层已用 AnimatedPadding 随键盘顶起时传 false，避免重复补位
+  final bool absorbInsets;
 
   /// 当前要显示的自定义面板；null = 键盘态
   final Widget? panel;
@@ -64,8 +69,12 @@ class _InputPanelHostState extends State<InputPanelHost> {
     final panelH = widget.panel != null
         ? (_lockedHeight ?? widget.fallbackHeight)
         : 0.0;
-    final reserve = insets > panelH ? insets : panelH;
-    final gap = reserve - (widget.panel != null ? panelH : 0.0);
+    // 键盘态：默认由本组件补位（gap=键盘高）；外层已顶起时不再重复补位
+    final base = widget.panel != null
+        ? panelH
+        : (widget.absorbInsets ? insets : 0.0);
+    final reserve = insets > base ? insets : base;
+    final gap = widget.panel != null ? reserve - panelH : (widget.absorbInsets ? insets : 0.0);
     final surface = widget.surfaceColor ?? const Color(0xFF161622);
     // 面板高度与内容的过渡动画：能看到过程、不拖沓（约 300ms 柔和缓动）
     const anim = Duration(milliseconds: 300);

@@ -303,18 +303,27 @@ class _CommentSheetState extends State<CommentSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 键盘弹出时弹窗整体平滑上移（输入栏不被键盘盖住），约 280ms 柔和缓动
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    Widget shell(Widget child) => AnimatedPadding(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.only(bottom: keyboardInset),
+          child: child,
+        );
     if (widget.pureInput) {
       // 纯输入弹窗：只有输入栏 + 表情/图片/@ 面板，无评论列表
-      return SizedBox(
+      return shell(SizedBox(
         width: double.infinity,
         child: InputPanelHost(
+          absorbInsets: false,
           surfaceColor: const Color(AppTheme.card),
           panel: _buildPanel(),
           inputBar: _inputBar(),
         ),
-      );
+      ));
     }
-    return SizedBox(
+    return shell(SizedBox(
       height: MediaQuery.of(context).size.height * 0.5,
       child: Column(
           children: [
@@ -394,6 +403,7 @@ class _CommentSheetState extends State<CommentSheet> {
               ),
             // 输入栏 + 面板（InputPanelHost 管理键盘/面板丝滑切换）
             InputPanelHost(
+              absorbInsets: false,
               surfaceColor: const Color(AppTheme.card),
               panel: _lightMode ? null : _buildPanel(),
               inputBar: _lightMode
@@ -444,6 +454,7 @@ class _CommentSheetState extends State<CommentSheet> {
             ),
           ],
         ),
+      ),
     );
   }
 

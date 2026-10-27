@@ -230,7 +230,7 @@ class _VideoCardState extends State<VideoCard> {
     // 图片/图文帖：全屏铺图（多图左右滑，与抖音图集一致），复用同一布局壳
     if (!widget.item.isVideo) {
       final imgs = widget.item.images;
-      if (imgs.isEmpty) return const _MediaLoading();
+      if (imgs.isEmpty) return _TextMedia(item: widget.item);
       return _ImageMedia(images: imgs, onDoubleTap: _toggleLike);
     }
     final v = _video;
@@ -734,13 +734,13 @@ class _ContentText extends StatelessWidget {
       }
     }
     return Text.rich(
-      maxLines: maxLines,
-      overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
       TextSpan(
         style: const TextStyle(
             color: Colors.white, fontSize: 13.5, height: 1.45),
         children: spans,
       ),
+      maxLines: maxLines,
+      overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
     );
   }
 }
@@ -783,6 +783,39 @@ class _RailAction extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 纯文字/投票帖：深色底 + 居中大字正文（避免空媒体一直转圈）
+class _TextMedia extends StatelessWidget {
+  final FeedItem item;
+  const _TextMedia({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF1C1C26), Color(0xFF14141B)],
+        ),
+      ),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 120),
+      child: Text(
+        item.content,
+        textAlign: TextAlign.center,
+        maxLines: 8,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          height: 1.6,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
