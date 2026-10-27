@@ -1,0 +1,24 @@
+# Codemagic 构建配置：iOS 未签名 IPA（可自签/sideload）
+# 免费计划 500 分钟/月，足够双端迭代打包
+workflows:
+  ios-unsigned:
+    name: iOS Unsigned IPA
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: 安装依赖
+        script: flutter pub get
+      - name: 静态检查
+        script: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: 构建 iOS（未签名）
+        script: |
+          flutter build ios --release --no-codesign
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/*.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r community-unsigned.ipa Payload
+    artifacts:
+      - build/ios/ipa/community-unsigned.ipa
