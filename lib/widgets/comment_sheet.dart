@@ -341,49 +341,7 @@ class _CommentSheetState extends State<CommentSheet> {
               Container(
                 height: 76,
                 padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-                child: Row(
-                  children: [
-                    Stack(
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: const Color(AppTheme.card),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: _img != null
-                              ? Image.file(_img!, fit: BoxFit.cover)
-                              : CachedNetworkImageCompat(url: mediaUrl(_sticker ?? ''),
-                                  fit: BoxFit.cover),
-                        ),
-                        Positioned(
-                          right: -4,
-                          top: -4,
-                          child: GestureDetector(
-                            onTap: () => setState(() {
-                              _img = null;
-                              _sticker = null;
-                            }),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                  color: Colors.black54, shape: BoxShape.circle),
-                              padding: const EdgeInsets.all(2),
-                              child: const Icon(Icons.close,
-                                  size: 14, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 10),
-                    Text(_img != null ? '图片' : '表情包',
-                        style: const TextStyle(
-                            color: Color(AppTheme.textSecondary),
-                            fontSize: 12)),
-                  ],
-                ),
+                child: _previewStrip(),
               ),
             // 输入栏 + 面板（InputPanelHost 管理键盘/面板丝滑切换）
             InputPanelHost(
@@ -440,13 +398,21 @@ class _CommentSheetState extends State<CommentSheet> {
     );
   }
 
-  /// 底部输入栏（TextField + @ + 表情 + 图片 + 发送）
+  /// 底部输入栏（预览条 + TextField + @ + 表情 + 图片 + 发送）
   Widget _inputBar() {
     return Container(
       color: const Color(AppTheme.card),
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // 待发预览：固定显示在输入框上方，键盘/面板切换时位置不动
+          if (_sticker != null || _img != null) ...[
+            _previewStrip(),
+            const SizedBox(height: 6),
+          ],
+          Row(
+            children: [
           Expanded(
             child: Container(
               constraints: const BoxConstraints(minHeight: 38),
@@ -516,8 +482,57 @@ class _CommentSheetState extends State<CommentSheet> {
                   icon: const Icon(Icons.send,
                       color: Color(AppTheme.accent), size: 22),
                 ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  /// 待发预览条：表情包或图片（二选一）+ 删除按钮 + 标签
+  Widget _previewStrip() {
+    return Row(
+      children: [
+        Stack(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(AppTheme.card),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _img != null
+                  ? Image.file(_img!, fit: BoxFit.cover)
+                  : CachedNetworkImageCompat(
+                      url: mediaUrl(_sticker ?? ''),
+                      fit: BoxFit.cover),
+            ),
+            Positioned(
+              right: -4,
+              top: -4,
+              child: GestureDetector(
+                onTap: () => setState(() {
+                  _img = null;
+                  _sticker = null;
+                }),
+                child: Container(
+                  decoration: const BoxDecoration(
+                      color: Colors.black54, shape: BoxShape.circle),
+                  padding: const EdgeInsets.all(2),
+                  child:
+                      const Icon(Icons.close, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: 10),
+        Text(_img != null ? '图片' : '表情包',
+            style: const TextStyle(
+                color: Color(AppTheme.textSecondary), fontSize: 12)),
+      ],
     );
   }
 
