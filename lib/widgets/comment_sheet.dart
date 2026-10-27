@@ -17,9 +17,10 @@ import '../config.dart';
 import '../models/feed_item.dart' show timeAgo;
 import '../pages/mine/login_page.dart';
 import 'emoji_panel.dart';
+import 'input_panel_host.dart';
 import 'image_box.dart';
 
-enum _PanelMode { none, emoji, image }
+enum _PanelMode { none, emoji, image, at }
 
 /// 打开评论弹窗；[onChanged] 评论数变化回调
 Future<void> showCommentSheet(
@@ -107,14 +108,8 @@ class _CommentSheetState extends State<CommentSheet> {
     }
   }
 
-  /// 收起键盘/面板
-  void _collapse() {
-    FocusScope.of(context).unfocus();
-    setState(() => _panel = _PanelMode.none);
-  }
-
   void _showPanel(_PanelMode m) {
-    FocusScope.of(context).unfocus();
+    // 键盘/面板切换由 InputPanelHost 统一管理（隐藏键盘保留焦点，锁定键盘高度）
     setState(() => _panel = _panel == m ? _PanelMode.none : m);
   }
 
@@ -125,7 +120,7 @@ class _CommentSheetState extends State<CommentSheet> {
     setState(() {
       _img = File(p.path);
       _sticker = null; // 互斥：选图片时清掉表情
-      _panel = _PanelMode.none;
+      // 面板保持打开（图片位置不变），重新选图即替换
     });
   }
 
@@ -133,78 +128,55 @@ class _CommentSheetState extends State<CommentSheet> {
     setState(() {
       _sticker = (e['image'] ?? '') as String;
       _img = null; // 互斥：选表情时清掉图片
-      _panel = _PanelMode.none;
+      // 面板保持打开（表情位置不变），重新点选表情即替换
     });
   }
 
-  Future<void> _atFriend() async {
-    _collapse();
+  List<Map<String, dynamic>> _atList = [];
+  bool _atLoading = false;
+
+  void _atFriend() {
     if (ApiClient.token == null || ApiClient.token!.isEmpty) {
       _needLogin();
       return;
     }
+    setState(() {
+      _panel = _panel == _PanelMode.at ? _PanelMode.none : _PanelMode.at;
+      if (_panel == _PanelMode.at && _atList.isEmpty) {
+        _atLoading = true;
+      }
+    });
+    if (_panel == _PanelMode.at && _atList.isEmpty) {
+      _loadAtList();
+    }
+  }
+
+  Future<void> _loadAtList() async {
     try {
       final j = await ApiClient.userList(ApiClient.userId ?? '',
           kind: 'followings', page: 1, size: 50);
       final list = ((j['list'] ?? []) as List)
           .whereType<Map<String, dynamic>>()
           .toList();
-      if (!mounted || list.isEmpty) return;
-      final sel = await showModalBottomSheet<Map<String, dynamic>>(
-        context: context,
-        backgroundColor: const Color(AppTheme.card),
-        builder: (_) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(14),
-                child: Text('@好友',
-                    style: TextStyle(
-                        color: Color(AppTheme.textPrimary),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
-              ),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: list.length,
-                  itemBuilder: (_, i) {
-                    final u = list[i];
-                    final name = (u['name'] ?? '用户') as String;
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: const Color(AppTheme.elevated),
-                        backgroundImage: ((u['avatar'] ?? '') as String)
-                                .isNotEmpty
-                            ? NetworkImage(avatarUrl((u['avatar'] ?? '') as String))
-                            : null,
-                        child: ((u['avatar'] ?? '') as String).isEmpty
-                            ? const Icon(Icons.person, size: 16)
-                            : null,
-                      ),
-                      title: Text(name,
-                          style: const TextStyle(
-                              color: Color(AppTheme.textPrimary),
-                              fontSize: 14)),
-                      onTap: () => Navigator.of(context).pop(u),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (sel != null && mounted) {
-        final at = _ctrl.text;
-        _ctrl.text = at.isEmpty ? '@${sel['name']} ' : '\$at @${sel['name']} ';
-        _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
-        setState(() {});
-      }
-    } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _atList = list;
+        _atLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _atLoading = false);
+    }
+  }
+
+  void _pickAt(Map<String, dynamic> u) {
+    final name = (u['name'] ?? '用户') as String;
+    final at = _ctrl.text;
+    _ctrl.text = at.isEmpty ? '@$name ' : '$at @$name ';
+    _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
+    setState(() {
+      _panel = _PanelMode.none; // 插入后回到键盘态继续输入
+    });
   }
 
   void _needLogin() {
@@ -265,12 +237,9 @@ class _CommentSheetState extends State<CommentSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.92,
-        child: Column(
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.92,
+      child: Column(
           children: [
             // 拖拽条
             Container(
@@ -340,7 +309,7 @@ class _CommentSheetState extends State<CommentSheet> {
             ),
             const Divider(color: Color(AppTheme.border), height: 1),
             // 待发预览（表情包/图片，二选一；light 模式无）
-            if (!_lightMode && (_sticker != null || _img != null))
+            if (!widget.light && (_sticker != null || _img != null))
               Container(
                 height: 76,
                 padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
@@ -388,48 +357,55 @@ class _CommentSheetState extends State<CommentSheet> {
                   ],
                 ),
               ),
-            // 输入栏（light：仅「说点什么…」入口，点击打开完整评论弹窗）
-            if (_lightMode)
-              GestureDetector(
-                onTap: () {
-                  setState(() => _lightMode = false);
-                  Future<void>.delayed(const Duration(milliseconds: 120),
-                      () => _focusNode.requestFocus());
-                },
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  color: const Color(AppTheme.card),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  child: Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Color(AppTheme.elevated),
-                        child: Icon(Icons.person,
-                            size: 15, color: Color(AppTheme.textSecondary)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: const Text('说点什么...',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textTertiary),
-                                  fontSize: 14)),
+            // 输入栏 + 面板（InputPanelHost 管理键盘/面板丝滑切换）
+            InputPanelHost(
+              surfaceColor: const Color(AppTheme.card),
+              panel: _lightMode ? null : _buildPanel(),
+              inputBar: _lightMode
+                  ? GestureDetector(
+                      onTap: () {
+                        // 列表弹窗保留，在其之上叠加完整抖音式评论弹窗
+                        showCommentSheet(context,
+                            postId: widget.postId,
+                            onChanged: widget.onChanged);
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        color: const Color(AppTheme.card),
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        child: Row(
+                          children: [
+                            const CircleAvatar(
+                              radius: 14,
+                              backgroundColor: Color(AppTheme.elevated),
+                              child: Icon(Icons.person,
+                                  size: 15,
+                                  color: Color(AppTheme.textSecondary)),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                child: const Text('说点什么...',
+                                    style: TextStyle(
+                                        color: Color(AppTheme.textTertiary),
+                                        fontSize: 14)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.emoji_emotions_outlined,
+                                color: Color(AppTheme.textTertiary),
+                                size: 20),
+                            const SizedBox(width: 14),
+                            const Icon(Icons.image_outlined,
+                                color: Color(AppTheme.textTertiary),
+                                size: 20),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.emoji_emotions_outlined,
-                          color: Color(AppTheme.textTertiary), size: 20),
-                      const SizedBox(width: 14),
-                      const Icon(Icons.image_outlined,
-                          color: Color(AppTheme.textTertiary), size: 20),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Container(
+                    )
+                  : Container(
               color: const Color(AppTheme.card),
               padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
               child: Row(
@@ -507,32 +483,95 @@ class _CommentSheetState extends State<CommentSheet> {
                 ],
               ),
             ),
-            // 面板（表情/图片，占输入法位置；light 模式无）
-            if (_lightMode)
-              const SizedBox.shrink()
-            else
-              AnimatedSize(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              child: _panel == _PanelMode.none
-                  ? const SizedBox(width: double.infinity)
-                  : Container(
-                      height: 240,
-                      color: const Color(AppTheme.card),
-                      child: _panel == _PanelMode.emoji
-                          ? EmojiPanel(
-                              initialFav: true, onPick: _pickSticker)
-                          : _imagePanel(),
-                    ),
             ),
           ],
         ),
+    );
+  }
+
+  /// 当前面板内容（表情/图片/@好友）；none 返回 null（键盘态）
+  Widget? _buildPanel() {
+    switch (_panel) {
+      case _PanelMode.emoji:
+        return Container(
+          color: const Color(AppTheme.card),
+          child: EmojiPanel(initialFav: true, onPick: _pickSticker),
+        );
+      case _PanelMode.image:
+        return _imagePanel();
+      case _PanelMode.at:
+        return _atPanel();
+      case _PanelMode.none:
+        return null;
+    }
+  }
+
+  /// @ 好友面板：收起键盘后占输入法位置，点击好友插入 @ 并回到键盘态
+  Widget _atPanel() {
+    return Container(
+      color: const Color(AppTheme.card),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: Text('@好友',
+                style: TextStyle(
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: _atLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                        color: Color(AppTheme.accent), strokeWidth: 2))
+                : _atList.isEmpty
+                    ? const Center(
+                        child: Text('还没有关注的好友',
+                            style: TextStyle(
+                                color: Color(AppTheme.textTertiary),
+                                fontSize: 13)),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        itemCount: _atList.length,
+                        itemBuilder: (_, i) {
+                          final u = _atList[i];
+                          final name = (u['name'] ?? '用户') as String;
+                          final av = (u['avatar'] ?? '') as String;
+                          return ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 17,
+                              backgroundColor:
+                                  const Color(AppTheme.elevated),
+                              backgroundImage: av.isNotEmpty
+                                  ? NetworkImage(avatarUrl(av))
+                                  : null,
+                              child: av.isEmpty
+                                  ? const Icon(Icons.person, size: 17)
+                                  : null,
+                            ),
+                            title: Text(name,
+                                style: const TextStyle(
+                                    color: Color(AppTheme.textPrimary),
+                                    fontSize: 14)),
+                            trailing: const Icon(Icons.north_west,
+                                size: 14,
+                                color: Color(AppTheme.textTertiary)),
+                            onTap: () => _pickAt(u),
+                          );
+                        },
+                      ),
+          ),
+        ],
       ),
     );
   }
 
   final FocusNode _focusNode = FocusNode();
-  late bool _lightMode = widget.light;
+  late final bool _lightMode = widget.light;
 
   Widget _imagePanel() {
     return Column(
