@@ -67,18 +67,46 @@ class _InputPanelHostState extends State<InputPanelHost> {
     final reserve = insets > panelH ? insets : panelH;
     final gap = reserve - (widget.panel != null ? panelH : 0.0);
     final surface = widget.surfaceColor ?? const Color(0xFF161622);
+    // 面板高度与内容的过渡动画：能看到过程、不拖沓（约 300ms 柔和缓动）
+    const anim = Duration(milliseconds: 300);
+    const curve = Curves.easeOutCubic;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         widget.inputBar,
-        if (widget.panel != null)
-          SizedBox(height: panelH, child: widget.panel),
+        // 键盘态↔面板态：面板区域高度平滑变化（0 → 面板高度）
+        AnimatedSize(
+          duration: anim,
+          curve: curve,
+          alignment: Alignment.topCenter,
+          child: widget.panel == null
+              ? const SizedBox(width: double.infinity)
+              : SizedBox(
+                  height: panelH,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    switchInCurve: curve,
+                    switchOutCurve: Curves.easeInOut,
+                    child: KeyedSubtree(
+                      key: ValueKey(_panelKey()),
+                      child: widget.panel!,
+                    ),
+                  ),
+                ),
+        ),
         if (gap > 0)
-          ColoredBox(
+          AnimatedContainer(
+            duration: anim,
+            curve: curve,
             color: surface,
             child: SizedBox(width: double.infinity, height: gap),
           ),
       ],
     );
+  }
+
+  /// 面板内容变化时生成 key，触发 AnimatedSwitcher 淡入淡出
+  int _panelKey() {
+    return widget.panel.runtimeType.hashCode;
   }
 }

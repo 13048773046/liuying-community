@@ -28,23 +28,33 @@ final ValueNotifier<int> commentAddedBus = ValueNotifier<int>(0);
 /// 打开评论弹窗；[onChanged] 评论数变化回调
 /// [pureInput]=true：纯输入弹窗（仅输入栏+表情/图片/@面板，不含评论列表），
 /// 供帖子/视频详情页底部「说点什么…」使用：弹出即唤起输入法
+/// [autoInputWhenEmpty]=true：列表加载完成后为空（0 条评论）时，
+/// 自动在弹窗之上再叠一个纯输入弹窗并唤起输入法（短视频评论用）
 Future<void> showCommentSheet(
   BuildContext context, {
   required String postId,
   ValueChanged<int>? onChanged,
   bool light = false,
   bool pureInput = false,
+  bool autoInputWhenEmpty = false,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: const Color(AppTheme.bg),
     useSafeArea: true,
+    // 弹窗出入动画：约 300ms 柔和缓动，可见但不拖沓
+    sheetAnimationStyle: AnimationStyle(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    ),
     builder: (_) => CommentSheet(
         postId: postId,
         onChanged: onChanged,
         light: light,
-        pureInput: pureInput),
+        pureInput: pureInput,
+        autoInputWhenEmpty: autoInputWhenEmpty),
   );
 }
 
@@ -54,7 +64,8 @@ class CommentSheet extends StatefulWidget {
       required this.postId,
       this.onChanged,
       this.light = false,
-      this.pureInput = false});
+      this.pureInput = false,
+      this.autoInputWhenEmpty = false});
 
   final String postId;
   final ValueChanged<int>? onChanged;
@@ -65,6 +76,9 @@ class CommentSheet extends StatefulWidget {
 
   /// pureInput=true：纯输入弹窗（无评论列表），详情页底部「说点什么…」使用
   final bool pureInput;
+
+  /// autoInputWhenEmpty=true：列表加载完为空时自动叠纯输入弹窗（短视频）
+  final bool autoInputWhenEmpty;
 
   @override
   State<CommentSheet> createState() => _CommentSheetState();
@@ -111,6 +125,7 @@ class _CommentSheetState extends State<CommentSheet> {
   }
 
   int _total = 0;
+  bool _autoInputShown = false; // 空列表自动叠输入弹窗，只叠一次
 
   Future<void> _load({bool refresh = false}) async {
     if (_loading) return;
@@ -134,10 +149,23 @@ class _CommentSheetState extends State<CommentSheet> {
         _total = total is int ? total : _comments.length;
         _loading = false;
       });
+      _maybeAutoInput();
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  /// 列表加载完且为空（0 条评论）→ 自动叠纯输入弹窗并唤起输入法（只叠一次）
+  void _maybeAutoInput() {
+    if (!widget.autoInputWhenEmpty || widget.pureInput || widget.light) return;
+    if (!_comments.isEmpty || _autoInputShown) return;
+    _autoInputShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showCommentSheet(context,
+          postId: widget.postId, pureInput: true);
+    });
   }
 
   void _showPanel(_PanelMode m) {
@@ -287,7 +315,7 @@ class _CommentSheetState extends State<CommentSheet> {
       );
     }
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.92,
+      height: MediaQuery.of(context).size.height * 0.5,
       child: Column(
           children: [
             // 拖拽条

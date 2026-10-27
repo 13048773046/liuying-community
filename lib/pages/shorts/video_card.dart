@@ -162,23 +162,18 @@ class _VideoCardState extends State<VideoCard> {
     // TODO: 接入 share_plus 后打开系统分享面板
   }
 
-  /// 打开评论：抖音式完整弹窗（评论列表 + 输入栏）；
-  /// 评论数为 0 时，同时叠一个纯输入弹窗并唤起输入法，直接发第一条
+  /// 打开评论：先弹抖音式完整弹窗（50% 屏高）；
+  /// 弹窗内评论列表加载完成后为空 → 自动叠纯输入弹窗并唤起输入法（弹窗内部处理）
   Future<void> _openComments() async {
-    final needInput = _commentCount <= 0;
-    final full = showCommentSheet(
+    await showCommentSheet(
       context,
       postId: widget.item.id,
+      autoInputWhenEmpty: true,
       onChanged: (n) {
         if (!mounted) return;
         setState(() => _commentCount = n);
       },
     );
-    if (needInput) {
-      await showCommentSheet(context,
-          postId: widget.item.id, pureInput: true);
-    }
-    await full;
   }
 
   /// 未登录：弹提示并跳转登录页（登录后自动恢复）
