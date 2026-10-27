@@ -23,11 +23,14 @@ import 'image_box.dart';
 enum _PanelMode { none, emoji, image, at }
 
 /// 打开评论弹窗；[onChanged] 评论数变化回调
+/// [pureInput]=true：纯输入弹窗（仅输入栏+表情/图片/@面板，不含评论列表），
+/// 供帖子/视频详情页底部「说点什么…」使用：弹出即唤起输入法
 Future<void> showCommentSheet(
   BuildContext context, {
   required String postId,
   ValueChanged<int>? onChanged,
   bool light = false,
+  bool pureInput = false,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -35,7 +38,10 @@ Future<void> showCommentSheet(
     backgroundColor: const Color(AppTheme.bg),
     useSafeArea: true,
     builder: (_) => CommentSheet(
-        postId: postId, onChanged: onChanged, light: light),
+        postId: postId,
+        onChanged: onChanged,
+        light: light,
+        pureInput: pureInput),
   );
 }
 
@@ -44,7 +50,8 @@ class CommentSheet extends StatefulWidget {
       {super.key,
       required this.postId,
       this.onChanged,
-      this.light = false});
+      this.light = false,
+      this.pureInput = false});
 
   final String postId;
   final ValueChanged<int>? onChanged;
@@ -52,6 +59,9 @@ class CommentSheet extends StatefulWidget {
   /// light=true：仅评论列表弹窗（短视频详情用），
   /// 底部「说点什么…」点击后关闭本弹窗并打开完整抖音式评论弹窗
   final bool light;
+
+  /// pureInput=true：纯输入弹窗（无评论列表），详情页底部「说点什么…」使用
+  final bool pureInput;
 
   @override
   State<CommentSheet> createState() => _CommentSheetState();
@@ -72,7 +82,14 @@ class _CommentSheetState extends State<CommentSheet> {
   @override
   void initState() {
     super.initState();
-    _load(refresh: true);
+    if (!widget.pureInput) {
+      _load(refresh: true);
+    } else {
+      // 纯输入弹窗：打开即唤起输入法
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNode.requestFocus();
+      });
+    }
   }
 
   @override
@@ -237,6 +254,17 @@ class _CommentSheetState extends State<CommentSheet> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.pureInput) {
+      // 纯输入弹窗：只有输入栏 + 表情/图片/@ 面板，无评论列表
+      return SizedBox(
+        width: double.infinity,
+        child: InputPanelHost(
+          surfaceColor: const Color(AppTheme.card),
+          panel: _buildPanel(),
+          inputBar: _inputBar(),
+        ),
+      );
+    }
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.92,
       child: Column(
@@ -405,87 +433,91 @@ class _CommentSheetState extends State<CommentSheet> {
                         ),
                       ),
                     )
-                  : Container(
-              color: const Color(AppTheme.card),
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 38),
-                      decoration: BoxDecoration(
-                        color: const Color(AppTheme.bg),
-                        borderRadius: BorderRadius.circular(19),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: TextField(
-                        controller: _ctrl,
-                        focusNode: _focusNode,
-                        onTap: () {
-                          // 键盘占位：收起面板
-                          if (_panel != _PanelMode.none) {
-                            setState(() => _panel = _PanelMode.none);
-                          }
-                        },
-                        style: const TextStyle(
-                            color: Color(AppTheme.textPrimary),
-                            fontSize: 14,
-                            height: 1.4),
-                        decoration: const InputDecoration(
-                          hintText: '说点什么...',
-                          hintStyle: TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 14),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding:
-                              EdgeInsets.symmetric(vertical: 10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.alternate_email,
-                        color: Color(AppTheme.textSecondary), size: 20),
-                    onPressed: _atFriend,
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.emoji_emotions_outlined,
-                        color: _panel == _PanelMode.emoji
-                            ? const Color(AppTheme.accent)
-                            : const Color(AppTheme.textSecondary),
-                        size: 22),
-                    onPressed: () => _showPanel(_PanelMode.emoji),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.image_outlined,
-                        color: _panel == _PanelMode.image
-                            ? const Color(AppTheme.accent)
-                            : const Color(AppTheme.textSecondary),
-                        size: 22),
-                    onPressed: () => _showPanel(_PanelMode.image),
-                  ),
-                  _sending
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 10),
-                          child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(AppTheme.accent))),
-                        )
-                      : IconButton(
-                          onPressed: _send,
-                          icon: const Icon(Icons.send,
-                              color: Color(AppTheme.accent), size: 22),
-                        ),
-                ],
-              ),
-            ),
+                  : _inputBar(),
             ),
           ],
         ),
+    );
+  }
+
+  /// 底部输入栏（TextField + @ + 表情 + 图片 + 发送）
+  Widget _inputBar() {
+    return Container(
+      color: const Color(AppTheme.card),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 38),
+              decoration: BoxDecoration(
+                color: const Color(AppTheme.bg),
+                borderRadius: BorderRadius.circular(19),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: TextField(
+                controller: _ctrl,
+                focusNode: _focusNode,
+                onTap: () {
+                  // 键盘占位：收起面板
+                  if (_panel != _PanelMode.none) {
+                    setState(() => _panel = _PanelMode.none);
+                  }
+                },
+                style: const TextStyle(
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 14,
+                    height: 1.4),
+                decoration: const InputDecoration(
+                  hintText: '说点什么...',
+                  hintStyle: TextStyle(
+                      color: Color(AppTheme.textTertiary),
+                      fontSize: 14),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.alternate_email,
+                color: Color(AppTheme.textSecondary), size: 20),
+            onPressed: _atFriend,
+          ),
+          IconButton(
+            icon: Icon(Icons.emoji_emotions_outlined,
+                color: _panel == _PanelMode.emoji
+                    ? const Color(AppTheme.accent)
+                    : const Color(AppTheme.textSecondary),
+                size: 22),
+            onPressed: () => _showPanel(_PanelMode.emoji),
+          ),
+          IconButton(
+            icon: Icon(Icons.image_outlined,
+                color: _panel == _PanelMode.image
+                    ? const Color(AppTheme.accent)
+                    : const Color(AppTheme.textSecondary),
+                size: 22),
+            onPressed: () => _showPanel(_PanelMode.image),
+          ),
+          _sending
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(AppTheme.accent))),
+                )
+              : IconButton(
+                  onPressed: _send,
+                  icon: const Icon(Icons.send,
+                      color: Color(AppTheme.accent), size: 22),
+                ),
+        ],
+      ),
     );
   }
 

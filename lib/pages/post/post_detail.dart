@@ -833,6 +833,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (_post == null) return;
     await showCommentSheet(context,
         postId: _post!.id,
+        pureInput: true,
         onChanged: (n) {
           if (!mounted) return;
           setState(() => _cCount = n);
