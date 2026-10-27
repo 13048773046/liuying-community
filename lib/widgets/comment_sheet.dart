@@ -26,21 +26,31 @@ Future<void> showCommentSheet(
   BuildContext context, {
   required String postId,
   ValueChanged<int>? onChanged,
+  bool light = false,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: const Color(AppTheme.bg),
     useSafeArea: true,
-    builder: (_) => CommentSheet(postId: postId, onChanged: onChanged),
+    builder: (_) => CommentSheet(
+        postId: postId, onChanged: onChanged, light: light),
   );
 }
 
 class CommentSheet extends StatefulWidget {
-  const CommentSheet({super.key, required this.postId, this.onChanged});
+  const CommentSheet(
+      {super.key,
+      required this.postId,
+      this.onChanged,
+      this.light = false});
 
   final String postId;
   final ValueChanged<int>? onChanged;
+
+  /// light=true：仅评论列表弹窗（短视频详情用），
+  /// 底部「说点什么…」点击后关闭本弹窗并打开完整抖音式评论弹窗
+  final bool light;
 
   @override
   State<CommentSheet> createState() => _CommentSheetState();
@@ -329,8 +339,8 @@ class _CommentSheetState extends State<CommentSheet> {
                     ),
             ),
             const Divider(color: Color(AppTheme.border), height: 1),
-            // 待发预览（表情包/图片，二选一）
-            if (_sticker != null || _img != null)
+            // 待发预览（表情包/图片，二选一；light 模式无）
+            if (!widget.light && (_sticker != null || _img != null))
               Container(
                 height: 76,
                 padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
@@ -378,8 +388,48 @@ class _CommentSheetState extends State<CommentSheet> {
                   ],
                 ),
               ),
-            // 输入栏
-            Container(
+            // 输入栏（light：仅「说点什么…」入口，点击打开完整评论弹窗）
+            if (widget.light)
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showCommentSheet(context,
+                      postId: widget.postId, onChanged: widget.onChanged);
+                },
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  color: const Color(AppTheme.card),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Color(AppTheme.elevated),
+                        child: Icon(Icons.person,
+                            size: 15, color: Color(AppTheme.textSecondary)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: const Text('说点什么...',
+                              style: TextStyle(
+                                  color: Color(AppTheme.textTertiary),
+                                  fontSize: 14)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.emoji_emotions_outlined,
+                          color: Color(AppTheme.textTertiary), size: 20),
+                      const SizedBox(width: 14),
+                      const Icon(Icons.image_outlined,
+                          color: Color(AppTheme.textTertiary), size: 20),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Container(
               color: const Color(AppTheme.card),
               padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
               child: Row(
@@ -457,8 +507,11 @@ class _CommentSheetState extends State<CommentSheet> {
                 ],
               ),
             ),
-            // 面板（表情/图片，占输入法位置）
-            AnimatedSize(
+            // 面板（表情/图片，占输入法位置；light 模式无）
+            if (widget.light)
+              const SizedBox.shrink()
+            else
+              AnimatedSize(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               child: _panel == _PanelMode.none

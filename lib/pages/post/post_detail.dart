@@ -356,6 +356,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           ],
                           const SizedBox(height: 14),
                           _actionBar(),
+                          if (!_post!.isVideo) ...[
                           const Divider(
                               color: Color(AppTheme.border), height: 28),
                           Row(
@@ -403,6 +404,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                             )
                           else
                             ..._comments.map((c) => _commentTile(c)),
+                          ],
                         ],
                       ),
                     ),
@@ -827,11 +829,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  /// 打开抖音式评论弹窗
+  /// 打开评论弹窗：
+  ///  - 视频详情：先弹「评论列表弹窗」，点弹窗底部「说点什么…」再开完整抖音式弹窗
+  ///  - 图文帖子：直接开完整抖音式弹窗（详情页内已有内嵌评论列表展示）
   Future<void> _openComments() async {
     if (_post == null) return;
     await showCommentSheet(context,
         postId: _post!.id,
+        light: _post!.isVideo,
         onChanged: (n) {
           if (!mounted) return;
           setState(() => _cCount = n);
