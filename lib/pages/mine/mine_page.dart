@@ -525,9 +525,14 @@ class _MinePageState extends State<MinePage> {
                     const SizedBox(width: 8),
                     _roundIcon(Icons.share_outlined, '分享', _shareProfile),
                     const SizedBox(width: 8),
-                    _roundIcon(Icons.settings_outlined, '设置', () {
-                      Navigator.push(context,
+                    _roundIcon(Icons.settings_outlined, '设置', () async {
+                      final changed = await Navigator.push<bool>(context,
                           MaterialPageRoute(builder: (_) => const SettingsPage()));
+                      if (changed == true && mounted) {
+                        await _init();
+                        await _loadFav(later: false, refresh: true);
+                        await _loadFav(later: true, refresh: true);
+                      }
                     }),
                   ],
                 ),

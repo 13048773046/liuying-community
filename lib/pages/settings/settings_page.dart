@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../widgets/user_avatar.dart';
-import '../../services/notify_bus.dart';
+import '../../services/auth_session.dart';
 import '../favorites/favorites_page.dart';
 import '../feedback/feedback_page.dart';
 import '../user/user_profile.dart';
@@ -42,12 +42,262 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _logout() async {
-    ApiClient.token = null;
-    NotifyBus.shared.disconnect();
-    final sp = await SharedPreferences.getInstance();
-    await sp.remove('community_token');
+    await AuthSession.logout();
     if (!mounted) return;
     Navigator.of(context).pop(true);
+  }
+
+  /// 切换账号底部弹窗（与音乐端「切换账号」UI 一致）
+  Future<void> _showSwitchDialog() async {
+    final accounts = await AuthSession.loadAccounts();
+    if (!mounted) return;
+    var accs = accounts;
+    final currentUid = ApiClient.userId ?? '';
+    var switched = false;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(AppTheme.bg),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                  MediaQuery.of(ctx).padding.bottom +
+                  20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 头部：标题 + 副标题 + 关闭
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('切换账号',
+                              style: TextStyle(
+                                  color: Color(AppTheme.textPrimary),
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 3),
+                          const Text('选择本地保存的账号快速登录',
+                              style: TextStyle(
+                                  color: Color(AppTheme.textSecondary),
+                                  fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: const BoxDecoration(
+                          color: Color(AppTheme.card),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.close,
+                            color: Color(AppTheme.textPrimary), size: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // 账号列表
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        color: const Color(AppTheme.card),
+                        child: Column(
+                          children: [
+                            ...List.generate(accs.length, (idx) {
+                              final u = accs[idx];
+                              final isCurrent = u.uid == currentUid;
+                              return Column(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () async {
+                                      if (u.uid == currentUid) {
+                                        Navigator.pop(ctx);
+                                        return;
+                                      }
+                                      // 切换：注入 token + 重连通知
+                                      await AuthSession.switchTo(u);
+                                      if (!ctx.mounted) return;
+                                      Navigator.pop(ctx, true);
+                                      if (!mounted) return;
+                                      setState(() {
+                                        switched = true;
+                                        _me = null;
+                                      });
+                                      await _loadMe();
+                                    },
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 14),
+                                      child: Row(
+                                        children: [
+                                          UserAvatar(
+                                              url: u.avatarUrl,
+                                              name: u.name,
+                                              size: 48),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                    u.name.isEmpty
+                                                        ? '用户'
+                                                        : u.name,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                        color: Color(
+                                                            AppTheme
+                                                                .textPrimary),
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.w600)),
+                                                const SizedBox(height: 2),
+                                                Text('账号 ${u.account}',
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                        color: Color(
+                                                            AppTheme
+                                                                .textSecondary),
+                                                        fontSize: 12)),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            width: 22,
+                                            height: 22,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: isCurrent
+                                                  ? const Color(
+                                                      AppTheme.accent)
+                                                  : Colors.transparent,
+                                              border: isCurrent
+                                                  ? null
+                                                  : Border.all(
+                                                      color: const Color(
+                                                              AppTheme
+                                                                  .textTertiary)
+                                                          .withValues(
+                                                              alpha: 0.5),
+                                                      width: 1.5),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: isCurrent
+                                                ? const Text('✓',
+                                                    style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.bold))
+                                                : null,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  if (idx < accs.length - 1)
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.only(left: 78),
+                                      child: Container(
+                                          height: 0.5,
+                                          color: const Color(
+                                              AppTheme.border)),
+                                    ),
+                                ],
+                              );
+                            }),
+                            // 添加账号
+                            GestureDetector(
+                              onTap: () async {
+                                Navigator.pop(ctx);
+                                final ok = await Navigator.of(context)
+                                    .push<bool>(
+                                  MaterialPageRoute(
+                                      builder: (_) => const LoginPage()),
+                                );
+                                if (ok == true) {
+                                  if (!mounted) return;
+                                  setState(() => _me = null);
+                                  await _loadMe();
+                                }
+                              },
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 14),
+                                child: Row(
+                                  children: [
+                                    // 虚线圆圈 + 加号
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: const Color(
+                                                  AppTheme.textTertiary)
+                                              .withValues(alpha: 0.6),
+                                          width: 1.4,
+                                        ),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: const Icon(Icons.add,
+                                          color: Color(
+                                              AppTheme.textTertiary),
+                                          size: 22),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    const Text('添加账号',
+                                        style: TextStyle(
+                                            color: Color(
+                                                AppTheme.textPrimary),
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (switched && mounted) {
+      Navigator.of(context).pop(true);
+    }
   }
 
   Future<void> _clearCache() async {
@@ -174,6 +424,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _tile(Icons.info_outline, '关于社区', _showAbout),
             const SizedBox(height: 12),
             _group('账号'),
+            _tile(Icons.swap_horiz, '切换账号', _showSwitchDialog),
             _tile(Icons.logout, '退出登录', _logout, danger: true),
           ] else ...[
             Container(

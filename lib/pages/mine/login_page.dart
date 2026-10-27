@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../services/notify_bus.dart';
+import '../../services/auth_session.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -114,6 +115,8 @@ class _LoginPageState extends State<LoginPage> {
       await sp.setString('community_token', tok);
       ApiClient.token = tok;
       NotifyBus.shared.connect(tok);
+      // 保存到历史账号（切换账号用）
+      await AuthSession.saveAccount(j, tok);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
