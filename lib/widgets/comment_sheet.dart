@@ -43,11 +43,15 @@ Future<void> showCommentSheet(
     isScrollControlled: true,
     backgroundColor: const Color(AppTheme.bg),
     useSafeArea: true,
-    // 弹窗出入动画：约 300ms 柔和缓动，可见但不拖沓
+    // 弹窗出入动画：285ms 柔和缓动（用户量化：可见但不拖沓）
     sheetAnimationStyle: AnimationStyle(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 285),
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
+    ),
+    // 顶部圆角改小：28 → 12
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
     ),
     builder: (_) => CommentSheet(
         postId: postId,
@@ -89,7 +93,7 @@ class _CommentSheetState extends State<CommentSheet> {
   List<Map<String, dynamic>> _comments = [];
   int _page = 1;
   bool _hasMore = false;
-  bool _loading = true;
+  bool _loading = false;
   bool _sending = false;
 
   _PanelMode _panel = _PanelMode.none;
@@ -323,7 +327,7 @@ class _CommentSheetState extends State<CommentSheet> {
         ),
       ));
     }
-    return shell(SizedBox(
+    return SizedBox(
       height: MediaQuery.of(context).size.height * 0.5,
       child: Column(
           children: [
@@ -402,7 +406,8 @@ class _CommentSheetState extends State<CommentSheet> {
                 child: _previewStrip(),
               ),
             // 输入栏 + 面板（InputPanelHost 管理键盘/面板丝滑切换）
-            InputPanelHost(
+            // 键盘只顶起输入栏区域（shell），评论列表保持原位不动
+            shell(InputPanelHost(
               absorbInsets: false,
               surfaceColor: const Color(AppTheme.card),
               panel: _lightMode ? null : _buildPanel(),
@@ -451,10 +456,9 @@ class _CommentSheetState extends State<CommentSheet> {
                       ),
                     )
                   : _inputBar(),
-            ),
+            )),
           ],
         ),
-      ),
     );
   }
 

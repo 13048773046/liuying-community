@@ -17,6 +17,8 @@ import '../mine/login_page.dart';
 import '../user/user_profile.dart';
 import '../post/post_detail.dart';
 import '../../widgets/comment_sheet.dart';
+import '../../widgets/video_controls_bar.dart';
+import 'dart:async';
 
 class VideoCard extends StatefulWidget {
   final FeedItem item;
@@ -38,6 +40,8 @@ class _VideoCardState extends State<VideoCard> {
   int _shareCount = 0;
   bool _followed = false;
   bool _muted = false;
+  bool _controls = false;
+  Timer? _hideTimer;
   @override
   void initState() {
     super.initState();
@@ -105,8 +109,19 @@ class _VideoCardState extends State<VideoCard> {
 
   @override
   void dispose() {
+    _hideTimer?.cancel();
     _video?.dispose();
     super.dispose();
+  }
+
+  void _toggleControls() {
+    setState(() => _controls = !_controls);
+    _hideTimer?.cancel();
+    if (_controls) {
+      _hideTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _controls = false);
+      });
+    }
   }
 
   // ---------- 互动 ----------
@@ -198,18 +213,8 @@ class _VideoCardState extends State<VideoCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        final v = _video;
-        if (v != null && v.value.isInitialized) {
-          setState(() {
-            if (v.value.isPlaying) {
-              v.pause();
-            } else {
-              v.play();
-            }
-          });
-        }
-      },
+      // 点屏幕：调出/隐藏底部控制条（抖音式，3 秒无操作自动隐藏）
+      onTap: _toggleControls,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -221,6 +226,22 @@ class _VideoCardState extends State<VideoCard> {
           _buildBottomInfo(),
           // 右侧互动列
           _buildActionRail(),
+          // 隐藏式控制条：进度条 + 播放/暂停 + 时长（仅视频初始化后）
+          if (_controls &&
+              _video != null &&
+              _video!.value.isInitialized)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: VideoControlsBar(
+                controller: _video!,
+                bottomInset: _navBarHeight(context) + 8,
+                onAutoHide: () {
+                  if (mounted) setState(() => _controls = false);
+                },
+              ),
+            ),
         ],
       ),
     );

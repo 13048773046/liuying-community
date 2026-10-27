@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:video_player/video_player.dart';
+import 'dart:async';
+import '../../widgets/video_controls_bar.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
@@ -987,6 +989,8 @@ class _InlineVideo extends StatefulWidget {
 class _InlineVideoState extends State<_InlineVideo> {
   VideoPlayerController? _vc;
   bool _failed = false;
+  bool _controls = false;
+  Timer? _hideTimer;
 
   @override
   void initState() {
@@ -1012,8 +1016,17 @@ class _InlineVideoState extends State<_InlineVideo> {
     }
   }
 
+  void _restartHideTimer() {
+    _hideTimer?.cancel();
+    if (!_controls) return;
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _controls = false);
+    });
+  }
+
   @override
   void dispose() {
+    _hideTimer?.cancel();
     _vc?.dispose();
     super.dispose();
   }
@@ -1023,40 +1036,34 @@ class _InlineVideoState extends State<_InlineVideo> {
     final v = _vc;
     if (v != null && v.value.isInitialized && !_failed) {
       return GestureDetector(
+        // 点画面：调出/隐藏底部控制条（3 秒无操作自动隐藏）
         onTap: () {
-          setState(() {
-            if (v.value.isPlaying) {
-              v.pause();
-            } else {
-              v.play();
-            }
-          });
+          setState(() => _controls = !_controls);
+          _restartHideTimer();
         },
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: v.value.size.width,
-                    height: v.value.size.height,
-                    child: VideoPlayer(v),
-                  ),
-                ),
-                Center(
-                  child: Icon(
-                    v.value.isPlaying
-                        ? Icons.pause_circle_filled_rounded
-                        : Icons.play_circle_fill_rounded,
-                    color: Colors.white.withValues(alpha: 0.85),
-                    size: 52,
-                  ),
-                ),
-              ],
+          child: Container(
+            color: Colors.black,
+            child: AspectRatio(
+              // 按视频真实宽高比显示（16:9 显示 16:9 空间，9:16 显示 9:16 空间，不裁不拉伸）
+              aspectRatio: v.value.aspectRatio,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Center(child: VideoPlayer(v)),
+                  if (_controls)
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: VideoControlsBar(
+                        controller: v,
+                        onAutoHide: () {
+                          if (mounted) setState(() => _controls = false);
+                        },
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
