@@ -32,6 +32,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool _following = false;
   bool _followBusy = false;
   int _cCount = 0;
+  List<Map<String, dynamic>> _comments = [];
+  int _cPage = 1;
+  bool _cHasMore = false;
+  bool _cLoading = false;
 
   @override
   void initState() {
@@ -53,6 +57,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         _loading = false;
       });
       _cCount = _post!.commentCount;
+      await _loadComments(refresh: true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -353,26 +358,51 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           _actionBar(),
                           const Divider(
                               color: Color(AppTheme.border), height: 28),
-                          GestureDetector(
-                            onTap: _openComments,
-                            child: Row(
-                              children: [
-                                const Icon(Icons.chat_bubble_outline,
-                                    color: Color(AppTheme.textSecondary),
-                                    size: 17),
-                                const SizedBox(width: 8),
-                                Text('$_cCount 条评论',
-                                    style: const TextStyle(
-                                        color: Color(AppTheme.textSecondary),
-                                        fontSize: 13.5)),
-                                const Spacer(),
-                                const Icon(Icons.keyboard_arrow_up_rounded,
-                                    color: Color(AppTheme.textTertiary),
-                                    size: 20),
-                              ],
-                            ),
+                          Row(
+                            children: [
+                              const Text('评论',
+                                  style: TextStyle(
+                                      color: Color(AppTheme.textPrimary),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 6),
+                              Text('$_cCount',
+                                  style: const TextStyle(
+                                      color: Color(AppTheme.textTertiary),
+                                      fontSize: 13)),
+                              const Spacer(),
+                              if (_cHasMore)
+                                GestureDetector(
+                                  onTap: () => _loadComments(),
+                                  child: const Text('加载更多',
+                                      style: TextStyle(
+                                          color: Color(AppTheme.textSecondary),
+                                          fontSize: 12)),
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
+                          if (_comments.isEmpty && !_cLoading)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(
+                                child: Text('还没有评论，来抢沙发',
+                                    style: TextStyle(
+                                        color: Color(AppTheme.textTertiary),
+                                        fontSize: 13)),
+                              ),
+                            )
+                          else if (_comments.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                    color: Color(AppTheme.accent),
+                                    strokeWidth: 2),
+                              ),
+                            )
+                          else
+                            ..._comments.map((c) => _commentTile(c)),
                         ],
                       ),
                     ),
@@ -581,11 +611,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget _actionBar() {
     return Row(
       children: [
-        _actionItem(Icons.thumb_up_alt_rounded, '${countText(_likeCount)}',
+        _actionItem(Icons.thumb_up_alt_rounded, countText(_likeCount),
             _liked ? const Color(AppTheme.accent) : const Color(AppTheme.textSecondary),
             _toggleLike),
         const SizedBox(width: 20),
-        _actionItem(Icons.comment_rounded, '${countText(_cCount)}',
+        _actionItem(Icons.comment_rounded, countText(_cCount),
             const Color(AppTheme.textSecondary), _openComments),
         const SizedBox(width: 20),
         _actionItem(
@@ -655,6 +685,144 @@ class _PostDetailPageState extends State<PostDetailPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _loadComments({bool refresh = false}) async {
+    if (_cLoading || (!_cHasMore && !refresh)) return;
+    setState(() => _cLoading = true);
+    try {
+      final j = await ApiClient.comments(widget.postId,
+          page: refresh ? 1 : _cPage + 1, size: 20);
+      if (!mounted) return;
+      setState(() {
+        final list = ((j['list'] ?? []) as List)
+            .whereType<Map<String, dynamic>>()
+            .toList();
+        if (refresh) {
+          _comments = list;
+          _cPage = 1;
+        } else {
+          _comments.addAll(list);
+          _cPage++;
+        }
+        _cHasMore = boolOf(j['hasMore']);
+        _cLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cLoading = false);
+    }
+  }
+
+  Widget _commentTile(Map<String, dynamic> c) {
+    final author = (c['author'] ?? const {}) as Map;
+    final name = (author['name'] ?? '用户') as String;
+    final avatar = (author['avatar'] ?? '') as String;
+    final adminLevel = ((author['adminLevel'] ?? 0) as num).toInt();
+    final adminName = (author['adminName'] ?? '') as String;
+    final content = (c['content'] ?? '') as String;
+    final images = (c['images'] ?? const []) as List;
+    final sticker = (c['sticker'] ?? '') as String;
+    final created = ((c['created'] ?? 0) as num).toInt();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: const Color(AppTheme.card),
+            backgroundImage:
+                avatar.isNotEmpty ? NetworkImage(avatarUrl(avatar)) : null,
+            child: avatar.isEmpty
+                ? const Icon(Icons.person,
+                    size: 15, color: Color(AppTheme.textSecondary))
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(name,
+                        style: const TextStyle(
+                            color: Color(AppTheme.textSecondary),
+                            fontSize: 12)),
+                    if (adminLevel > 0) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(AppTheme.accentSoft),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(adminName.isEmpty ? '认证' : adminName,
+                            style: const TextStyle(
+                                color: Color(AppTheme.accent), fontSize: 9)),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (sticker.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: CachedNetworkImageCompat(
+                        url: mediaUrl(sticker),
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.contain),
+                  )
+                else if (content.isNotEmpty)
+                  Text(content,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 14,
+                          height: 1.4)),
+                if (images.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImageCompat(
+                      url: mediaUrl(images.first.toString()),
+                      width: 140,
+                      height: 140,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(timeAgo(created),
+                        style: const TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 11)),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(const SnackBar(
+                          content: Text('举报已提交，管理员将尽快处理'),
+                          backgroundColor: Color(AppTheme.card),
+                        ));
+                      },
+                      child: const Text('举报',
+                          style: TextStyle(
+                              color: Color(AppTheme.textTertiary),
+                              fontSize: 10.5)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
