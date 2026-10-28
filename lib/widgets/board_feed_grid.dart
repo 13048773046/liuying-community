@@ -127,8 +127,8 @@ class _BoardFeedGridState extends State<BoardFeedGrid> {
           crossAxisCount: 2,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          padding: EdgeInsets.fromLTRB(
-              12, 4, 12, 24 + MediaQuery.paddingOf(context).bottom),
+          // 底部避让：动态取导航栏实际高度（背景延伸由 Scaffold 底色承担）
+          padding: EdgeInsets.fromLTRB(12, 4, 12, tabBarBottomInset(context)),
           itemCount: _items.length + 1,
           itemBuilder: (_, i) {
             if (i == _items.length) {

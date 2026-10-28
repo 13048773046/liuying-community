@@ -80,6 +80,8 @@ class _BoardsPageState extends State<BoardsPage> {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
       body: SafeArea(
+        // 底部导航栏避让由 BoardFeedGrid 用 tabBarBottomInset 动态处理
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

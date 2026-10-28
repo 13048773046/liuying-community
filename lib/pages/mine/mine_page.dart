@@ -355,6 +355,8 @@ class _MinePageState extends State<MinePage> {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
             if (_tab == 0) _mineSliver() else _favSliver(later: _tab == 2),
+            // 底部避让：动态取导航栏实际高度（背景延伸由 _bgLayer 承担）
+            SliverToBoxAdapter(child: SizedBox(height: tabBarBottomInset(context))),
           ],
         ),
       ),

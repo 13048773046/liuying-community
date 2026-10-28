@@ -75,26 +75,21 @@ class _RootPageState extends State<RootPage> {
         fit: StackFit.expand,
         children: [
           // 内容区：五个页面常驻（音乐端三页常驻等价）
-          // 非短视频页底部留白=导航栏实际高度（6+23+2+14+4+safeBottom），
-          // 正好贴齐导航栏上沿，既不被遮挡也不露缝隙
-          Padding(
-            padding: EdgeInsets.only(
-                bottom: isShorts
-                    ? 0
-                    : kTabBarContentH + MediaQuery.paddingOf(context).bottom),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                for (var i = 0; i < _pages.length; i++)
-                  Offstage(
-                    offstage: _tab != i,
-                    child: TickerMode(
-                      enabled: _tab == i,
-                      child: _pages[i],
-                    ),
+          // 不做整体底部抬升：页面背景可延伸至屏幕底部（穿过导航栏区域），
+          // 内容本身由各页面滚动容器用「导航栏高度 tabBarBottomInset」动态避让，
+          // 既不被导航栏遮挡也不留下空白缝隙
+          Stack(
+            fit: StackFit.expand,
+            children: [
+              for (var i = 0; i < _pages.length; i++)
+                Offstage(
+                  offstage: _tab != i,
+                  child: TickerMode(
+                    enabled: _tab == i,
+                    child: _pages[i],
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
           // 底部导航（Positioned 贴底：不吃 StackFit.expand 的 tight 约束，必然贴底；
           // 短视频页沉浸式时保持透明悬浮，透出内容）

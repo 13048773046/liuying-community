@@ -177,6 +177,9 @@ class _HomePageState extends State<HomePage> {
         child: const Icon(Icons.edit, size: 22),
       ),
       body: SafeArea(
+        // 只避让顶部状态栏；底部导航栏避让由 RootPage 的 Padding(60+safe) 统一处理，
+        // 避免与 SafeArea/瀑布流留白三重叠加导致导航栏上方多出一截空白
+        bottom: false,
         // 整页滚动：标题/运营栏/Banner/Tab 全部随内容一起滚走（不吸顶）
         child: RefreshIndicator(
           onRefresh: () => _load(refresh: true),
@@ -450,8 +453,8 @@ class _HomePageState extends State<HomePage> {
     }
     if (_items.isEmpty) return _empty();
     return SliverPadding(
-      padding: EdgeInsets.fromLTRB(
-          12, 2, 12, 24 + MediaQuery.paddingOf(context).bottom),
+      // 底部避让：动态取导航栏实际高度（背景延伸由 Scaffold 底色承担，不露空白）
+      padding: EdgeInsets.fromLTRB(12, 2, 12, tabBarBottomInset(context)),
       sliver: SliverMasonryGrid.count(
         crossAxisCount: 2,
         mainAxisSpacing: 12,

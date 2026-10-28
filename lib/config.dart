@@ -2,6 +2,8 @@
 /// 生产环境与音乐站零侵入共存：社区 API 前缀 /community/api，媒体 /community/api/media/。
 library;
 
+import 'package:flutter/widgets.dart';
+
 /// 后端基地址（生产：www.dbmt999.asia；本地调试可改 http://127.0.0.1:8790/community）
 const String kApiBase = 'https://www.dbmt999.asia/community/api';
 
@@ -88,3 +90,9 @@ class AppTheme {
   static const int gradStart = 0xFF4CD9A5;
   static const int gradEnd = 0xFF2FA97E;
 }
+
+
+/// 底部导航栏实际占用高度（不含系统底部安全区的剩余空间）：
+/// 内容区避让导航栏时使用，动态随机型安全区变化（导航内容 60 + safeBottom）
+double tabBarBottomInset(BuildContext context) =>
+    60 + MediaQuery.paddingOf(context).bottom;

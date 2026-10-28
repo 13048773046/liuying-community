@@ -169,6 +169,8 @@ class _MessagePageState extends State<MessagePage> {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
       body: SafeArea(
+        // 底部导航栏避让由 RootPage 统一处理，这里只避让顶部状态栏
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -194,9 +196,9 @@ class _MessagePageState extends State<MessagePage> {
                               backgroundColor: const Color(AppTheme.card),
                               onRefresh: _load,
                               child: ListView(
+                                // 底部避让：动态取导航栏实际高度
                                 padding: EdgeInsets.only(
-                                    bottom: 16 +
-                                        MediaQuery.paddingOf(context).bottom),
+                                    bottom: tabBarBottomInset(context)),
                                 children: [
                                   // 官方 / 互动 两个入口项
                                   _entry(
