@@ -490,6 +490,10 @@ class ApiClient {
   static Future<Map<String, dynamic>> reportShare(String postId) =>
       post('/post/$postId/share');
 
+  /// 评论点赞/取消
+  static Future<Map<String, dynamic>> commentLike(String commentId) =>
+      post('/comment/$commentId/like');
+
   /// 关注/取关（互通：写音乐 follows 表）
   static Future<Map<String, dynamic>> toggleFollow(String uid) =>
       post('/user/$uid/follow');

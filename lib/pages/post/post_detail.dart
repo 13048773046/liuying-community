@@ -350,6 +350,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
                             const SizedBox(height: 10),
                             _musicStrip(),
                           ],
+                          // 发布时间（抖音式小字）
+                          const SizedBox(height: 8),
+                          Text(timeAgo(_post!.created),
+                              style: const TextStyle(
+                                  color: Color(AppTheme.textTertiary),
+                                  fontSize: 11.5)),
                           if (_post!.topic.isNotEmpty) ...[
                             const SizedBox(height: 10),
                             Wrap(
@@ -382,21 +388,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
                             ),
                           ],
                           const SizedBox(height: 14),
-                          _actionBar(),
                           const Divider(
                               color: Color(AppTheme.border), height: 28),
                           Row(
                             children: [
-                              const Text('评论',
-                                  style: TextStyle(
+                              Text('共$_cCount条评论',
+                                  style: const TextStyle(
                                       color: Color(AppTheme.textPrimary),
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600)),
-                              const SizedBox(width: 6),
-                              Text('$_cCount',
-                                  style: const TextStyle(
-                                      color: Color(AppTheme.textTertiary),
-                                      fontSize: 13)),
                               const Spacer(),
                               if (_cHasMore)
                                 GestureDetector(
@@ -434,6 +434,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       ),
                     ),
                     _commentInput(),
+                    _actionBar(),
                   ],
                 ),
     );
@@ -526,14 +527,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       }
                     },
               child: Container(
-                width: 62,
-                height: 30,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 6),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _following
-                      ? Colors.transparent
+                      ? const Color(AppTheme.elevated)
                       : const Color(AppTheme.accent),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  borderRadius: BorderRadius.circular(18),
                   border: _following
                       ? Border.all(color: const Color(AppTheme.border))
                       : null,
@@ -775,27 +776,38 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
+  /// 底部互动数据栏（抖音式：点赞/评论/收藏/分享 图标+数字）
   Widget _actionBar() {
-    return Row(
-      children: [
-        _actionItem(Icons.thumb_up_alt_rounded, countText(_likeCount),
-            _liked ? const Color(AppTheme.accent) : const Color(AppTheme.textSecondary),
-            _toggleLike),
-        const SizedBox(width: 20),
-        _actionItem(Icons.comment_rounded, countText(_cCount),
-            const Color(AppTheme.textSecondary), _openComments),
-        const SizedBox(width: 20),
-        _actionItem(
-            _faved || _latered ? Icons.star_rounded : Icons.star_border_rounded,
-            '收藏',
-            (_faved || _latered)
-                ? const Color(AppTheme.peach)
-                : const Color(AppTheme.textSecondary),
-            _showFavSheet),
-        const Spacer(),
-        _actionItem(Icons.share_outlined, '分享',
-            const Color(AppTheme.textSecondary), () {}),
-      ],
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      decoration: const BoxDecoration(
+        color: Color(AppTheme.card),
+        border: Border(top: BorderSide(color: Color(AppTheme.border), width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            _actionItem(Icons.thumb_up_alt_rounded, countText(_likeCount),
+                _liked ? const Color(AppTheme.accent) : const Color(AppTheme.textSecondary),
+                _toggleLike),
+            const SizedBox(width: 18),
+            _actionItem(Icons.comment_rounded, countText(_cCount),
+                const Color(AppTheme.textSecondary), _openComments),
+            const SizedBox(width: 18),
+            _actionItem(
+                _faved || _latered ? Icons.star_rounded : Icons.star_border_rounded,
+                _faved || _latered ? '已收藏' : '收藏',
+                (_faved || _latered)
+                    ? const Color(AppTheme.peach)
+                    : const Color(AppTheme.textSecondary),
+                _showFavSheet),
+            const SizedBox(width: 18),
+            _actionItem(Icons.share_outlined, '分享',
+                const Color(AppTheme.textSecondary), () {}),
+          ],
+        ),
+      ),
     );
   }
 
@@ -804,10 +816,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, size: 22, color: color),
+          Icon(icon, size: 20, color: color),
           const SizedBox(width: 4),
           Text(label,
-              style: TextStyle(color: color, fontSize: 12)),
+              style: TextStyle(color: color, fontSize: 11.5)),
         ],
       ),
     );
@@ -880,6 +892,26 @@ class _PostDetailPageState extends State<PostDetailPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _cLoading = false);
+    }
+  }
+
+  /// 评论点赞（本地翻转）
+  Future<void> _toggleCommentLike(Map<String, dynamic> c) async {
+    final cid = (c['id'] ?? '') as String;
+    if (cid.isEmpty) return;
+    final wasLiked = (c['liked'] ?? false) == true;
+    setState(() {
+      c['liked'] = !wasLiked;
+      c['likeCount'] = ((c['likeCount'] ?? 0) as num).toInt() + (wasLiked ? -1 : 1);
+    });
+    try {
+      await ApiClient.commentLike(cid);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        c['liked'] = wasLiked;
+        c['likeCount'] = ((c['likeCount'] ?? 0) as num).toInt() + (wasLiked ? 1 : -1);
+      });
     }
   }
 
@@ -970,19 +1002,39 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         style: const TextStyle(
                             color: Color(AppTheme.textTertiary),
                             fontSize: 11)),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: _openComments,
+                      child: const Text('回复',
+                          style: TextStyle(
+                              color: Color(AppTheme.accent),
+                              fontSize: 11)),
+                    ),
                     const Spacer(),
                     GestureDetector(
-                      onTap: () {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(const SnackBar(
-                          content: Text('举报已提交，管理员将尽快处理'),
-                          backgroundColor: Color(AppTheme.card),
-                        ));
-                      },
-                      child: const Text('举报',
-                          style: TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 10.5)),
+                      onTap: () => _toggleCommentLike(c),
+                      child: Row(
+                        children: [
+                          Icon(
+                            (c['liked'] ?? false) == true
+                                ? Icons.thumb_up_rounded
+                                : Icons.thumb_up_alt_outlined,
+                            size: 12,
+                            color: (c['liked'] ?? false) == true
+                                ? const Color(AppTheme.accent)
+                                : const Color(AppTheme.textTertiary),
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${((c['likeCount'] ?? 0) as num).toInt()}',
+                            style: TextStyle(
+                                color: (c['liked'] ?? false) == true
+                                    ? const Color(AppTheme.accent)
+                                    : const Color(AppTheme.textTertiary),
+                                fontSize: 11),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
