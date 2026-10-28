@@ -16,13 +16,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../api/client.dart';
+import 'music_picker_sheet.dart';
 import '../../config.dart';
 import '../../utils/responsive.dart';
 
-/// mode: text=发图文帖，video=发短视频
+/// 统一发布页：图文 / 短视频二合一（页内顶部 Tab 切换，抖音式）
 class PostEditorPage extends StatefulWidget {
-  final String mode;
-  const PostEditorPage({super.key, this.mode = 'text'});
+  const PostEditorPage({super.key});
 
   @override
   State<PostEditorPage> createState() => _PostEditorPageState();
@@ -48,7 +48,10 @@ class _PostEditorPageState extends State<PostEditorPage> {
   Map<String, dynamic>? _poll;
   double _uploadProgress = 0;
 
-  bool get isVideo => widget.mode == 'video';
+  String _mode = 'text'; // 'text' 图文 | 'video' 短视频（页内切换）
+  Map<String, dynamic>? _music; // 配乐 {url,name,cover,durText}
+
+  bool get isVideo => _mode == 'video';
 
   /// 是否允许点发布：内容非空 + 已选版块 + 不在发布中
   bool get _canPublish =>
@@ -175,6 +178,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
           'images': names,
           'boardId': _boardId,
           if (_poll != null) 'poll': _poll,
+          if (_music != null) 'music': _music,
         });
         if (!mounted) return;
         Navigator.pop(context, true);
@@ -218,6 +222,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
           'duration': (up['duration'] ?? 0) is num ? (up['duration'] as num).toInt() : 0,
           'content': content,
           'boardId': _boardId,
+          if (_music != null) 'music': _music,
         });
         if (!mounted) return;
         Navigator.pop(context, true);
@@ -263,6 +268,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
         child: Column(
           children: [
             _topBar(),
+            _modeTab(),
             Expanded(
               child: AbsorbPointer(
                 // 发布中锁定输入区，防重复操作
@@ -277,6 +283,8 @@ class _PostEditorPageState extends State<PostEditorPage> {
                       _contentCard(),
                       const SizedBox(height: 12),
                       if (!isVideo) _imageGrid() else _videoSection(),
+                      const SizedBox(height: 12),
+                      _musicBar(),
                       const SizedBox(height: 10),
                       Text(
                         isVideo
@@ -312,7 +320,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
           Expanded(
             child: Center(
               child: Text(
-                isVideo ? '发布短视频' : '发布帖子',
+                '发布内容',
                 style: const TextStyle(
                     color: Color(AppTheme.textPrimary),
                     fontSize: 17,
@@ -396,6 +404,133 @@ class _PostEditorPageState extends State<PostEditorPage> {
         ),
       ),
     );
+  }
+
+  // ---------- 模式切换（图文 / 短视频，抖音式发布页） ----------
+  Widget _modeTab() {
+    Widget item(String id, String label, IconData icon) {
+      final sel = _mode == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() {
+            _mode = id;
+            if (_music != null) {
+              // 切模式保留配乐
+            }
+          }),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: sel ? const Color(AppTheme.accentSoft) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: 17,
+                    color: sel
+                        ? const Color(AppTheme.accent)
+                        : const Color(AppTheme.textTertiary)),
+                const SizedBox(width: 6),
+                Text(label,
+                    style: TextStyle(
+                      color: sel
+                          ? const Color(AppTheme.accent)
+                          : const Color(AppTheme.textTertiary),
+                      fontSize: 13.5,
+                      fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
+                    )),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C20),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(AppTheme.border)),
+      ),
+      child: Row(
+        children: [
+          item('text', '发图文', Icons.article_outlined),
+          item('video', '发短视频', Icons.video_library_outlined),
+        ],
+      ),
+    );
+  }
+
+  // ---------- 配乐选择条 ----------
+  Widget _musicBar() {
+    final m = _music;
+    return GestureDetector(
+      onTap: _pickMusic,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.card),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(AppTheme.border)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: const BoxDecoration(
+                  color: Color(AppTheme.accentSoft), shape: BoxShape.circle),
+              child: const Icon(Icons.music_note_rounded,
+                  size: 17, color: Color(AppTheme.accent)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: m == null
+                  ? const Text('添加配乐',
+                      style: TextStyle(
+                          color: Color(AppTheme.textSecondary), fontSize: 13))
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            m['name'] as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Color(AppTheme.textPrimary),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.graphic_eq_rounded,
+                            size: 14, color: Color(AppTheme.accent)),
+                      ],
+                    ),
+            ),
+            if (m != null)
+              GestureDetector(
+                onTap: () => setState(() => _music = null),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.close_rounded,
+                      size: 16, color: Color(AppTheme.textTertiary)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickMusic() async {
+    final picked = await showMusicPicker(context);
+    if (picked != null && mounted) setState(() => _music = picked);
   }
 
   // ---------- 版块选择：带图标胶囊 ----------

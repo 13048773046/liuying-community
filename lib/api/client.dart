@@ -219,6 +219,24 @@ class ApiClient {
       get('/rankings', query: {'type': type, 'limit': '$limit'});
 
   /// 热门话题（含 post_count）
+  /// 配乐候选列表：直连音乐项目 /music/api/tracks?local=1（本地可播，无需登录）
+  static Future<List<Map<String, dynamic>>> musicTracks() async {
+    final r = await http
+        .get(Uri.parse('$kMusicBase/api/tracks?local=1'))
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) throw ApiException(r.statusCode, '配乐加载失败');
+    try {
+      final d = jsonDecode(utf8.decode(r.bodyBytes));
+      if (d is List) {
+        return d
+            .whereType<Map<String, dynamic>>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   static Future<List<Map<String, dynamic>>> topicsHot() async {
     final j = await get('/topics', query: {'hot': '1'});
     return ((j['list'] ?? []) as List)

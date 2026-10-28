@@ -14,6 +14,7 @@ import '../../widgets/video_controls_bar.dart';
 import '../../api/client.dart';
 import '../../config.dart';
 import '../../models/feed_item.dart';
+import '../../utils/music_bgm.dart';
 import '../../widgets/image_box.dart';
 import '../../widgets/poll_card.dart';
 import '../../widgets/comment_sheet.dart';
@@ -63,11 +64,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
         _loading = false;
       });
       _cCount = _post!.commentCount;
+      // 配乐：打开图文/视频详情自动播放所选 BGM
+      final m = _post!.music;
+      if (m != null && m['url'] is String && (m['url'] as String).isNotEmpty) {
+        MusicBgm.I.play(m['url'] as String);
+      }
       await _loadComments(refresh: true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    MusicBgm.I.stop();
+    super.dispose();
   }
 
   Future<void> _toggleLike() async {
@@ -334,6 +346,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
                           _authorRow(),
                           const SizedBox(height: 12),
                           _contentBlock(),
+                          if (_hasMusic) ...[
+                            const SizedBox(height: 10),
+                            _musicStrip(),
+                          ],
                           if (_post!.topic.isNotEmpty) ...[
                             const SizedBox(height: 10),
                             Wrap(
@@ -691,6 +707,71 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ),
         ],
       ],
+    );
+  }
+
+  bool get _hasMusic {
+    final m = _post?.music;
+    if (m == null) return false;
+    final n = m['name'];
+    return n is String && n.isNotEmpty;
+  }
+
+  /// 配乐条：封面音符 + 歌名 + 播放/暂停（StreamBuilder 跟随播放状态）
+  Widget _musicStrip() {
+    final name = (_post!.music!['name'] ?? '') as String;
+    return StreamBuilder<bool>(
+      stream: MusicBgm.I.playingStream,
+      builder: (_, snap) {
+        final playing = snap.data ?? false;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: const Color(AppTheme.accentSoft),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: const Color(AppTheme.accent).withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: const BoxDecoration(
+                    color: Color(AppTheme.accent), shape: BoxShape.circle),
+                child: const Icon(Icons.music_note_rounded,
+                    size: 15, color: Colors.black),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Color(AppTheme.textPrimary),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ),
+              GestureDetector(
+                onTap: () => MusicBgm.I.toggle(),
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: const BoxDecoration(
+                      color: Color(AppTheme.card), shape: BoxShape.circle),
+                  child: Icon(
+                    playing
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: 18,
+                    color: const Color(AppTheme.accent),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -102,79 +102,27 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// 发布菜单：发图文帖 / 发短视频
-  Future<void> _showPublishMenu() async {
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(AppTheme.card),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 10),
-              child: Text('发布内容',
-                  style: TextStyle(
-                      color: Color(AppTheme.textPrimary),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-            ),
-            _menuItem(Icons.article_outlined, '发布图文帖', () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const PostEditorPage(mode: 'text')))
-                  .then((ok) {
-                if (ok == true) _load(refresh: true);
-              });
-            }),
-            _menuItem(Icons.video_library_outlined, '发布短视频', () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const PostEditorPage(mode: 'video')))
-                  .then((ok) {
-                if (ok == true) _load(refresh: true);
-              });
-            }),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _menuItem(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(AppTheme.accent), size: 22),
-            const SizedBox(width: 12),
-            Text(label,
-                style: const TextStyle(
-                    color: Color(AppTheme.textPrimary), fontSize: 15)),
-          ],
-        ),
-      ),
-    );
+  /// 统一发布入口：直接打开二合一发布页（图文/短视频页内切换）
+  Future<void> _openEditor() async {
+    final ok = await Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const PostEditorPage()));
+    if (ok == true && mounted) _load(refresh: true);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showPublishMenu,
-        backgroundColor: const Color(AppTheme.accent),
-        foregroundColor: Colors.black,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.edit, size: 22),
+      floatingActionButton: Padding(
+        // 动态避让底部导航栏：悬浮在导航栏上方，不被遮挡
+        padding: EdgeInsets.only(bottom: tabBarBottomInset(context) - 16),
+        child: FloatingActionButton(
+          onPressed: _openEditor,
+          backgroundColor: const Color(AppTheme.accent),
+          foregroundColor: Colors.black,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.edit, size: 22),
+        ),
       ),
       body: SafeArea(
         // 只避让顶部状态栏；底部导航栏避让由 RootPage 的 Padding(60+safe) 统一处理，
@@ -534,7 +482,7 @@ class _HomePageState extends State<HomePage> {
               onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const PostEditorPage(mode: 'text'))),
+                      builder: (_) => const PostEditorPage())),
               child: const Text('去发布'),
             )
           else

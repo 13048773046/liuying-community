@@ -279,7 +279,7 @@ class _ShortsButtonInner extends StatelessWidget {
           if (isActive) {
             // 短视频页内：中间按钮 = 发布入口（点击跳发布页）
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PostEditorPage(mode: 'video')),
+              MaterialPageRoute(builder: (_) => const PostEditorPage()),
             );
           } else {
             _ShortsSelectionScope.of(context)?.onChanged(2);

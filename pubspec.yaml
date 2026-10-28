@@ -22,6 +22,13 @@ dependencies:
   # WebSocket 实时通知
   web_socket_channel: ^3.0.1
   flutter_staggered_grid_view: ^0.7.0
+  # 配乐播放（BGM，图文详情/短视频自动播）
+  just_audio: ^0.9.42
+  # 地图选点（配乐外：发送定位）—— flutter_map + OSM/高德瓦片
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  # 跳转外部地图 App
+  url_launcher: ^6.3.1
   flutter_svg: ^2.3.0
   photo_view: ^0.15.0
 

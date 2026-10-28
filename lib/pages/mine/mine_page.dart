@@ -825,7 +825,7 @@ class _MinePageState extends State<MinePage> {
               onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const PostEditorPage(mode: 'text'))),
+                      builder: (_) => const PostEditorPage())),
               child: const Text('去发布'),
             ),
           ],

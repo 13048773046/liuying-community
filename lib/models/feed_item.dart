@@ -1,6 +1,8 @@
 /// 信息流统一模型：帖子（text/image/poll）与短视频（video）共用 feed 结构。
 library;
 
+import 'dart:convert';
+
 /// 容错布尔解析：后端可能返回 true/false，也可能返回 1/0（int）或 '1'/'0'（string）。
 /// 直接 `as bool` 会在后端返回 0/1 时抛 type 'int' is not a subtype of type 'bool'。
 bool boolOf(dynamic v, [bool fallback = false]) {
@@ -59,6 +61,7 @@ class FeedItem {
   final String auditReason;
   final bool takenDown;
   final Map<String, dynamic>? poll; // 投票帖：question/options/votes/voted/closed
+  final Map<String, dynamic>? music; // 配乐 {url,name,cover,trackId}
   final int created;
   final Author author;
 
@@ -88,6 +91,9 @@ class FeedItem {
         takenDown = boolOf(j['takenDown']),
         poll = (j['poll'] is Map<String, dynamic>)
             ? (j['poll'] as Map<String, dynamic>)
+            : null,
+        music = ((j['music'] ?? '') as String).isNotEmpty
+            ? (jsonDecode(j['music'] as String) as Map<String, dynamic>)
             : null,
         created = ((j['created'] ?? 0) as num).toInt(),
         author = Author.fromJson((j['author'] ?? {}) as Map<String, dynamic>);

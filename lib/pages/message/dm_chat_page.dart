@@ -7,6 +7,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,11 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../widgets/emoji_panel.dart';
+import '../../widgets/input_panel_host.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'location_picker_page.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../api/client.dart';
@@ -208,52 +214,25 @@ class _DmChatPageState extends State<DmChatPage> {
     setState(() {
       if (_panelOpen) {
         _panelOpen = false;
-        _emojiMode = false;
       } else {
+        // 收起输入法：面板平滑占据原输入法位置
         FocusScope.of(context).unfocus();
         _panelOpen = true;
-        _emojiMode = false;
       }
     });
   }
 
   void _closePanel() {
     if (_panelOpen) {
-      setState(() {
-        _panelOpen = false;
-        _emojiMode = false;
-      });
+      setState(() => _panelOpen = false);
     }
   }
 
-  /// 占位面板（QQ 式：相册/拍照/视频/位置/名片 + 表情入口）
+  /// 占位面板（加号 → 收起输入法，面板占住原输入法位置，丝滑切换）
   Widget _sendPanel() {
     if (!_panelOpen) return const SizedBox.shrink();
-    if (_emojiMode) {
-      return Container(
-        height: 224,
-        color: const Color(AppTheme.bg),
-        child: EmojiPanel(
-          initialFav: true,
-          onPick: (e) async {
-            final img = (e['image'] ?? '') as String;
-            if (img.isEmpty) return;
-            _closePanel();
-            try {
-              await _sendMedia('image', mediaUrl(img));
-            } catch (err) {
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('表情发送失败'),
-                backgroundColor: const Color(AppTheme.card),
-              ));
-            }
-          },
-        ),
-      );
-    }
     final items = <(IconData, String, VoidCallback)>[
-      (Icons.photo_library_rounded, '相册', () {
+      (Icons.photo_library_rounded, '图片', () {
         _closePanel();
         _pickImage(ImageSource.gallery);
       }),
@@ -261,66 +240,53 @@ class _DmChatPageState extends State<DmChatPage> {
         _closePanel();
         _pickImage(ImageSource.camera);
       }),
-      (Icons.videocam_rounded, '视频', () {
-        _closePanel();
-        _pickVideo();
-      }),
-      (Icons.location_on_rounded, '位置', () {
+      (Icons.location_on_rounded, '发送定位', () {
         _closePanel();
         _sendLocation();
       }),
-      (Icons.person_rounded, '名片', () {
-        _closePanel();
-        _sendCard();
-      }),
-      (Icons.emoji_emotions_outlined, '表情', () {
-        setState(() => _emojiMode = true);
-      }),
     ];
     return Container(
-      height: 224,
       color: const Color(AppTheme.bg),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('发送',
               style: TextStyle(
-                  color: Color(AppTheme.textPrimary),
-                  fontSize: 13,
+                  color: Color(AppTheme.textSecondary),
+                  fontSize: 12,
                   fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Expanded(
             child: GridView.count(
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 4,
+              crossAxisCount: 3,
               mainAxisSpacing: 12,
               crossAxisSpacing: 10,
-              childAspectRatio: 0.9,
+              childAspectRatio: 1.1,
               children: [
-                for (final (icon, label, act) in items)
+                for (final (icon, label, onTap) in items)
                   GestureDetector(
-                    onTap: act,
+                    onTap: onTap,
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          width: 56,
-                          height: 56,
+                          width: 52,
+                          height: 52,
                           decoration: BoxDecoration(
-                            color: const Color(AppTheme.card),
+                            color: const Color(AppTheme.bg),
                             borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(AppTheme.border)),
                           ),
-                          alignment: Alignment.center,
                           child: Icon(icon,
-                              color: const Color(AppTheme.accent),
-                              size: 26),
+                              size: 24, color: const Color(AppTheme.accent)),
                         ),
                         const SizedBox(height: 6),
                         Text(label,
                             style: const TextStyle(
                                 color: Color(AppTheme.textSecondary),
-                                fontSize: 11)),
+                                fontSize: 11.5)),
                       ],
                     ),
                   ),
@@ -368,8 +334,9 @@ class _DmChatPageState extends State<DmChatPage> {
   }
 
   Future<void> _sendLocation() async {
-    // 轻量实现：发送“我的位置”文本（坐标）。后续可接地图选点。
-    await _sendMedia('location', '31.2990,120.5853（我的位置）');
+    final loc = await showLocationPicker(context);
+    if (loc == null || !mounted) return;
+    await _sendMedia('location', jsonEncode(loc));
   }
 
   Future<void> _sendCard() async {
@@ -455,8 +422,14 @@ class _DmChatPageState extends State<DmChatPage> {
                         },
                       ),
           ),
-          _sendPanel(),
-          _inputBar(),
+          // 输入区：键盘态由 Scaffold 顶起；加号面板态平滑占住原输入法位置
+          InputPanelHost(
+            absorbInsets: false,
+            surfaceColor: const Color(AppTheme.elevated),
+            fallbackHeight: 232,
+            inputBar: _inputBar(),
+            panel: _panelOpen ? _sendPanel() : null,
+          ),
         ],
       ),
     );
@@ -569,28 +542,7 @@ class _DmChatPageState extends State<DmChatPage> {
           ),
         );
       case 'location':
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.location_on_rounded,
-                  color: Color(0xFF4CD9A5), size: 18),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(content,
-                    style: TextStyle(
-                        color: textColor,
-                        fontSize: 13,
-                        height: 1.3)),
-              ),
-            ],
-          ),
-        );
+        return _locationBubble(content, mine);
       case 'card':
         return _cardBubble(content, mine);
       default:
@@ -610,6 +562,77 @@ class _DmChatPageState extends State<DmChatPage> {
                   color: textColor, fontSize: 14, height: 1.35)),
         );
     }
+  }
+
+  /// 位置卡片：小地图缩略图 + 地点名 + 地址（微信式），点击跳外部地图 App
+  Widget _locationBubble(String payload, bool mine) {
+    Map<String, dynamic> loc = {};
+    try {
+      final j = jsonDecode(payload);
+      if (j is Map<String, dynamic>) loc = j;
+    } catch (_) {}
+    final lat = ((loc['lat'] ?? 0) as num).toDouble();
+    final lng = ((loc['lng'] ?? 0) as num).toDouble();
+    final name = (loc['name'] ?? '我的位置') as String;
+    final address = (loc['address'] ?? '') as String;
+    return GestureDetector(
+      onTap: () => _openExternalMap(lat, lng, name),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+        width: 220,
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.elevated),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 小地图缩略图（只读）
+            SizedBox(
+              height: 100,
+              width: double.infinity,
+              child: _LocationMapThumb(lat: lat, lng: lng),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                  if (address.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(address,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 10.5)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  /// 跳转外部地图 App（iOS 苹果地图 / Android 系统地图选择器）
+  Future<void> _openExternalMap(double lat, double lng, String name) async {
+    final q = Uri.encodeComponent(name);
+    final uri = Platform.isIOS
+        ? Uri.parse('http://maps.apple.com/?ll=$lat,$lng&q=$q')
+        : Uri.parse('geo:$lat,$lng?q=$lat,$lng($q)');
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
   }
 
   /// 名片消息：头像+昵称卡片，点击查看对方主页
@@ -766,6 +789,44 @@ class _DmChatPageState extends State<DmChatPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 位置卡片内嵌的小地图缩略图（只读，高德瓦片）
+class _LocationMapThumb extends StatelessWidget {
+  final double lat;
+  final double lng;
+  const _LocationMapThumb({required this.lat, required this.lng});
+
+  @override
+  Widget build(BuildContext context) {
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: LatLng(lat, lng),
+        initialZoom: 15,
+        interactionOptions: const InteractionOptions(
+            flags: InteractiveFlag.none), // 纯展示，禁手势
+      ),
+      children: [
+        TileLayer(
+          urlTemplate:
+              'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+          subdomains: const ['1', '2', '3', '4'],
+          userAgentPackageName: 'com.liuying.community',
+        ),
+        MarkerLayer(
+          markers: [
+            Marker(
+              point: LatLng(lat, lng),
+              width: 34,
+              height: 34,
+              child: const Icon(Icons.location_pin,
+                  color: Color(0xFFFF5A5F), size: 34),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

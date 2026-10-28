@@ -12,6 +12,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../utils/music_bgm.dart';
 import '../../models/feed_item.dart';
 import '../mine/login_page.dart';
 import '../user/user_profile.dart';
@@ -40,6 +41,14 @@ class _VideoCardState extends State<VideoCard> {
   int _shareCount = 0;
   bool _followed = false;
   bool _muted = false;
+
+  /// 是否带配乐（有配乐时视频静音、BGM 作为声音，抖音式）
+  bool get _useBgm {
+    final m = widget.item.music;
+    if (m == null) return false;
+    final u = m['url'];
+    return u is String && u.isNotEmpty;
+  }
   bool _controls = false;
   Timer? _hideTimer;
   @override
@@ -78,7 +87,13 @@ class _VideoCardState extends State<VideoCard> {
       if (widget.isActive) {
         c.setLooping(true);
         c.play();
-        c.setVolume(_muted ? 0 : 1);
+        if (_useBgm) {
+          c.setVolume(0);
+          MusicBgm.I.play((widget.item.music!['url'] as String));
+        } else {
+          c.setVolume(_muted ? 0 : 1);
+          MusicBgm.I.stop();
+        }
       }
     } catch (_) {
       if (!mounted) return;
@@ -100,8 +115,14 @@ class _VideoCardState extends State<VideoCard> {
     if (v == null || !v.value.isInitialized) return;
     if (widget.isActive) {
       v.setLooping(true);
-      v.setVolume(_muted ? 0 : 1);
       v.play();
+      if (_useBgm) {
+        v.setVolume(0);
+        MusicBgm.I.play((widget.item.music!['url'] as String));
+      } else {
+        v.setVolume(_muted ? 0 : 1);
+        MusicBgm.I.stop();
+      }
     } else {
       v.pause();
     }

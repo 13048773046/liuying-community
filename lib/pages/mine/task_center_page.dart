@@ -170,7 +170,7 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
       onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (_) => const PostEditorPage(mode: 'text'))),
+              builder: (_) => const PostEditorPage())),
       child: Container(
         height: rw(context, 96),
         padding: const EdgeInsets.symmetric(horizontal: 16),
