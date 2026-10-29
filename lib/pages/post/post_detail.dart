@@ -36,6 +36,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool _latered = false;
   int _likeCount = 0;
   bool _loading = true;
+  bool _loadError = false;
   bool _following = false;
   bool _followBusy = false;
   int _cCount = 0;
@@ -72,7 +73,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
       await _loadComments(refresh: true);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
     }
   }
 
@@ -288,288 +292,327 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVideo = _post?.isVideo ?? false;
+    final mediaH = MediaQuery.of(context).size.height * 0.5;
+    final safeTop = MediaQuery.of(context).padding.top;
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
-      // 键盘弹出只顶弹窗输入框，页面内嵌评论列表/媒体不被顶起
+      // 键盘弹出只顶弹窗输入框，页面媒体/评论不被顶起
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(AppTheme.textPrimary)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: null, // 对齐参考图：顶部仅返回/分享/更多
-        actions: [
-          if (_post != null)
-            IconButton(
-              tooltip: '分享',
-              icon: const Icon(Icons.ios_share,
-                  color: Color(AppTheme.textPrimary), size: 22),
-              onPressed: () => _sharePost(),
-            ),
-          if (_post != null && _post!.author.id != ApiClient.userId)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_horiz_rounded,
-                  color: Color(AppTheme.textPrimary)),
-              color: const Color(AppTheme.card),
-              onSelected: (v) {
-                if (v == 'report') _reportPost();
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                    value: 'report',
-                    child: Text('举报',
-                        style: TextStyle(
-                            color: Color(AppTheme.textPrimary),
-                            fontSize: 13.5))),
-              ],
-            )
-          else
-            const SizedBox(width: 8),
-        ],
-      ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2.5))
-          : _post == null
-              ? const Center(
-                  child: Text('内容不存在或已删除',
-                      style: TextStyle(color: Color(AppTheme.textSecondary))))
-              : Column(
-                  children: [
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        children: [
-                          _authorRow(),
-                          const SizedBox(height: 12),
-                          _contentBlock(),
-                          if (_hasMusic) ...[
-                            const SizedBox(height: 10),
-                            _musicStrip(),
-                          ],
-                          // 发布时间（抖音式小字）
-                          const SizedBox(height: 8),
-                          Text(timeAgo(_post!.created),
-                              style: const TextStyle(
-                                  color: Color(AppTheme.textTertiary),
-                                  fontSize: 11.5)),
-                          if (_post!.topic.isNotEmpty) ...[
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 6,
-                              children: _post!.topic
-                                  .map((t) => Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: const Color(AppTheme.accentSoft),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text('#$t',
-                                            style: const TextStyle(
-                                                color: Color(AppTheme.accent),
-                                                fontSize: 12)),
-                                      ))
-                                  .toList(),
-                            ),
-                          ],
-                          if (_post!.poll != null) ...[
-                            const SizedBox(height: 10),
-                            PollCard(
-                              postId: _post!.id,
-                              poll: _post!.poll!,
-                              onChanged: () {
-                                if (!mounted) return;
-                                setState(() {});
-                              },
-                            ),
-                          ],
-                          const SizedBox(height: 14),
-                          const Divider(
-                              color: Color(AppTheme.border), height: 28),
-                          Row(
-                            children: [
-                              Text('共$_cCount条评论',
-                                  style: const TextStyle(
-                                      color: Color(AppTheme.textPrimary),
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600)),
-                              const Spacer(),
-                              if (_cHasMore)
-                                GestureDetector(
-                                  onTap: () => _loadComments(),
-                                  child: const Text('加载更多',
-                                      style: TextStyle(
-                                          color: Color(AppTheme.textSecondary),
-                                          fontSize: 12)),
-                                ),
-                            ],
+      body: Column(
+        children: [
+          Expanded(
+            child: _loading && _post == null
+                ? const Center(
+                    child: CircularProgressIndicator(
+                        color: Color(AppTheme.accent), strokeWidth: 2.5))
+                : _loadError && _post == null
+                    ? Center(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(AppTheme.accent),
+                            side: const BorderSide(color: Color(AppTheme.accent)),
                           ),
-                          const SizedBox(height: 8),
-                          if (_comments.isEmpty && !_cLoading)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Center(
-                                child: Text('还没有评论，来抢沙发',
-                                    style: TextStyle(
-                                        color: Color(AppTheme.textTertiary),
-                                        fontSize: 13)),
+                          onPressed: _load,
+                          child: const Text('重新加载'),
+                        ),
+                      )
+                    : Stack(
+                        children: [
+                          // 顶部沉浸式媒体区（视频帖=视频；文图帖=首图大图）
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: mediaH,
+                            child: _mediaHeader(mediaH),
+                          ),
+                          // 信息区 + 评论区（媒体区下方独立滚动）
+                          Positioned(
+                            top: mediaH,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: _detailList(),
+                          ),
+                          // 返回浮层（左上角，视频上方）
+                          Positioned(
+                            top: safeTop + 6,
+                            left: 10,
+                            child: _roundIconBtn(
+                              Icons.close_rounded,
+                              onTap: () => Navigator.of(context).maybePop(),
+                            ),
+                          ),
+                          // 作者行浮层：用户名（返回右侧）
+                          if (_post != null)
+                            Positioned(
+                              top: safeTop + 8,
+                              left: 62,
+                              child: _authorOverlayName(),
+                            ),
+                          // 关注胶囊（右上角）
+                          if (_post != null &&
+                              _post!.author.id != ApiClient.userId)
+                            Positioned(
+                              top: safeTop + 10,
+                              right: 12,
+                              child: _followPill(),
+                            ),
+                          // 分享浮层（关注左侧）
+                          if (_post != null)
+                            Positioned(
+                              top: safeTop + 6,
+                              right: _post!.author.id != ApiClient.userId
+                                  ? 92
+                                  : 12,
+                              child: _roundIconBtn(
+                                Icons.ios_share,
+                                onTap: _sharePost,
                               ),
-                            )
-                          else if (_comments.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                    color: Color(AppTheme.accent),
-                                    strokeWidth: 2),
-                              ),
-                            )
-                          else
-                            ..._comments.map((c) => _commentTile(c)),
+                            ),
                         ],
                       ),
-                    ),
-                    _commentInput(),
-                    _actionBar(),
-                  ],
-                ),
+          ),
+          _commentInput(),
+          _actionBar(),
+        ],
+      ),
     );
   }
 
-  Widget _authorRow() {
-    final a = _post!.author;
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => UserProfilePage(uid: a.id))),
-          child: Container(
-            padding: const EdgeInsets.all(1.5),
-            decoration: a.frameId.isNotEmpty
-                ? BoxDecoration(
-                    border: Border.all(
-                        color: const Color(AppTheme.accent), width: 2),
-                    shape: BoxShape.circle,
-                  )
-                : null,
-            child: CircleAvatar(
-              radius: 20,
-              backgroundColor: const Color(AppTheme.card),
-              backgroundImage:
-                  a.avatar.isNotEmpty ? NetworkImage(avatarUrl(a.avatar)) : null,
-              child: a.avatar.isEmpty
-                  ? const Icon(Icons.person, color: Color(AppTheme.textSecondary))
-                  : null,
-            ),
+  /// 顶部沉浸式媒体区
+  Widget _mediaHeader(double h) {
+    final p = _post!;
+    if (p.isVideo) {
+      return Container(
+        color: Colors.black,
+        alignment: Alignment.center,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: _InlineVideo(
+            url: mediaUrl(p.video),
+            coverUrl: mediaUrl(
+                p.cover == 'auto' ? '${p.video}.jpg' : p.cover),
+            borderRadius: 0,
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(a.name,
+      );
+    }
+    // 文图帖：首图大图沉浸展示
+    if (p.images.isNotEmpty) {
+      return GestureDetector(
+        onTap: () => _openGallery(0),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImageCompat(
+              url: mediaUrl(p.images[0]),
+              fit: BoxFit.cover,
+            ),
+            if (p.images.length > 1)
+              Positioned(
+                bottom: 10,
+                right: 12,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text('${p.images.length}张',
                       style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500)),
-                  if (a.isAdmin) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          color: Colors.white, fontSize: 11)),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    return Container(color: Colors.black);
+  }
+
+  /// 信息区 + 评论区滚动列表（媒体区下方）
+  Widget _detailList() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      children: [
+        _contentBlock(),
+        if (_post!.topic.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            children: _post!.topic
+                .map((t) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(AppTheme.accentSoft),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(a.adminName.isEmpty ? '认证' : a.adminName,
+                      child: Text('#$t',
                           style: const TextStyle(
-                              color: Color(AppTheme.accent), fontSize: 10)),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'Lv${a.level} · ${timeAgo(_post!.created)}'
-                '${_post!.tag.isNotEmpty ? ' · 来自${_post!.tag}' : ''}',
+                              color: Color(AppTheme.accent), fontSize: 12)),
+                    ))
+                .toList(),
+          ),
+        ],
+        if (_hasMusic) ...[
+          const SizedBox(height: 10),
+          _musicStrip(),
+        ],
+        const SizedBox(height: 8),
+        Text(timeAgo(_post!.created),
+            style: const TextStyle(
+                color: Color(AppTheme.textTertiary), fontSize: 11.5)),
+        if (_post!.poll != null) ...[
+          const SizedBox(height: 10),
+          PollCard(
+            postId: _post!.id,
+            poll: _post!.poll!,
+            onChanged: () {
+              if (!mounted) return;
+              setState(() {});
+            },
+          ),
+        ],
+        const SizedBox(height: 14),
+        const Divider(color: Color(AppTheme.border), height: 28),
+        Row(
+          children: [
+            Text('共$_cCount条评论',
                 style: const TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 12),
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600)),
+            const Spacer(),
+            if (_cHasMore)
+              GestureDetector(
+                onTap: () => _loadComments(),
+                child: const Text('加载更多',
+                    style: TextStyle(
+                        color: Color(AppTheme.textSecondary), fontSize: 12)),
               ),
-            ],
-          ),
+          ],
         ),
-        if (a.id != ApiClient.userId)
-          Padding(
-            padding: const EdgeInsets.only(left: 10),
-            child: GestureDetector(
-              onTap: _followBusy
-                  ? null
-                  : () async {
-                      setState(() => _followBusy = true);
-                      try {
-                        await ApiClient.toggleFollow(a.id);
-                        if (!mounted) return;
-                        setState(() {
-                          _following = !_following;
-                          _followBusy = false;
-                        });
-                      } catch (_) {
-                        if (!mounted) return;
-                        setState(() => _followBusy = false);
-                      }
-                    },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 6),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: _following
-                      ? const Color(AppTheme.elevated)
-                      : const Color(AppTheme.accent),
-                  borderRadius: BorderRadius.circular(18),
-                  border: _following
-                      ? Border.all(color: const Color(AppTheme.border))
-                      : null,
-                ),
-                child: _followBusy
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Color(AppTheme.accent)))
-                    : Text(
-                        _following ? '已关注' : '+ 关注',
-                        style: TextStyle(
-                            color: _following
-                                ? const Color(AppTheme.textSecondary)
-                                : Colors.black,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600),
-                      ),
-              ),
+        const SizedBox(height: 8),
+        if (_comments.isEmpty && !_cLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text('还没有评论，来抢沙发',
+                  style: TextStyle(
+                      color: Color(AppTheme.textTertiary), fontSize: 13)),
             ),
-          ),
-        if (_post!.sticky)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: const Color(AppTheme.sky).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+          )
+        else if (_comments.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: CircularProgressIndicator(
+                  color: Color(AppTheme.accent), strokeWidth: 2),
             ),
-            child: const Text('置顶',
-                style: TextStyle(color: Color(AppTheme.sky), fontSize: 11)),
-          ),
+          )
+        else
+          ..._comments.map((c) => _commentTile(c)),
       ],
     );
   }
+
+  /// 圆形浮层按钮（半透明黑底）
+  Widget _roundIconBtn(IconData icon, {required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.45),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 18),
+      ),
+    );
+  }
+
+  /// 作者浮层：用户名 + 认证徽标（媒体区上方）
+  Widget _authorOverlayName() {
+    final a = _post!.author;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(a.name,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600)),
+          if (a.isAdmin) ...[
+            const SizedBox(width: 4),
+            Text(a.adminName.isEmpty ? '认证' : a.adminName,
+                style: const TextStyle(
+                    color: Color(AppTheme.accent), fontSize: 10)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 关注胶囊（媒体区右上角，抖音式）
+  Widget _followPill() {
+    final a = _post!.author;
+    return GestureDetector(
+      onTap: _followBusy
+          ? null
+          : () async {
+              setState(() => _followBusy = true);
+              try {
+                await ApiClient.toggleFollow(a.id);
+                if (!mounted) return;
+                setState(() {
+                  _following = !_following;
+                  _followBusy = false;
+                });
+              } catch (_) {
+                if (!mounted) return;
+                setState(() => _followBusy = false);
+              }
+            },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: _following
+              ? const Color(AppTheme.elevated).withValues(alpha: 0.8)
+              : const Color(AppTheme.accent),
+          borderRadius: BorderRadius.circular(18),
+          border: _following
+              ? Border.all(color: const Color(AppTheme.border))
+              : null,
+        ),
+        child: _followBusy
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Color(AppTheme.accent)))
+            : Text(_following ? '已关注' : '关注',
+                style: TextStyle(
+                    color: _following
+                        ? const Color(AppTheme.textTertiary)
+                        : Colors.black,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+
 
   /// 分享帖子：底部面板（复制链接等）
   void _sharePost() {
@@ -661,50 +704,28 @@ class _PostDetailPageState extends State<PostDetailPage> {
           topics: p.topic,
           mentions: p.mentions,
         ),
-        if (p.images.isNotEmpty) ...[
+        // 文图帖：首图已在顶部媒体区，这里展示其余图片
+        if (p.images.length > 1) ...[
           const SizedBox(height: 12),
-          // 多图：网格展示，点击任意一张 → 全屏缩放查看器（双指缩放 + 左右滑）
-          if (p.images.length == 1)
-            GestureDetector(
-              onTap: () => _openGallery(0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: AspectRatio(
-                  aspectRatio: 4 / 3,
-                  child: CachedNetworkImageCompat(
-                    url: mediaUrl(p.images[0]),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            )
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < p.images.length; i++)
-                  GestureDetector(
-                    onTap: () => _openGallery(i),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: CachedNetworkImageCompat(
-                          url: mediaUrl(p.images[i]),
-                          fit: BoxFit.cover,
-                        ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 1; i < p.images.length; i++)
+                GestureDetector(
+                  onTap: () => _openGallery(i),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: CachedNetworkImageCompat(
+                        url: mediaUrl(p.images[i]),
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
-              ],
-            ),
-        ],
-        if (p.isVideo) ...[
-          const SizedBox(height: 12),
-          _InlineVideo(
-            url: mediaUrl(p.video),
-            coverUrl: mediaUrl(p.cover == 'auto' ? '${p.video}.jpg' : p.cover),
+                ),
+            ],
           ),
         ],
       ],
@@ -1115,7 +1136,9 @@ class _HighlightContent extends StatelessWidget {
 class _InlineVideo extends StatefulWidget {
   final String url;
   final String coverUrl;
-  const _InlineVideo({required this.url, required this.coverUrl});
+  final double borderRadius;
+  const _InlineVideo(
+      {required this.url, required this.coverUrl, this.borderRadius = 12});
 
   @override
   State<_InlineVideo> createState() => _InlineVideoState();
@@ -1177,7 +1200,7 @@ class _InlineVideoState extends State<_InlineVideo> {
           _restartHideTimer();
         },
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(widget.borderRadius),
           child: Container(
             color: Colors.black,
             child: AspectRatio(
@@ -1207,7 +1230,7 @@ class _InlineVideoState extends State<_InlineVideo> {
     return GestureDetector(
       onTap: _init,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(widget.borderRadius),
         child: AspectRatio(
           aspectRatio: 16 / 9,
           child: CachedNetworkImageCompat(
