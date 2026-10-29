@@ -20,6 +20,7 @@ import '../../widgets/poll_card.dart';
 import '../../widgets/comment_sheet.dart';
 import '../mine/login_page.dart';
 import '../user/user_profile.dart';
+import '../discover/topic_detail_page.dart';
 
 class PostDetailPage extends StatefulWidget {
   final String postId;
@@ -37,6 +38,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   int _likeCount = 0;
   bool _loading = true;
   bool _loadError = false;
+  Map<String, int> _hotTopicCounts = {};
   bool _following = false;
   bool _followBusy = false;
   int _cCount = 0;
@@ -49,6 +51,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
   void initState() {
     super.initState();
     _load();
+    _loadHotTopics();
+  }
+
+  Future<void> _loadHotTopics() async {
+    try {
+      final list = await ApiClient.topicsHot();
+      if (!mounted) return;
+      setState(() {
+        _hotTopicCounts = {
+          for (final t in list) (t['name'] ?? '') as String: ((t['count'] ?? 0) as num).toInt()
+        };
+      });
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -306,7 +321,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
             padding: EdgeInsets.only(top: safeTop + topBarH + 4),
             children: [
               _mediaBlock(),
+              _topicBar(),
               _contentBlock(),
+              _relatedSearch(),
               if (_post!.topic.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Wrap(
@@ -332,7 +349,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 _musicStrip(),
               ],
               const SizedBox(height: 8),
-              Text(timeAgo(_post!.created),
+              Text(dateText(_post!.created),
                   style: const TextStyle(
                       color: Color(AppTheme.textTertiary), fontSize: 11.5)),
               if (_post!.poll != null) ...[
@@ -469,6 +486,92 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 _actionBar(),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 话题聚合条（抖音式：#话题 + N条内容，点击进话题页）
+  Widget _topicBar() {
+    final topics = _post!.topic;
+    if (topics.isEmpty) return const SizedBox.shrink();
+    final t = topics.first;
+    final count = _hotTopicCounts[t];
+    return GestureDetector(
+      onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => TopicDetailPage(topic: t, count: count ?? 0))),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: const Color(AppTheme.accentSoft),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.local_fire_department_rounded,
+                color: Color(AppTheme.accent), size: 17),
+            const SizedBox(width: 8),
+            Text('#$t',
+                style: const TextStyle(
+                    color: Color(AppTheme.textPrimary),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(width: 8),
+            Text(count != null ? '$count条内容' : '参与话题',
+                style: const TextStyle(
+                    color: Color(AppTheme.textSecondary), fontSize: 12)),
+            const Spacer(),
+            const Icon(Icons.chevron_right_rounded,
+                color: Color(AppTheme.textTertiary), size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 相关搜索（抖音"看后搜"点位，用热门话题替代，点击进话题页）
+  Widget _relatedSearch() {
+    final hot = _hotTopicCounts.keys.take(3).toList();
+    if (hot.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('相关搜索',
+              style: TextStyle(
+                  color: Color(AppTheme.textTertiary), fontSize: 12)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final t in hot)
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => TopicDetailPage(
+                              topic: t, count: _hotTopicCounts[t] ?? 0))),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(AppTheme.card),
+                      borderRadius: BorderRadius.circular(16),
+                      border:
+                          Border.all(color: const Color(AppTheme.border)),
+                    ),
+                    child: Text('#$t',
+                        style: const TextStyle(
+                            color: Color(AppTheme.textPrimary),
+                            fontSize: 12.5)),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -1223,3 +1326,13 @@ class _InlineVideoState extends State<_InlineVideo> {
     );
   }
 }
+
+/// 发布时间：当年显示 M-d（9-20），跨年显示 yyyy-M-d
+String dateText(int ts) {
+  final t = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+  final now = DateTime.now();
+  final m = t.month.toString();
+  final d = t.day.toString();
+  return (t.year == now.year) ? '$m-$d' : '${t.year}-$m-$d';
+}
+
