@@ -292,104 +292,197 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = _post?.isVideo ?? false;
-    final mediaH = MediaQuery.of(context).size.height * 0.5;
     final safeTop = MediaQuery.of(context).padding.top;
+    // 顶部固定栏高度（状态栏 + 44），列表内容从下方开始滚动
+    const topBarH = 44.0;
     return Scaffold(
       backgroundColor: const Color(AppTheme.bg),
       // 键盘弹出只顶弹窗输入框，页面媒体/评论不被顶起
       resizeToAvoidBottomInset: false,
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: _loading && _post == null
-                ? const Center(
+          // 整个页面整体滚动：视频/首图 → 描述 → 话题 → 时间 → 评论区
+          ListView(
+            padding: EdgeInsets.only(top: safeTop + topBarH + 4),
+            children: [
+              _mediaBlock(),
+              _contentBlock(),
+              if (_post!.topic.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  children: _post!.topic
+                      .map((t) => Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(AppTheme.accentSoft),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text('#$t',
+                                style: const TextStyle(
+                                    color: Color(AppTheme.accent),
+                                    fontSize: 12)),
+                          ))
+                      .toList(),
+                ),
+              ],
+              if (_hasMusic) ...[
+                const SizedBox(height: 10),
+                _musicStrip(),
+              ],
+              const SizedBox(height: 8),
+              Text(timeAgo(_post!.created),
+                  style: const TextStyle(
+                      color: Color(AppTheme.textTertiary), fontSize: 11.5)),
+              if (_post!.poll != null) ...[
+                const SizedBox(height: 10),
+                PollCard(
+                  postId: _post!.id,
+                  poll: _post!.poll!,
+                  onChanged: () {
+                    if (!mounted) return;
+                    setState(() {});
+                  },
+                ),
+              ],
+              const SizedBox(height: 14),
+              const Divider(color: Color(AppTheme.border), height: 28),
+              Row(
+                children: [
+                  Text('共$_cCount条评论',
+                      style: const TextStyle(
+                          color: Color(AppTheme.textPrimary),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  if (_cHasMore)
+                    GestureDetector(
+                      onTap: () => _loadComments(),
+                      child: const Text('加载更多',
+                          style: TextStyle(
+                              color: Color(AppTheme.textSecondary),
+                              fontSize: 12)),
+                    ),
+                ],
+              ),
+              // 有爱评论引导条（对齐抖音）
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: const Text('有爱评论，说点儿好听的',
+                    style: TextStyle(
+                        color: Color(AppTheme.textTertiary), fontSize: 12)),
+              ),
+              const SizedBox(height: 6),
+              if (_comments.isEmpty && !_cLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text('还没有评论，来抢沙发',
+                        style: TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 13)),
+                  ),
+                )
+              else if (_comments.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
                     child: CircularProgressIndicator(
-                        color: Color(AppTheme.accent), strokeWidth: 2.5))
-                : _loadError && _post == null
-                    ? Center(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(AppTheme.accent),
-                            side: const BorderSide(color: Color(AppTheme.accent)),
-                          ),
-                          onPressed: _load,
-                          child: const Text('重新加载'),
-                        ),
-                      )
-                    : Stack(
+                        color: Color(AppTheme.accent), strokeWidth: 2),
+                  ),
+                )
+              else
+                ..._comments.map((c) => _commentTile(c)),
+              const SizedBox(height: 90), // 底部输入栏+数据栏避让
+            ],
+          ),
+          // 顶部固定栏（不随页面滚动）：× 返回 + 用户名 + 关注
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.only(top: safeTop, bottom: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.45),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 6),
+                  _roundIconBtn(Icons.close_rounded,
+                      onTap: () => Navigator.of(context).maybePop()),
+                  const SizedBox(width: 12),
+                  // 用户名（点击进主页）
+                  if (_post != null)
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  UserProfilePage(uid: _post!.author.id))),
+                      child: Row(
                         children: [
-                          // 顶部沉浸式媒体区（视频帖=视频；文图帖=首图大图）
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            height: mediaH,
-                            child: _mediaHeader(mediaH),
-                          ),
-                          // 信息区 + 评论区（媒体区下方独立滚动）
-                          Positioned(
-                            top: mediaH,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: _detailList(),
-                          ),
-                          // 返回浮层（左上角，视频上方）
-                          Positioned(
-                            top: safeTop + 6,
-                            left: 10,
-                            child: _roundIconBtn(
-                              Icons.close_rounded,
-                              onTap: () => Navigator.of(context).maybePop(),
-                            ),
-                          ),
-                          // 作者行浮层：用户名（返回右侧）
-                          if (_post != null)
-                            Positioned(
-                              top: safeTop + 8,
-                              left: 62,
-                              child: _authorOverlayName(),
-                            ),
-                          // 关注胶囊（右上角）
-                          if (_post != null &&
-                              _post!.author.id != ApiClient.userId)
-                            Positioned(
-                              top: safeTop + 10,
-                              right: 12,
-                              child: _followPill(),
-                            ),
-                          // 分享浮层（关注左侧）
-                          if (_post != null)
-                            Positioned(
-                              top: safeTop + 6,
-                              right: _post!.author.id != ApiClient.userId
-                                  ? 92
-                                  : 12,
-                              child: _roundIconBtn(
-                                Icons.ios_share,
-                                onTap: _sharePost,
-                              ),
-                            ),
+                          Text(_post!.author.name,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600)),
+                          if (_post!.author.isAdmin) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                                _post!.author.adminName.isEmpty
+                                    ? '认证'
+                                    : _post!.author.adminName,
+                                style: const TextStyle(
+                                    color: Color(AppTheme.accent),
+                                    fontSize: 10)),
+                          ],
                         ],
                       ),
+                    ),
+                  const Spacer(),
+                  if (_post != null && _post!.author.id != ApiClient.userId)
+                    _followPill(),
+                  const SizedBox(width: 12),
+                ],
+              ),
+            ),
           ),
-          _commentInput(),
-          _actionBar(),
+          // 底部固定：说点什么… + 互动数据栏
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _commentInput(),
+                _actionBar(),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// 顶部沉浸式媒体区
-  Widget _mediaHeader(double h) {
+  /// 媒体块（列表第一项）：视频帖=全宽视频；文图帖=首图大图
+  Widget _mediaBlock() {
     final p = _post!;
     if (p.isVideo) {
       return Container(
         color: Colors.black,
-        alignment: Alignment.center,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: _InlineVideo(
             url: mediaUrl(p.video),
             coverUrl: mediaUrl(
@@ -399,125 +492,40 @@ class _PostDetailPageState extends State<PostDetailPage> {
         ),
       );
     }
-    // 文图帖：首图大图沉浸展示
     if (p.images.isNotEmpty) {
       return GestureDetector(
         onTap: () => _openGallery(0),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CachedNetworkImageCompat(
-              url: mediaUrl(p.images[0]),
-              fit: BoxFit.cover,
-            ),
-            if (p.images.length > 1)
-              Positioned(
-                bottom: 10,
-                right: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('${p.images.length}张',
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 11)),
-                ),
+        child: AspectRatio(
+          aspectRatio: p.images.length > 1 ? 1 : 4 / 3,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImageCompat(
+                url: mediaUrl(p.images[0]),
+                fit: BoxFit.cover,
               ),
-          ],
+              if (p.images.length > 1)
+                Positioned(
+                  bottom: 10,
+                  right: 12,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text('${p.images.length}张',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 11)),
+                  ),
+                ),
+            ],
+          ),
         ),
       );
     }
-    return Container(color: Colors.black);
-  }
-
-  /// 信息区 + 评论区滚动列表（媒体区下方）
-  Widget _detailList() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      children: [
-        _contentBlock(),
-        if (_post!.topic.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            children: _post!.topic
-                .map((t) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(AppTheme.accentSoft),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text('#$t',
-                          style: const TextStyle(
-                              color: Color(AppTheme.accent), fontSize: 12)),
-                    ))
-                .toList(),
-          ),
-        ],
-        if (_hasMusic) ...[
-          const SizedBox(height: 10),
-          _musicStrip(),
-        ],
-        const SizedBox(height: 8),
-        Text(timeAgo(_post!.created),
-            style: const TextStyle(
-                color: Color(AppTheme.textTertiary), fontSize: 11.5)),
-        if (_post!.poll != null) ...[
-          const SizedBox(height: 10),
-          PollCard(
-            postId: _post!.id,
-            poll: _post!.poll!,
-            onChanged: () {
-              if (!mounted) return;
-              setState(() {});
-            },
-          ),
-        ],
-        const SizedBox(height: 14),
-        const Divider(color: Color(AppTheme.border), height: 28),
-        Row(
-          children: [
-            Text('共$_cCount条评论',
-                style: const TextStyle(
-                    color: Color(AppTheme.textPrimary),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600)),
-            const Spacer(),
-            if (_cHasMore)
-              GestureDetector(
-                onTap: () => _loadComments(),
-                child: const Text('加载更多',
-                    style: TextStyle(
-                        color: Color(AppTheme.textSecondary), fontSize: 12)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (_comments.isEmpty && !_cLoading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: Text('还没有评论，来抢沙发',
-                  style: TextStyle(
-                      color: Color(AppTheme.textTertiary), fontSize: 13)),
-            ),
-          )
-        else if (_comments.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2),
-            ),
-          )
-        else
-          ..._comments.map((c) => _commentTile(c)),
-      ],
-    );
+    return const SizedBox.shrink();
   }
 
   /// 圆形浮层按钮（半透明黑底）
@@ -536,35 +544,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  /// 作者浮层：用户名 + 认证徽标（媒体区上方）
-  Widget _authorOverlayName() {
-    final a = _post!.author;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(a.name,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600)),
-          if (a.isAdmin) ...[
-            const SizedBox(width: 4),
-            Text(a.adminName.isEmpty ? '认证' : a.adminName,
-                style: const TextStyle(
-                    color: Color(AppTheme.accent), fontSize: 10)),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// 关注胶囊（媒体区右上角，抖音式）
+  /// 关注胶囊（顶部栏右侧，抖音式）
   Widget _followPill() {
     final a = _post!.author;
     return GestureDetector(
@@ -611,6 +591,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       ),
     );
   }
+
 
 
 
