@@ -47,6 +47,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool _cHasMore = false;
   bool _cLoading = false;
 
+  // 多图图集：同一位置 PageView 切换 + 指示点
+  final PageController _mediaPageController = PageController();
+  int _mediaIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +101,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   void dispose() {
+    _mediaPageController.dispose();
     MusicBgm.I.stop();
     super.dispose();
   }
@@ -392,6 +397,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         color: Color(AppTheme.textTertiary), fontSize: 12)),
               ),
               const SizedBox(height: 6),
+              _replyRow(),
               if (_comments.isEmpty && !_cLoading)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -448,6 +454,25 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                   UserProfilePage(uid: _post!.author.id))),
                       child: Row(
                         children: [
+                          // 作者头像（用户名左侧，26px，无头像首字兜底）
+                          CircleAvatar(
+                            radius: 13,
+                            backgroundColor:
+                                const Color(AppTheme.elevated),
+                            backgroundImage: NetworkImage(
+                                avatarUrlOf(_post!.author.id)),
+                            onBackgroundImageError: (_, __) {},
+                            child: Text(
+                              _post!.author.name.isNotEmpty
+                                  ? _post!.author.name.characters.first
+                                  : '?',
+                              style: const TextStyle(
+                                  color: Color(AppTheme.textSecondary),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(width: 7),
                           Text(_post!.author.name,
                               style: const TextStyle(
                                   color: Colors.white,
@@ -596,35 +621,62 @@ class _PostDetailPageState extends State<PostDetailPage> {
       );
     }
     if (p.images.isNotEmpty) {
-      return GestureDetector(
-        onTap: () => _openGallery(0),
-        child: AspectRatio(
-          aspectRatio: p.images.length > 1 ? 1 : 4 / 3,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CachedNetworkImageCompat(
-                url: mediaUrl(p.images[0]),
-                fit: BoxFit.cover,
-              ),
-              if (p.images.length > 1)
-                Positioned(
-                  bottom: 10,
-                  right: 12,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text('${p.images.length}张',
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 11)),
-                  ),
-                ),
-            ],
+      if (p.images.length == 1) {
+        // 单图：自适应比例，点击进全屏查看
+        return GestureDetector(
+          onTap: () => _openGallery(0),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: CachedNetworkImageCompat(
+              url: mediaUrl(p.images[0]),
+              fit: BoxFit.cover,
+            ),
           ),
+        );
+      }
+      // 多图：同一位置图集式（PageView 左右滑动切换）+ 指示点，不堆叠
+      return AspectRatio(
+        aspectRatio: 1,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PageView.builder(
+              controller: _mediaPageController,
+              itemCount: p.images.length,
+              onPageChanged: (i) => setState(() => _mediaIndex = i),
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () => _openGallery(i),
+                child: CachedNetworkImageCompat(
+                  url: mediaUrl(p.images[i]),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            // 指示点（当前页品牌绿，其余半透明白）
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 10,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < p.images.length; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == _mediaIndex ? 6 : 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: i == _mediaIndex
+                            ? const Color(AppTheme.accent)
+                            : Colors.white.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -926,6 +978,58 @@ class _PostDetailPageState extends State<PostDetailPage> {
           Text(label,
               style: TextStyle(color: color, fontSize: 11.5)),
         ],
+      ),
+    );
+  }
+
+  /// 评论列表上方：当前用户头像 + 圆角输入卡 + 发布图标（点击弹评论输入弹窗）
+  Widget _replyRow() {
+    final uid = ApiClient.userId ?? '';
+    return GestureDetector(
+      onTap: _openComments,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: const Color(AppTheme.elevated),
+              backgroundImage:
+                  uid.isNotEmpty ? NetworkImage(avatarUrlOf(uid)) : null,
+              onBackgroundImageError: uid.isNotEmpty ? (_, __) {} : null,
+              child: const Icon(Icons.person,
+                  size: 16, color: Color(AppTheme.textSecondary)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  color: const Color(AppTheme.card),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(AppTheme.border)),
+                ),
+                child: const Text('说点什么...',
+                    style: TextStyle(
+                        color: Color(AppTheme.textTertiary), fontSize: 13.5)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(AppTheme.accent),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.send_rounded,
+                  size: 17, color: Color(0xFF06221A)),
+            ),
+          ],
+        ),
       ),
     );
   }
