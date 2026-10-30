@@ -321,104 +321,116 @@ class _PostDetailPageState extends State<PostDetailPage> {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // 整个页面整体滚动：视频/首图 → 描述 → 话题 → 时间 → 评论区
+          // 整个页面整体滚动：视频/首图(全宽) → 下方内容统一 16 左右间距
           ListView(
-            padding: EdgeInsets.only(top: safeTop + topBarH + 4),
+            padding: EdgeInsets.only(top: safeTop + topBarH + 8),
             children: [
               _mediaBlock(),
-              _topicBar(),
-              _contentBlock(),
-              _relatedSearch(),
-              if (_post!.topic.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 6,
-                  children: _post!.topic
-                      .map((t) => Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(AppTheme.accentSoft),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text('#$t',
-                                style: const TextStyle(
-                                    color: Color(AppTheme.accent),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 14),
+                    _topicBar(),
+                    const SizedBox(height: 12),
+                    _contentBlock(),
+                    _relatedSearch(),
+                    if (_post!.topic.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 8,
+                        children: _post!.topic
+                            .map((t) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(AppTheme.accentSoft),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text('#$t',
+                                      style: const TextStyle(
+                                          color: Color(AppTheme.accent),
+                                          fontSize: 12)),
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                    if (_hasMusic) ...[
+                      const SizedBox(height: 12),
+                      _musicStrip(),
+                    ],
+                    const SizedBox(height: 12),
+                    Text(dateText(_post!.created),
+                        style: const TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 11.5)),
+                    if (_post!.poll != null) ...[
+                      const SizedBox(height: 12),
+                      PollCard(
+                        postId: _post!.id,
+                        poll: _post!.poll!,
+                        onChanged: () {
+                          if (!mounted) return;
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    const Divider(
+                        color: Color(AppTheme.border), height: 1),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Text('共$_cCount条评论',
+                            style: const TextStyle(
+                                color: Color(AppTheme.textPrimary),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600)),
+                        const Spacer(),
+                        if (_cHasMore)
+                          GestureDetector(
+                            onTap: () => _loadComments(),
+                            child: const Text('加载更多',
+                                style: TextStyle(
+                                    color: Color(AppTheme.textSecondary),
                                     fontSize: 12)),
-                          ))
-                      .toList(),
-                ),
-              ],
-              if (_hasMusic) ...[
-                const SizedBox(height: 10),
-                _musicStrip(),
-              ],
-              const SizedBox(height: 8),
-              Text(dateText(_post!.created),
-                  style: const TextStyle(
-                      color: Color(AppTheme.textTertiary), fontSize: 11.5)),
-              if (_post!.poll != null) ...[
-                const SizedBox(height: 10),
-                PollCard(
-                  postId: _post!.id,
-                  poll: _post!.poll!,
-                  onChanged: () {
-                    if (!mounted) return;
-                    setState(() {});
-                  },
-                ),
-              ],
-              const SizedBox(height: 14),
-              const Divider(color: Color(AppTheme.border), height: 28),
-              Row(
-                children: [
-                  Text('共$_cCount条评论',
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
-                  const Spacer(),
-                  if (_cHasMore)
-                    GestureDetector(
-                      onTap: () => _loadComments(),
-                      child: const Text('加载更多',
-                          style: TextStyle(
-                              color: Color(AppTheme.textSecondary),
-                              fontSize: 12)),
+                          ),
+                      ],
                     ),
-                ],
-              ),
-              // 有爱评论引导条（对齐抖音）
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: const Text('有爱评论，说点儿好听的',
-                    style: TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 12)),
-              ),
-              const SizedBox(height: 6),
-              _replyRow(),
-              if (_comments.isEmpty && !_cLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text('还没有评论，来抢沙发',
+                    // 有爱评论引导条（对齐抖音）
+                    const SizedBox(height: 8),
+                    const Text('有爱评论，说点儿好听的',
                         style: TextStyle(
                             color: Color(AppTheme.textTertiary),
-                            fontSize: 13)),
-                  ),
-                )
-              else if (_comments.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                        color: Color(AppTheme.accent), strokeWidth: 2),
-                  ),
-                )
-              else
-                ..._comments.map((c) => _commentTile(c)),
-              const SizedBox(height: 90), // 底部输入栏+数据栏避让
+                            fontSize: 12)),
+                    const SizedBox(height: 4),
+                    _replyRow(),
+                    if (_comments.isEmpty && !_cLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text('还没有评论，来抢沙发',
+                              style: TextStyle(
+                                  color: Color(AppTheme.textTertiary),
+                                  fontSize: 13)),
+                        ),
+                      )
+                    else if (_comments.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                              color: Color(AppTheme.accent), strokeWidth: 2),
+                        ),
+                      )
+                    else
+                      ..._comments.map((c) => _commentTile(c)),
+                    const SizedBox(height: 100), // 底部单行栏避让
+                  ],
+                ),
+              ),
             ],
           ),
           // 顶部固定栏（不随页面滚动）：× 返回 + 用户名 + 关注
@@ -441,7 +453,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
               child: Row(
                 children: [
                   const SizedBox(width: 6),
-                  _roundIconBtn(Icons.close_rounded,
+                  _roundIconBtn(Icons.arrow_back_rounded,
                       onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
                   // 用户名（点击进主页）
