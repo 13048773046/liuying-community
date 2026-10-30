@@ -499,18 +499,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
               ),
             ),
           ),
-          // 底部固定：说点什么… + 互动数据栏
+          // 底部固定：单行（抖音式，约 50dp）——输入条+表情/图片+点赞/评论/收藏/分享同排
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _commentInput(),
-                _actionBar(),
-              ],
-            ),
+            child: _bottomBar(),
           ),
         ],
       ),
@@ -910,51 +904,100 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  /// 底部互动数据栏（抖音式：点赞/评论/收藏/分享 图标+数字）
-  Widget _actionBar() {
+  /// 底部单行栏（抖音式，总高约 50dp）：圆角输入条 + 表情/图片 + 点赞/评论/收藏/分享 同排
+  Widget _bottomBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: const BoxDecoration(
-        color: Color(AppTheme.card),
+        color: Color(AppTheme.bg),
         border: Border(top: BorderSide(color: Color(AppTheme.border), width: 0.5)),
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            _actionItem(Icons.thumb_up_alt_rounded, countText(_likeCount),
-                _liked ? const Color(AppTheme.accent) : const Color(AppTheme.textSecondary),
-                _toggleLike),
-            const SizedBox(width: 18),
-            _actionItem(Icons.comment_rounded, countText(_cCount),
-                const Color(AppTheme.textSecondary), _openComments),
-            const SizedBox(width: 18),
-            _actionItem(
-                _faved || _latered ? Icons.star_rounded : Icons.star_border_rounded,
-                _faved || _latered ? '已收藏' : '收藏',
-                (_faved || _latered)
-                    ? const Color(AppTheme.peach)
-                    : const Color(AppTheme.textSecondary),
-                _showFavSheet),
-            const SizedBox(width: 18),
-            _actionItem(Icons.share_outlined, '分享',
-                const Color(AppTheme.textSecondary), () {}),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+          child: Row(
+            children: [
+              // 抖音式圆角胶囊输入条（占剩余宽度，点击弹评论输入弹窗）
+              Expanded(
+                child: GestureDetector(
+                  onTap: _openComments,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(AppTheme.card),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(AppTheme.border)),
+                    ),
+                    child: const Text('说点什么...',
+                        style: TextStyle(
+                            color: Color(AppTheme.textTertiary),
+                            fontSize: 13.5)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 表情 / 图片
+              _miniIcon(Icons.emoji_emotions_outlined, _openComments),
+              _miniIcon(Icons.image_outlined, _openComments),
+              // 点赞（激活品牌绿）
+              _miniAction(
+                  _liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined,
+                  countText(_likeCount),
+                  _liked ? const Color(AppTheme.accent) : null, _toggleLike),
+              // 评论
+              _miniAction(Icons.comment_rounded, countText(_cCount), null,
+                  _openComments),
+              // 收藏（激活用 peach）
+              _miniAction(
+                  _faved || _latered
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  '',
+                  (_faved || _latered) ? const Color(AppTheme.peach) : null,
+                  _showFavSheet),
+              // 分享
+              _miniIcon(Icons.share_outlined, _sharePost),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _actionItem(IconData icon, String label, Color color, VoidCallback onTap) {
+  /// 底部单行小图标按钮（22px，间距紧凑）
+  Widget _miniIcon(IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(color: color, fontSize: 11.5)),
-        ],
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Icon(icon, size: 22, color: const Color(AppTheme.textSecondary)),
+      ),
+    );
+  }
+
+  /// 底部单行动作：图标 + 可选数字（激活时高亮，默认白/次色）
+  Widget _miniAction(IconData icon, String label, Color? active, VoidCallback onTap) {
+    final color = active ?? const Color(AppTheme.textSecondary);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: color),
+            if (label.isNotEmpty) ...[
+              const SizedBox(width: 3),
+              Text(label,
+                  style: TextStyle(color: color, fontSize: 10.5)),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -1006,46 +1049,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   size: 17, color: Color(0xFF06221A)),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _commentInput() {
-    return GestureDetector(
-      onTap: _openComments,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            children: [
-              // 抖音式圆角胶囊输入条
-              Expanded(
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    color: const Color(AppTheme.card),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(AppTheme.border)),
-                  ),
-                  child: const Text('说点什么...',
-                      style: TextStyle(
-                          color: Color(AppTheme.textTertiary),
-                          fontSize: 14)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Icon(Icons.emoji_emotions_outlined,
-                  color: Color(AppTheme.textSecondary), size: 22),
-              const SizedBox(width: 12),
-              const Icon(Icons.image_outlined,
-                  color: Color(AppTheme.textSecondary), size: 22),
-            ],
-          ),
         ),
       ),
     );
