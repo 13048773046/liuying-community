@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
 import '../services/notify_bus.dart';
+import '../utils/music_bgm.dart';
 import 'home/home_page.dart';
 import 'message/message_page.dart';
 import 'mine/mine_page.dart';
@@ -29,6 +30,14 @@ class RootPage extends StatefulWidget {
 
 class _RootPageState extends State<RootPage> {
   int _tab = 0; // 0 首页 | 1 版块 | 2 短视频(中间) | 3 消息 | 4 我的
+
+  /// 切 tab：离开短视频页时停配乐，避免残留播放
+  void _onTabChanged(int i) {
+    if (_tab == 2 && i != 2) {
+      MusicBgm.I.stop();
+    }
+    setState(() => _tab = i);
+  }
 
   static const _pages = <Widget>[
     HomePage(),
@@ -99,10 +108,10 @@ class _RootPageState extends State<RootPage> {
             bottom: 0,
             child: _ShortsSelectionScope(
               selection: _tab,
-              onChanged: (i) => setState(() => _tab = i),
+              onChanged: _onTabChanged,
               child: _AppTabBar(
                 selection: _tab,
-                onChanged: (i) => setState(() => _tab = i),
+                onChanged: _onTabChanged,
               ),
             ),
           ),

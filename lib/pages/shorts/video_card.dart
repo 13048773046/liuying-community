@@ -61,6 +61,9 @@ class _VideoCardState extends State<VideoCard> {
     _shareCount = widget.item.shareCount;
     if (widget.item.video.isNotEmpty) {
       _initVideo();
+    } else {
+      // 图文/纯文帖：短视频 tab 同样播放所选配乐（抖音式图集有 BGM）
+      _syncBgm();
     }
   }
 
@@ -89,15 +92,29 @@ class _VideoCardState extends State<VideoCard> {
         c.play();
         if (_useBgm) {
           c.setVolume(0);
-          MusicBgm.I.play((widget.item.music!['url'] as String));
         } else {
           c.setVolume(_muted ? 0 : 1);
-          MusicBgm.I.stop();
         }
+        _syncBgm();
       }
     } catch (_) {
       if (!mounted) return;
       setState(() => _failed = true);
+    }
+  }
+
+  /// 配乐播放状态同步（视频帖与图文帖共用）：
+  /// - 当前页且带配乐 → 播配乐（视频帖同时静音视频原声）
+  /// - 当前页无配乐 → 停配乐
+  /// - 离屏页不干预（下一页 isActive 会覆盖）
+  void _syncBgm() {
+    if (!widget.isActive) return;
+    final m = widget.item.music;
+    final u = m?['url'];
+    if (u is String && u.isNotEmpty) {
+      MusicBgm.I.play(u);
+    } else {
+      MusicBgm.I.stop();
     }
   }
 
@@ -106,6 +123,7 @@ class _VideoCardState extends State<VideoCard> {
     super.didUpdateWidget(old);
     if (old.isActive != widget.isActive) {
       _syncPlayback();
+      _syncBgm();
     }
   }
 
@@ -118,10 +136,8 @@ class _VideoCardState extends State<VideoCard> {
       v.play();
       if (_useBgm) {
         v.setVolume(0);
-        MusicBgm.I.play((widget.item.music!['url'] as String));
       } else {
         v.setVolume(_muted ? 0 : 1);
-        MusicBgm.I.stop();
       }
     } else {
       v.pause();
@@ -132,6 +148,8 @@ class _VideoCardState extends State<VideoCard> {
   void dispose() {
     _hideTimer?.cancel();
     _video?.dispose();
+    // 页面销毁时停配乐，避免残留
+    MusicBgm.I.stop();
     super.dispose();
   }
 
@@ -504,19 +522,25 @@ class _ImageMedia extends StatefulWidget {
 class _ImageMediaState extends State<_ImageMedia> {
   int _idx = 0;
 
+  /// 单张图：宽撑满屏幕、高按原比例自适应、垂直居中（不裁切，抖音图集式）
+  Widget _image(String url) => GestureDetector(
+        onDoubleTap: widget.onDoubleTap,
+        child: Center(
+          child: CachedNetworkImage(
+            imageUrl: mediaUrl(url),
+            fit: BoxFit.fitWidth,
+            width: double.infinity,
+            placeholder: (_, __) => const _MediaLoading(),
+            errorWidget: (_, __, ___) => const _MediaLoading(),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final imgs = widget.images;
     if (imgs.length == 1) {
-      return GestureDetector(
-        onDoubleTap: widget.onDoubleTap,
-        child: CachedNetworkImage(
-          imageUrl: mediaUrl(imgs.first),
-          fit: BoxFit.cover,
-          placeholder: (_, __) => const _MediaLoading(),
-          errorWidget: (_, __, ___) => const _MediaLoading(),
-        ),
-      );
+      return _image(imgs.first);
     }
     return Stack(
       fit: StackFit.expand,
@@ -524,15 +548,7 @@ class _ImageMediaState extends State<_ImageMedia> {
         PageView.builder(
           itemCount: imgs.length,
           onPageChanged: (i) => setState(() => _idx = i),
-          itemBuilder: (_, i) => GestureDetector(
-            onDoubleTap: widget.onDoubleTap,
-            child: CachedNetworkImage(
-              imageUrl: mediaUrl(imgs[i]),
-              fit: BoxFit.cover,
-              placeholder: (_, __) => const _MediaLoading(),
-              errorWidget: (_, __, ___) => const _MediaLoading(),
-            ),
-          ),
+          itemBuilder: (_, i) => _image(imgs[i]),
         ),
         // 页码指示（右下角，抖音图集式）
         Positioned(
