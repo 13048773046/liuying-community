@@ -840,30 +840,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           topics: p.topic,
           mentions: p.mentions,
         ),
-        // 文图帖：首图已在顶部媒体区，这里展示其余图片
-        if (p.images.length > 1) ...[
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (var i = 1; i < p.images.length; i++)
-                GestureDetector(
-                  onTap: () => _openGallery(i),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: CachedNetworkImageCompat(
-                        url: mediaUrl(p.images[i]),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
+        // 图片只在顶部媒体区单位置展示（多图为滑动图集），正文不再重复渲染
       ],
     );
   }
@@ -1039,37 +1016,34 @@ class _PostDetailPageState extends State<PostDetailPage> {
       onTap: _openComments,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        decoration: const BoxDecoration(
-          color: Color(AppTheme.card),
-          border: Border(top: BorderSide(color: Color(AppTheme.border), width: 0.5)),
-        ),
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
         child: SafeArea(
           top: false,
           child: Row(
             children: [
-              const CircleAvatar(
-                radius: 14,
-                backgroundColor: Color(AppTheme.elevated),
-                child: Icon(Icons.person,
-                    size: 15, color: Color(AppTheme.textSecondary)),
-              ),
-              const SizedBox(width: 10),
+              // 抖音式圆角胶囊输入条
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  alignment: Alignment.centerLeft,
+                  decoration: BoxDecoration(
+                    color: const Color(AppTheme.card),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(AppTheme.border)),
+                  ),
                   child: const Text('说点什么...',
                       style: TextStyle(
                           color: Color(AppTheme.textTertiary),
                           fontSize: 14)),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               const Icon(Icons.emoji_emotions_outlined,
-                  color: Color(AppTheme.textTertiary), size: 20),
-              const SizedBox(width: 14),
+                  color: Color(AppTheme.textSecondary), size: 22),
+              const SizedBox(width: 12),
               const Icon(Icons.image_outlined,
-                  color: Color(AppTheme.textTertiary), size: 20),
+                  color: Color(AppTheme.textSecondary), size: 22),
             ],
           ),
         ),
