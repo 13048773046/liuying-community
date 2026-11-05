@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
-import '../../config.dart';
+import '../../design/components.dart';
 import '../../services/notify_bus.dart';
 import '../../services/auth_session.dart';
 
@@ -68,16 +68,7 @@ class _LoginPageState extends State<LoginPage> {
         _countdown = 60;
         _sendingCode = false;
       });
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-          content: Text('验证码已发送至 $email，请查收',
-              style: const TextStyle(fontSize: 13)),
-          backgroundColor: const Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 3),
-        ));
+      showAppToast(context, '验证码已发送至 $email，请查收');
       // 倒计时
       Future.doWhile(() async {
         await Future.delayed(const Duration(seconds: 1));
@@ -130,208 +121,183 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 30),
-              // Logo 区：萤火虫图标 + 名称
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(AppTheme.gradStart), Color(AppTheme.gradEnd)],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Icon(Icons.local_fire_department,
-                    color: Colors.white, size: 34),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          const GlassTopBar(title: '登录 / 注册', solid: true),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                AppSpace.gutter,
+                AppSpace.x6,
+                AppSpace.gutter,
+                AppSpace.x7 + MediaQuery.paddingOf(context).bottom,
               ),
-              const SizedBox(height: 18),
-              const Text('流萤社区',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              const Text('登录 / 注册',
-                  style: TextStyle(
-                      color: Color(AppTheme.textSecondary), fontSize: 13)),
-              const SizedBox(height: 40),
-              // 邮箱
-              TextField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                onChanged: (_) => setState(() {}), // 驱动发送按钮可用态
-                style: const TextStyle(color: Colors.white),
-                decoration: _input('邮箱地址', Icons.mail_outline),
-              ),
-              const SizedBox(height: 14),
-              // 验证码 + 发送按钮
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _code,
-                      keyboardType: TextInputType.number,
-                      maxLength: 6,
-                      onChanged: (_) => setState(() {}), // 驱动登录按钮可用态
-                      style: const TextStyle(color: Colors.white),
-                      decoration: _input('验证码', Icons.verified_outlined)
-                          .copyWith(counterText: ''),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: _canSendCode ? _sendCode : null,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: _canSendCode
-                            ? const Color(AppTheme.accent)
-                            : const Color(AppTheme.card),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: _sendingCode
-                          ? const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 13,
-                                  height: 13,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 1.8,
-                                      color: Color(AppTheme.textSecondary)),
-                                ),
-                                SizedBox(width: 6),
-                                Text('发送中',
-                                    style: TextStyle(
-                                        color: Color(AppTheme.textSecondary),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600)),
-                              ],
-                            )
-                          : Text(
-                              _countdown > 0 ? '${_countdown}s' : '发送验证码',
-                              style: TextStyle(
-                                color: _canSendCode
-                                    ? const Color(AppTheme.bg)
-                                    : const Color(AppTheme.textSecondary),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // 协议勾选
-              Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: () => setState(() => _agreed = !_agreed),
-                    child: Icon(
-                      _agreed
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      size: 18,
-                      color: _agreed
-                          ? const Color(AppTheme.accent)
-                          : const Color(AppTheme.textSecondary),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        const Text('我已阅读并同意',
-                            style: TextStyle(
-                                color: Color(AppTheme.textSecondary),
-                                fontSize: 12)),
-                        GestureDetector(
-                          onTap: () => _openAgreement(context),
-                          child: const Text('《用户协议》',
-                              style: TextStyle(
-                                  color: Color(AppTheme.accent),
-                                  fontSize: 12)),
-                        ),
-                        const Text('和',
-                            style: TextStyle(
-                                color: Color(AppTheme.textSecondary),
-                                fontSize: 12)),
-                        GestureDetector(
-                          onTap: () => _openPrivacy(context),
-                          child: const Text('《隐私政策》',
-                              style: TextStyle(
-                                  color: Color(AppTheme.accent),
-                                  fontSize: 12)),
+                  // Logo 区：萤火虫图标 + 名称
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(AppColors.accent)
+                              .withValues(alpha: 0.22),
+                          blurRadius: 32,
+                          spreadRadius: 1,
                         ),
                       ],
                     ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 76,
+                        height: 76,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.x5),
+                  const Text('流萤社区', style: AppType.display),
+                  const SizedBox(height: AppSpace.x2),
+                  Text(
+                    '登录 / 注册 · 账号与流萤音乐互通',
+                    style: AppType.bodySm,
+                  ),
+                  const SizedBox(height: AppSpace.x7),
+                  // 邮箱
+                  TextField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    onChanged: (_) => setState(() {}), // 驱动发送按钮可用态
+                    style: AppType.body,
+                    cursorColor: const Color(AppColors.accent),
+                    decoration: _input('邮箱地址', Icons.mail_outline_rounded),
+                  ),
+                  const SizedBox(height: AppSpace.x3),
+                  // 验证码 + 发送按钮
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _code,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          onChanged: (_) => setState(() {}), // 驱动登录按钮可用态
+                          style: AppType.body,
+                          cursorColor: const Color(AppColors.accent),
+                          decoration: _input('验证码', Icons.verified_outlined),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpace.x2),
+                      PillButton(
+                        label: _countdown > 0 ? '${_countdown}s' : '发送验证码',
+                        size: PillSize.md,
+                        variant: _canSendCode
+                            ? PillVariant.primary
+                            : PillVariant.tonal,
+                        loading: _sendingCode,
+                        enabled: _canSendCode,
+                        onTap: _sendCode,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.x3),
+                  // 协议勾选
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PressableScale(
+                        onTap: () => setState(() => _agreed = !_agreed),
+                        scale: 0.9,
+                        child: Icon(
+                          _agreed
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          size: 18,
+                          color: _agreed
+                              ? const Color(AppColors.accent)
+                              : const Color(AppColors.textTertiary),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text('我已阅读并同意', style: AppType.caption),
+                            PressableScale(
+                              onTap: () => _openAgreement(context),
+                              child: Text('《用户协议》',
+                                  style: AppType.caption
+                                      .copyWith(color: const Color(AppColors.accent))),
+                            ),
+                            Text('和', style: AppType.caption),
+                            PressableScale(
+                              onTap: () => _openPrivacy(context),
+                              child: Text('《隐私政策》',
+                                  style: AppType.caption
+                                      .copyWith(color: const Color(AppColors.accent))),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: AppSpace.x3),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpace.x3),
+                      decoration: BoxDecoration(
+                        color: const Color(AppColors.danger)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.error_outline_rounded,
+                              size: 16, color: Color(AppColors.danger)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: AppType.caption
+                                  .copyWith(color: const Color(AppColors.danger)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpace.x6),
+                  // 登录按钮
+                  PillButton(
+                    label: '登录 / 注册',
+                    size: PillSize.lg,
+                    expand: true,
+                    glow: _canSubmit,
+                    loading: _submitting,
+                    enabled: _canSubmit,
+                    onTap: _login,
+                  ),
+                  const SizedBox(height: AppSpace.x4),
+                  Center(
+                    child: Text(
+                      '验证码将发送至邮箱，新用户自动注册 · 账号与流萤音乐互通',
+                      textAlign: TextAlign.center,
+                      style: AppType.micro,
+                    ),
                   ),
                 ],
               ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!,
-                    style: const TextStyle(
-                        color: Color(0xFFFF4D6D), fontSize: 13)),
-              ],
-              const SizedBox(height: 26),
-              // 登录按钮
-              GestureDetector(
-                onTap: _canSubmit ? _login : null,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _canSubmit
-                        ? const Color(AppTheme.accent)
-                        : const Color(AppTheme.card),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2.2, color: Colors.white))
-                      : Text(
-                          _canSubmit ? '登录 / 注册' : '登录 / 注册',
-                          style: TextStyle(
-                              color: _canSubmit
-                                  ? const Color(AppTheme.bg)
-                                  : const Color(AppTheme.textSecondary),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Center(
-                child: Text(
-                  '验证码将发送至邮箱，新用户自动注册 · 账号与流萤音乐互通',
-                  style: TextStyle(
-                      color: Colors.white.withOpacity(0.5), fontSize: 12),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -350,16 +316,12 @@ class _LoginPageState extends State<LoginPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(AppTheme.card),
-        title: const Text('打开协议',
-            style: TextStyle(color: Color(AppTheme.textPrimary))),
-        content: Text(url,
-            style: const TextStyle(color: Color(AppTheme.textSecondary))),
+        title: const Text('打开协议'),
+        content: Text(url, style: AppType.bodySm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('知道了',
-                style: TextStyle(color: Color(AppTheme.accent))),
+            child: const Text('知道了'),
           ),
         ],
       ),
@@ -369,15 +331,11 @@ class _LoginPageState extends State<LoginPage> {
   InputDecoration _input(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFF6E6E7A)),
-      prefixIcon: Icon(icon, size: 20, color: const Color(AppTheme.textSecondary)),
-      filled: true,
-      fillColor: const Color(AppTheme.card),
-      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
+      hintStyle:
+          AppType.bodySm.copyWith(color: const Color(AppColors.textTertiary)),
+      prefixIcon:
+          Icon(icon, size: 20, color: const Color(AppColors.textTertiary)),
+      counterText: '',
     );
   }
 }

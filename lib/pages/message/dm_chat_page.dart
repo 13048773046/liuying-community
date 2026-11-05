@@ -1,8 +1,8 @@
-/// 私信聊天页：IM 气泡（我右/对方左）+ 输入框 + WebSocket 实时收发
+/// 私信聊天页（沉浸黑）：IM 气泡（我右/对方左）+ 贴底输入条 + WebSocket 实时收发
 /// - 进入标记已读；WS onDm 实时追加对方消息并刷新未读
 /// - 上滑加载历史（before 最早 created 分页）
 /// - 消息类型：text / image / video / location / card
-/// - 输入框方形 + 加号弹出 QQ 式发送面板（相册/拍照/视频/位置/名片）
+/// - 输入框胶囊 + 加号弹出 QQ 式发送面板（相册/拍照/位置）
 library;
 
 import 'dart:async';
@@ -11,25 +11,52 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-
-import '../../widgets/emoji_panel.dart';
-import '../../widgets/input_panel_host.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'location_picker_page.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../design/components.dart';
+import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
-import '../../widgets/user_avatar.dart';
+import '../../widgets/input_panel_host.dart';
 import '../user/user_profile.dart';
+import 'location_picker_page.dart';
 
 /// 媒体/相对路径 → 完整 URL（content 存的是 /community/api/media/xxx）
-String _fullUrl(String content) => 'https://www.dbmt999.asia$content';
+/// - 已是完整 http(s) URL：原样返回（兼容历史消息）
+/// - 以 `/` 开头：拼社区域名
+/// - 纯文件名：按 mediaUrl 拼接
+String _fullUrl(String content) {
+  final s = content.trim();
+  if (s.isEmpty) return s;
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  if (s.startsWith('/')) return 'https://www.dbmt999.asia$s';
+  return mediaUrl(s);
+}
+
+/// 上传结果 → 消息里应存的相对路径（统一「存相对路径，渲染时 _fullUrl」）
+String _uploadPath(Map<String, dynamic> j) {
+  final raw = ((j['url'] ?? j['name'] ?? '') as String).trim();
+  if (raw.isEmpty) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    // 服务端若返回绝对 URL，剥掉域名只留 /community/api/media/xxx
+    final i = raw.indexOf('/community/api/media/');
+    return i >= 0 ? raw.substring(i) : raw;
+  }
+  if (raw.startsWith('/')) return raw;
+  return '/community/api/media/$raw';
+}
+
+/// created 兼容 num / String / null（后端为 REAL 时间戳，单位秒）
+int _tsOf(dynamic v) {
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? 0;
+  return 0;
+}
 
 class DmChatPage extends StatefulWidget {
   final String peerId;
@@ -50,7 +77,6 @@ class _DmChatPageState extends State<DmChatPage> {
   final TextEditingController _input = TextEditingController();
   final FocusNode _inputFocus = FocusNode();
   bool _panelOpen = false; // QQ 式占位面板（收起输入法后占住输入法位置）
-  bool _emojiMode = false; // 面板当前是否为表情网格
 
   final ScrollController _scroll = ScrollController();
   bool _loading = true;
@@ -188,11 +214,7 @@ class _DmChatPageState extends State<DmChatPage> {
         _sending = false;
         _msgs.removeWhere((m) => m['_pending'] == true);
       });
-      final msg = e is ApiException ? e.message : '发送失败';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(msg),
-        backgroundColor: const Color(AppTheme.card),
-      ));
+      showAppToast(context, e is ApiException ? e.message : '发送失败');
     }
   }
 
@@ -246,27 +268,24 @@ class _DmChatPageState extends State<DmChatPage> {
       }),
     ];
     return Container(
-      color: const Color(AppTheme.bg),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      color: const Color(AppColors.bg),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.x4, AppSpace.x3, AppSpace.x4, AppSpace.x2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('发送',
-              style: TextStyle(
-                  color: Color(AppTheme.textSecondary),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
+          Text('发送', style: AppType.caption),
+          const SizedBox(height: AppSpace.x3),
           Expanded(
             child: GridView.count(
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 3,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 10,
+              mainAxisSpacing: AppSpace.x3,
+              crossAxisSpacing: AppSpace.x2,
               childAspectRatio: 1.1,
               children: [
                 for (final (icon, label, onTap) in items)
-                  GestureDetector(
+                  PressableScale(
                     onTap: onTap,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -275,18 +294,16 @@ class _DmChatPageState extends State<DmChatPage> {
                           width: 52,
                           height: 52,
                           decoration: BoxDecoration(
-                            color: const Color(AppTheme.bg),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(AppTheme.border)),
+                            color: const Color(AppColors.card),
+                            borderRadius: AppRadius.rMd,
+                            border: Border.all(
+                                color: const Color(AppColors.border)),
                           ),
                           child: Icon(icon,
-                              size: 24, color: const Color(AppTheme.accent)),
+                              size: 23, color: const Color(AppColors.accent)),
                         ),
-                        const SizedBox(height: 6),
-                        Text(label,
-                            style: const TextStyle(
-                                color: Color(AppTheme.textSecondary),
-                                fontSize: 11.5)),
+                        const SizedBox(height: AppSpace.x2),
+                        Text(label, style: AppType.micro),
                       ],
                     ),
                   ),
@@ -304,32 +321,27 @@ class _DmChatPageState extends State<DmChatPage> {
           source: src, maxWidth: 2000, imageQuality: 85);
       if (img == null) return;
       final j = await ApiClient.uploadImage(img.path);
-      final url = (j['url'] ?? '') as String;
-      if (url.isEmpty) throw ApiException(400, '上传失败');
-      await _sendMedia('image', url);
+      final path = _uploadPath(j);
+      if (path.isEmpty) throw ApiException(400, '上传失败');
+      await _sendMedia('image', path);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e is ApiException ? e.message : '图片发送失败'),
-        backgroundColor: const Color(AppTheme.card),
-      ));
+      showAppToast(context, e is ApiException ? e.message : '图片发送失败');
     }
   }
 
+  // ignore: unused_element
   Future<void> _pickVideo() async {
     try {
       final vid = await ImagePicker().pickVideo(source: ImageSource.gallery);
       if (vid == null) return;
       final j = await ApiClient.uploadVideo(vid.path);
-      final name = (j['name'] ?? '') as String;
-      if (name.isEmpty) throw ApiException(400, '上传失败');
-      await _sendMedia('video', mediaUrl(name));
+      final path = _uploadPath(j);
+      if (path.isEmpty) throw ApiException(400, '上传失败');
+      await _sendMedia('video', path);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e is ApiException ? e.message : '视频发送失败'),
-        backgroundColor: const Color(AppTheme.card),
-      ));
+      showAppToast(context, e is ApiException ? e.message : '视频发送失败');
     }
   }
 
@@ -339,6 +351,7 @@ class _DmChatPageState extends State<DmChatPage> {
     await _sendMedia('location', jsonEncode(loc));
   }
 
+  // ignore: unused_element
   Future<void> _sendCard() async {
     var myName = '我';
     var myAvatar = '';
@@ -358,80 +371,94 @@ class _DmChatPageState extends State<DmChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        centerTitle: true,
-        title: Text(widget.peerName,
-            style: const TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                fontWeight: FontWeight.w600)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 18),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      body: Column(
+    final top = MediaQuery.paddingOf(context).top;
+    return ImmersivePage(
+      child: Stack(
         children: [
-          Expanded(
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: Color(AppTheme.accent), strokeWidth: 2.5))
-                : _loadError && _msgs.isEmpty
-                    ? Center(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(AppTheme.accent),
-                            side: const BorderSide(
-                                color: Color(AppTheme.accent)),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20)),
-                          ),
-                          onPressed: _loadHistory,
-                          child: const Text('重新加载'),
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: _scroll,
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        itemCount: _msgs.length + (_hasMore ? 1 : 0),
-                        itemBuilder: (_, i) {
-                          if (i == _msgs.length) {
-                            return GestureDetector(
-                              onTap: _loadHistory,
-                              behavior: HitTestBehavior.opaque,
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                child: Center(
-                                  child: Text('加载更多历史',
-                                      style: TextStyle(
-                                          color:
-                                              Color(AppTheme.textTertiary),
-                                          fontSize: 12)),
-                                ),
-                              ),
-                            );
-                          }
-                          return _bubble(_msgs[i]);
-                        },
-                      ),
+          Positioned.fill(
+            child: Column(
+              children: [
+                Expanded(child: _messageList(top)),
+                // 输入区：键盘态由 Scaffold 顶起；加号面板态平滑占住原输入法位置
+                InputPanelHost(
+                  absorbInsets: false,
+                  surfaceColor: const Color(AppColors.bg),
+                  fallbackHeight: 232,
+                  inputBar: _inputBar(),
+                  panel: _panelOpen ? _sendPanel() : null,
+                ),
+              ],
+            ),
           ),
-          // 输入区：键盘态由 Scaffold 顶起；加号面板态平滑占住原输入法位置
-          InputPanelHost(
-            absorbInsets: false,
-            surfaceColor: const Color(AppTheme.elevated),
-            fallbackHeight: 232,
-            inputBar: _inputBar(),
-            panel: _panelOpen ? _sendPanel() : null,
+          // 悬浮顶栏：标题 + 返回
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: GlassTopBar(title: widget.peerName, floating: true),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _messageList(double topInset) {
+    if (_loading) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
+        ),
+      );
+    }
+    if (_loadError && _msgs.isEmpty) {
+      return Center(
+        child: ErrorState(
+          message: '聊天记录加载失败',
+          onRetry: () {
+            _loadHistory();
+          },
+        ),
+      );
+    }
+    return ListView.builder(
+      controller: _scroll,
+      physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics()),
+      padding: EdgeInsets.fromLTRB(
+          AppSpace.gutter, topInset + 72, AppSpace.gutter, AppSpace.x3),
+      itemCount: _msgs.length + (_hasMore ? 1 : 0),
+      itemBuilder: (_, i) {
+        if (i == _msgs.length) {
+          return LoadMoreFooter(
+            hasMore: true,
+            onTap: () {
+              _loadHistory();
+            },
+          );
+        }
+        final m = _msgs[i];
+        final ts = _tsOf(m['created']);
+        final prevTs = i > 0 ? _tsOf(_msgs[i - 1]['created']) : 0;
+        final showTime = i == 0 || (ts - prevTs).abs() > 300;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showTime) _timeDivider(ts),
+            _bubble(m),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 时间分组：超过 5 分钟或首条前显示一次
+  Widget _timeDivider(int ts) {
+    if (ts <= 0) return const SizedBox(height: AppSpace.x2);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.x2),
+      child: Center(child: Text(timeAgo(ts), style: AppType.micro)),
     );
   }
 
@@ -442,15 +469,19 @@ class _DmChatPageState extends State<DmChatPage> {
     final isRead = (m['isRead'] ?? 0) == 1;
     final pending = m['_pending'] == true;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.x1),
       child: Row(
         mainAxisAlignment:
             mine ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!mine) ...[
-            UserAvatar(url: widget.peerAvatar, name: widget.peerName, size: 32),
-            const SizedBox(width: 8),
+            AppAvatar(
+              url: avatarUrl(widget.peerAvatar),
+              name: widget.peerName,
+              size: 32,
+            ),
+            const SizedBox(width: AppSpace.x2),
           ],
           Flexible(
             child: Column(
@@ -464,8 +495,7 @@ class _DmChatPageState extends State<DmChatPage> {
                     pending
                         ? '发送中…'
                         : (isRead ? '已读' : ''),
-                    style: const TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 10),
+                    style: AppType.micro,
                   ),
               ],
             ),
@@ -476,16 +506,16 @@ class _DmChatPageState extends State<DmChatPage> {
   }
 
   Widget _bubbleBody(String type, String content, bool mine) {
-    final textColor = mine
-        ? Colors.black
-        : const Color(AppTheme.textPrimary);
     final bg = mine
-        ? const Color(AppTheme.accent)
-        : const Color(AppTheme.card);
+        ? const Color(AppColors.accent)
+        : const Color(AppColors.elevated);
+    final fg = mine
+        ? const Color(AppColors.onAccent)
+        : const Color(AppColors.textPrimary);
     switch (type) {
       case 'image':
         return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.rMd,
           child: GestureDetector(
             onTap: () => _previewImage(_fullUrl(content)),
             child: CachedNetworkImage(
@@ -493,22 +523,24 @@ class _DmChatPageState extends State<DmChatPage> {
               width: 180,
               height: 180,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
+              placeholder: (_, _) => Container(
                 width: 180,
                 height: 180,
-                color: const Color(AppTheme.elevated),
+                color: const Color(AppColors.card),
                 child: const Center(
-                    child: CircularProgressIndicator(
-                        color: Color(AppTheme.accent), strokeWidth: 2)),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
               ),
-              errorWidget: (_, __, ___) => Container(
+              errorWidget: (_, _, _) => Container(
                 width: 180,
                 height: 120,
-                color: const Color(AppTheme.elevated),
+                color: const Color(AppColors.card),
                 alignment: Alignment.center,
-                child: const Text('图片加载失败',
-                    style: TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 12)),
+                child: Text('图片加载失败', style: AppType.caption),
               ),
             ),
           ),
@@ -521,8 +553,9 @@ class _DmChatPageState extends State<DmChatPage> {
             width: 180,
             height: 110,
             decoration: BoxDecoration(
-              color: const Color(AppTheme.elevated),
-              borderRadius: BorderRadius.circular(12),
+              color: const Color(AppColors.card),
+              borderRadius: AppRadius.rMd,
+              border: Border.all(color: const Color(AppColors.border)),
             ),
             child: Stack(
               alignment: Alignment.center,
@@ -537,6 +570,18 @@ class _DmChatPageState extends State<DmChatPage> {
                   child: const Icon(Icons.play_arrow_rounded,
                       color: Colors.white, size: 28),
                 ),
+                Positioned(
+                  left: AppSpace.x3,
+                  bottom: AppSpace.x3,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.videocam_rounded,
+                          size: 13, color: Color(AppColors.textTertiary)),
+                      const SizedBox(width: 3),
+                      Text('视频', style: AppType.micro),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -547,19 +592,21 @@ class _DmChatPageState extends State<DmChatPage> {
         return _cardBubble(content, mine);
       default:
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.68,
+          ),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.x3 + 2, vertical: AppSpace.x3),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(mine ? 12 : 4),
-              topRight: Radius.circular(mine ? 4 : 12),
-              bottomLeft: const Radius.circular(12),
-              bottomRight: const Radius.circular(12),
+              topLeft: Radius.circular(mine ? AppRadius.md : AppRadius.xs),
+              topRight: Radius.circular(mine ? AppRadius.xs : AppRadius.md),
+              bottomLeft: const Radius.circular(AppRadius.md),
+              bottomRight: const Radius.circular(AppRadius.md),
             ),
           ),
-          child: Text(content,
-              style: TextStyle(
-                  color: textColor, fontSize: 14, height: 1.35)),
+          child: Text(content, style: AppType.body.copyWith(color: fg)),
         );
     }
   }
@@ -578,48 +625,46 @@ class _DmChatPageState extends State<DmChatPage> {
     return GestureDetector(
       onTap: () => _openExternalMap(lat, lng, name),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.rMd,
         child: Container(
-        width: 220,
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.elevated),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 小地图缩略图（只读）
-            SizedBox(
-              height: 100,
-              width: double.infinity,
-              child: _LocationMapThumb(lat: lat, lng: lng),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
+          width: 220,
+          decoration: const BoxDecoration(color: Color(AppColors.elevated)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 小地图缩略图（只读）
+              SizedBox(
+                height: 100,
+                width: double.infinity,
+                child: _LocationMapThumb(lat: lat, lng: lng),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpace.x3, AppSpace.x2, AppSpace.x3, AppSpace.x2 + 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600)),
-                  if (address.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(address,
+                      style: AppType.label,
+                    ),
+                    if (address.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        address,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Color(AppTheme.textTertiary),
-                            fontSize: 10.5)),
+                        style: AppType.micro,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -654,35 +699,34 @@ class _DmChatPageState extends State<DmChatPage> {
       },
       child: Container(
         width: 200,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpace.x3),
         decoration: BoxDecoration(
-          color: const Color(AppTheme.elevated),
-          borderRadius: BorderRadius.circular(12),
+          color: const Color(AppColors.elevated),
+          borderRadius: AppRadius.rMd,
+          border: Border.all(color: const Color(AppColors.border)),
         ),
         child: Row(
           children: [
-            UserAvatar(url: avatar, name: name, size: 40),
-            const SizedBox(width: 10),
+            AppAvatar(url: avatarUrl(avatar), name: name, size: 40),
+            const SizedBox(width: AppSpace.x2 + 2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('推荐名片',
-                      style: TextStyle(
-                          color: Color(AppTheme.textTertiary),
-                          fontSize: 10)),
+                  Text('推荐名片', style: AppType.micro),
                   const SizedBox(height: 2),
-                  Text(name.isEmpty ? '用户' : name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    name.isEmpty ? '用户' : name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.body.copyWith(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 2),
-                  const Text('点击查看资料',
-                      style: TextStyle(
-                          color: Color(AppTheme.accent), fontSize: 11)),
+                  Text(
+                    '点击查看资料',
+                    style: AppType.micro
+                        .copyWith(color: const Color(AppColors.accent)),
+                  ),
                 ],
               ),
             ),
@@ -695,7 +739,7 @@ class _DmChatPageState extends State<DmChatPage> {
   void _previewImage(String url) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.9),
+      barrierColor: Colors.black.withValues(alpha: 0.92),
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.zero,
@@ -705,12 +749,17 @@ class _DmChatPageState extends State<DmChatPage> {
             child: CachedNetworkImage(
               imageUrl: url,
               fit: BoxFit.contain,
-              placeholder: (_, __) => const Center(
-                  child: CircularProgressIndicator(
-                      color: Color(AppTheme.accent))),
-              errorWidget: (_, __, ___) => const Center(
-                  child: Text('图片加载失败',
-                      style: TextStyle(color: Colors.white))),
+              placeholder: (_, _) => const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                ),
+              ),
+              errorWidget: (_, _, _) => Center(
+                child: Text('图片加载失败',
+                    style: AppType.bodySm.copyWith(color: Colors.white)),
+              ),
             ),
           ),
         ),
@@ -718,72 +767,80 @@ class _DmChatPageState extends State<DmChatPage> {
     );
   }
 
-  /// 输入栏：方形输入框 + 加号（QQ 式面板）+ 发送
+  /// 输入栏：胶囊输入框 + 加号（QQ 式面板）+ 薄荷发送钮
   Widget _inputBar() {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        padding: const EdgeInsets.fromLTRB(
+            AppSpace.x3, AppSpace.x2, AppSpace.x3, AppSpace.x2),
         decoration: const BoxDecoration(
-          color: Color(AppTheme.elevated),
-          border: Border(top: BorderSide(color: Color(AppTheme.border))),
+          color: Color(AppColors.bg),
+          border: Border(top: BorderSide(color: Color(AppColors.hairline))),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            // 加号：弹出 QQ 式发送面板
+            PressableScale(
+              onTap: _togglePanel,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: Color(AppColors.elevated),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add_rounded,
+                    color: Color(AppColors.accent), size: 22),
+              ),
+            ),
+            const SizedBox(width: AppSpace.x2),
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.x4, vertical: AppSpace.x2),
                 decoration: BoxDecoration(
-                  color: const Color(AppTheme.bg),
-                  // 方形输入框（小圆角）
-                  borderRadius: BorderRadius.circular(6),
+                  color: const Color(AppColors.elevated),
+                  borderRadius: AppRadius.rPill,
+                  border: Border.all(color: const Color(AppColors.border)),
                 ),
                 child: TextField(
                   controller: _input,
                   focusNode: _inputFocus,
                   minLines: 1,
                   maxLines: 4,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: const InputDecoration(
+                  cursorColor: const Color(AppColors.accent),
+                  style: AppType.body,
+                  decoration: InputDecoration(
                     hintText: '说点什么…',
-                    hintStyle: TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 14),
-                    border: InputBorder.none,
+                    hintStyle: AppType.body
+                        .copyWith(color: const Color(AppColors.textTertiary)),
+                    filled: false,
                     isCollapsed: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                   ),
                   onTap: _closePanel,
                   onSubmitted: (_) => _send(),
                 ),
               ),
             ),
-            const SizedBox(width: 6),
-            // 加号：弹出 QQ 式发送面板
-            GestureDetector(
-              onTap: _togglePanel,
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: const BoxDecoration(
-                  color: Color(AppTheme.bg),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.add_rounded,
-                    color: Color(AppTheme.accent), size: 24),
-              ),
-            ),
-            const SizedBox(width: 6),
-            GestureDetector(
+            const SizedBox(width: AppSpace.x2),
+            PressableScale(
               onTap: _send,
               child: Container(
                 width: 40,
                 height: 40,
-                decoration: const BoxDecoration(
-                  color: Color(AppTheme.accent),
+                decoration: BoxDecoration(
+                  color: const Color(AppColors.accent),
                   shape: BoxShape.circle,
+                  boxShadow: AppEffects.accentGlow(opacity: 0.3),
                 ),
                 child: const Icon(Icons.send_rounded,
-                    color: Colors.black, size: 18),
+                    color: Color(AppColors.onAccent), size: 18),
               ),
             ),
           ],
@@ -822,7 +879,7 @@ class _LocationMapThumb extends StatelessWidget {
               width: 34,
               height: 34,
               child: const Icon(Icons.location_pin,
-                  color: Color(0xFFFF5A5F), size: 34),
+                  color: Color(AppColors.heart), size: 34),
             ),
           ],
         ),
@@ -853,8 +910,7 @@ class _DmVideoPlayerState extends State<_DmVideoPlayer> {
         _vc?.play();
       }).catchError((e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('视频加载失败')));
+        showAppToast(context, '视频加载失败');
       });
   }
 
@@ -867,29 +923,39 @@ class _DmVideoPlayerState extends State<_DmVideoPlayer> {
   @override
   Widget build(BuildContext context) {
     final vc = _vc;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Center(
-        child: vc == null || !vc.value.isInitialized
-            ? const CircularProgressIndicator(color: Colors.white)
-            : GestureDetector(
-                onTap: () => setState(() {
-                  if (vc.value.isPlaying) {
-                    vc.pause();
-                  } else {
-                    vc.play();
-                  }
-                }),
-                child: AspectRatio(
-                  aspectRatio: vc.value.aspectRatio,
-                  child: VideoPlayer(vc),
-                ),
-              ),
+    return ImmersivePage(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Center(
+              child: vc == null || !vc.value.isInitialized
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    )
+                  : GestureDetector(
+                      onTap: () => setState(() {
+                        if (vc.value.isPlaying) {
+                          vc.pause();
+                        } else {
+                          vc.play();
+                        }
+                      }),
+                      child: AspectRatio(
+                        aspectRatio: vc.value.aspectRatio,
+                        child: VideoPlayer(vc),
+                      ),
+                    ),
+            ),
+          ),
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: GlassTopBar(title: '视频', floating: true),
+          ),
+        ],
       ),
     );
   }

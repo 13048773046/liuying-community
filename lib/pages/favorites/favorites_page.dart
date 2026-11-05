@@ -1,13 +1,14 @@
-/// 收藏页：收藏 / 稍后看 双 Tab，瀑布流卡片复用首页组件
+/// 收藏页：收藏 / 稍后看 双分段（[FeedTabs]）+ 三列作品网格（[PostGridTile]）
+///
+/// 请求、分页与切换逻辑保持原样。
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../../api/client.dart';
-import '../../config.dart';
+import '../../design/components.dart';
 import '../../models/feed_item.dart';
-import '../../widgets/waterfall_card.dart';
+import '../../widgets/post_card.dart';
 import '../post/post_detail.dart';
 import '../user/user_profile.dart';
 
@@ -59,13 +60,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
         _loaded = true;
         _loading = false;
       });
-      if (_items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('加载失败：$e'),
-          backgroundColor: const Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+      if (_items.isEmpty) showAppToast(context, '加载失败：$e');
     }
   }
 
@@ -83,28 +78,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        foregroundColor: const Color(AppTheme.textPrimary),
-        elevation: 0,
-        title: const Text('收藏'),
-        centerTitle: true,
-      ),
-      body: Column(
+    return ImmersivePage(
+      child: Column(
         children: [
-          // Tab 指示器
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _seg(0, '收藏'),
-                const SizedBox(width: 8),
-                _seg(1, '稍后看'),
-              ],
-            ),
+          const GlassTopBar(title: '我的收藏', solid: true),
+          FeedTabs(
+            labels: const ['收藏', '稍后看'],
+            index: _tab,
+            onChanged: _switchTab,
           ),
           Expanded(child: _body()),
         ],
@@ -112,101 +93,103 @@ class _FavoritesPageState extends State<FavoritesPage> {
     );
   }
 
-  Widget _seg(int i, String label) {
-    final sel = _tab == i;
-    return GestureDetector(
-      onTap: () => _switchTab(i),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: sel ? const Color(AppTheme.accent) : const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: sel ? Colors.black : const Color(AppTheme.textSecondary),
-            fontSize: 13,
-            fontWeight: sel ? FontWeight.bold : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _body() {
-    if (!_loaded) {
-      return const Center(
-        child: CircularProgressIndicator(
-            color: Color(AppTheme.accent), strokeWidth: 2.5),
-      );
-    }
-    if (_items.isEmpty) {
-      return ListView(
-        padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
-        children: [
-          const SizedBox(height: 120),
-          const Icon(Icons.bookmark_border,
-              size: 56, color: Color(AppTheme.textTertiary)),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              _tab == 0 ? '还没有收藏\n看到喜欢的帖子点♥收藏' : '还没有稍后看',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Color(AppTheme.textSecondary),
-                  fontSize: 13.5,
-                  height: 1.6),
-            ),
-          ),
-        ],
-      );
-    }
+    if (!_loaded) return const _FavSkeleton();
+
+    final bottom = MediaQuery.paddingOf(context).bottom + 28;
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
         if (n.metrics.extentAfter < 400) _load();
         return false;
       },
-      child: MasonryGridView.count(
-        physics: const AlwaysScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        padding: EdgeInsets.fromLTRB(12, 4, 12, 24+ MediaQuery.paddingOf(context).bottom),
-        itemCount: _items.length + 1,
-        itemBuilder: (_, i) {
-          if (i == _items.length) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics()),
+        slivers: [
+          if (_items.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
-                child: _hasMore
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Color(AppTheme.accent)))
-                    : const Text('— 到底啦 —',
-                        style: TextStyle(
-                            color: Color(AppTheme.textTertiary),
-                            fontSize: 11)),
+                child: EmptyState(
+                  icon: _tab == 0
+                      ? Icons.bookmark_border_rounded
+                      : Icons.watch_later_outlined,
+                  title: _tab == 0 ? '还没有收藏' : '还没有稍后看',
+                  message: _tab == 0
+                      ? '看到喜欢的帖子点收藏，就会出现在这里'
+                      : '遇到好内容先存着，空闲时再看',
+                ),
               ),
-            );
-          }
-          final it = _items[i];
-          return WaterfallCard(
-            item: it,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => PostDetailPage(postId: it.id))),
-            onAuthorTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => UserProfilePage(uid: it.author.id))),
-          );
-        },
+            )
+          else ...[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpace.gutter, AppSpace.x2, AppSpace.gutter, 0),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: AppSpace.x2,
+                  crossAxisSpacing: AppSpace.x2,
+                  childAspectRatio: 0.78,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) {
+                    final it = _items[i];
+                    return PostGridTile(
+                      item: it,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => PostDetailPage(postId: it.id)),
+                      ),
+                      onAuthorTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                UserProfilePage(uid: it.author.id)),
+                      ),
+                    );
+                  },
+                  childCount: _items.length,
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: bottom),
+                child: LoadMoreFooter(
+                  loading: _loading,
+                  hasMore: _hasMore,
+                  onTap: () => _load(),
+                  endLabel: '— 到底啦 —',
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
+    );
+  }
+}
+
+/// 首屏骨架：三列圆角占位。
+class _FavSkeleton extends StatelessWidget {
+  const _FavSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x2, AppSpace.gutter, 0),
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: AppSpace.x2,
+        crossAxisSpacing: AppSpace.x2,
+        childAspectRatio: 0.78,
+      ),
+      itemCount: 9,
+      itemBuilder: (_, _) => const SkeletonBox(radius: AppRadius.sm),
     );
   }
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 流萤深黑底（同音乐 Theme.background #121214） -->
-    <color name="splash_bg">#121214</color>
+    <!-- 流萤社区沉浸黑：#000000（与 App 内 AppColors.bg 完全一致，启动无跳色） -->
+    <color name="splash_bg">#000000</color>
 </resources>

@@ -11,9 +11,8 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
-import '../../config.dart';
+import '../../design/components.dart';
 import '../../models/feed_item.dart';
-import '../post/post_editor.dart';
 import 'video_card.dart';
 
 class ShortsPage extends StatefulWidget {
@@ -69,14 +68,17 @@ class _ShortsPageState extends State<ShortsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
+    return ImmersivePage(
       // 键盘弹出只顶弹窗输入框，页面（视频/导航栏）不被顶起
       resizeToAvoidBottomInset: false,
-      // 发布入口已移至底部中间按钮（短视频页内显示发布 + 号）
-      body: _items.isEmpty
-          ? _buildLoading()
-          : PageView.builder(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 发布入口已移至底部中间按钮（短视频页内显示发布 + 号）
+          if (_items.isEmpty)
+            _buildLoading()
+          else
+            PageView.builder(
               controller: _controller,
               scrollDirection: Axis.vertical,
               // 隐式滚动：预取相邻页，视频初始化提前，切页即播
@@ -92,27 +94,43 @@ class _ShortsPageState extends State<ShortsPage> {
                 isActive: i == _current,
               ),
             ),
+          // 顶部悬浮玻璃栏（短视频是主 Tab，无返回）
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: GlassTopBar(
+                floating: true,
+                showBack: false,
+                title: '短视频',
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildLoading() {
+    if (!_loading) {
+      return const Center(
+        child: EmptyState(
+          icon: Icons.movie_outlined,
+          title: '暂时没有内容',
+          message: '稍后再来看看，或去发一条短视频',
+        ),
+      );
+    }
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: Color(AppTheme.accent),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            _loading ? '加载内容…' : '暂时没有内容',
-            style: const TextStyle(color: Color(AppTheme.textSecondary), fontSize: 13),
-          ),
+        children: const [
+          SkeletonBox(width: 120, height: 120, radius: AppRadius.lg),
+          SizedBox(height: AppSpace.x4),
+          SkeletonBox(width: 180, height: 12),
+          SizedBox(height: AppSpace.x2),
+          SkeletonBox(width: 120, height: 10),
         ],
       ),
     );

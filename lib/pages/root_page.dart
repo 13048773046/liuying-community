@@ -1,25 +1,26 @@
-/// 主容器：底部导航（复刻音乐 iOS AppTabBar）
-/// - 中间位 = 短视频入口（凸起大按钮，等效音乐端"播放控制"在导航中间）
-/// - 短视频页沉浸式全屏；切到其他页时返回常规导航
+/// 主容器：沉浸式底部导航（纯黑透明浮层 + 中间凸起短视频/发布按钮）
+/// - 短视频页全屏沉浸，导航栏浮在内容之上（底部渐变遮罩保证可读）
+/// - 其余页面导航栏为半透明玻璃条，顶部 0.5 描边
 library;
 
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config.dart';
+import '../design/components.dart';
 import '../services/notify_bus.dart';
 import '../utils/music_bgm.dart';
+import 'boards/boards_page.dart';
 import 'home/home_page.dart';
 import 'message/message_page.dart';
 import 'mine/mine_page.dart';
-import 'boards/boards_page.dart';
 import 'post/post_editor.dart';
 import 'shorts/shorts_page.dart';
 
-/// 底部导航内容区高度（不含系统 safeBottom）：图标23+间距2+文字13+内边距12+外Padding10=60
-/// 内容区底部留白必须与此一致，否则导航栏上方会露出缝隙或被遮住
-const double kTabBarContentH = 60;
+/// 底部导航占用高度（不含系统安全区）：图标 24 + 间距 4 + 文字 12 + 上下内边距
+const double kTabBarContentH = 58;
 
 class RootPage extends StatefulWidget {
   const RootPage({super.key});
@@ -29,13 +30,12 @@ class RootPage extends StatefulWidget {
 }
 
 class _RootPageState extends State<RootPage> {
-  int _tab = 0; // 0 首页 | 1 版块 | 2 短视频(中间) | 3 消息 | 4 我的
+  int _tab = 0; // 0 首页 | 1 版块 | 2 短视频 | 3 消息 | 4 我的
 
-  /// 切 tab：离开短视频页时停配乐，避免残留播放
   void _onTabChanged(int i) {
-    if (_tab == 2 && i != 2) {
-      MusicBgm.I.stop();
-    }
+    if (i == _tab) return;
+    // 离开短视频页时停配乐，避免残留播放
+    if (_tab == 2) MusicBgm.I.stop();
     setState(() => _tab = i);
   }
 
@@ -57,9 +57,7 @@ class _RootPageState extends State<RootPage> {
   Future<void> _connectWs() async {
     final sp = await SharedPreferences.getInstance();
     final tok = sp.getString('community_token') ?? '';
-    if (tok.isNotEmpty) {
-      NotifyBus.shared.connect(tok);
-    }
+    if (tok.isNotEmpty) NotifyBus.shared.connect(tok);
   }
 
   @override
@@ -70,49 +68,32 @@ class _RootPageState extends State<RootPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 短视频页：沉浸式全屏（TabBar 半透明悬浮显示，等效音乐端"透明悬浮导航"）
     final isShorts = _tab == 2;
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      // 修复：禁用键盘避让（resizeToAvoidBottomInset: false）
-      // iOS 键盘弹出时默认会压缩 Scaffold body（812pt→约430pt），
-      // 导致 Positioned(bottom:0) 的底部导航被顶到屏幕中部并盖住内容；
-      // RootPage 自身无输入框，键盘避让由 push 出的登录/发布/评论页各自处理。
+    return ImmersivePage(
       resizeToAvoidBottomInset: false,
-      body: Stack(
-        // 强制所有子组件撑满屏幕，底部导航必然贴底
+      child: Stack(
         fit: StackFit.expand,
         children: [
-          // 内容区：五个页面常驻（音乐端三页常驻等价）
-          // 不做整体底部抬升：页面背景可延伸至屏幕底部（穿过导航栏区域），
-          // 内容本身由各页面滚动容器用「导航栏高度 tabBarBottomInset」动态避让，
-          // 既不被导航栏遮挡也不留下空白缝隙
-          Stack(
-            fit: StackFit.expand,
-            children: [
-              for (var i = 0; i < _pages.length; i++)
-                Offstage(
-                  offstage: _tab != i,
-                  child: TickerMode(
-                    enabled: _tab == i,
-                    child: _pages[i],
-                  ),
-                ),
-            ],
-          ),
-          // 底部导航（Positioned 贴底：不吃 StackFit.expand 的 tight 约束，必然贴底；
-          // 短视频页沉浸式时保持透明悬浮，透出内容）
+          // 五个页面常驻（保活），只切可见性
+          for (var i = 0; i < _pages.length; i++)
+            Offstage(
+              offstage: _tab != i,
+              child: TickerMode(enabled: _tab == i, child: _pages[i]),
+            ),
+          // 底部导航浮层
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: _ShortsSelectionScope(
-              selection: _tab,
+            child: _BottomNav(
+              index: _tab,
+              immersive: isShorts,
               onChanged: _onTabChanged,
-              child: _AppTabBar(
-                selection: _tab,
-                onChanged: _onTabChanged,
-              ),
+              onPublish: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PostEditorPage()),
+                );
+              },
             ),
           ),
         ],
@@ -121,222 +102,204 @@ class _RootPageState extends State<RootPage> {
   }
 }
 
-/// 底部导航：5 格，中间凸起短视频按钮
-class _AppTabBar extends StatelessWidget {
-  final int selection;
-  final ValueChanged<int> onChanged;
-  const _AppTabBar({required this.selection, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: selection == 2
-            ? Colors.transparent
-            : const Color(AppTheme.card).withOpacity(0.98),
-        border: selection == 2
-            ? null
-            : const Border(top: BorderSide(color: Color(AppTheme.border), width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 6, bottom: 4),
-          child: Row(
-            children: [
-              _tabButton('assets/icons/home.svg', '首页', 0),
-              _tabButton('assets/icons/compass.svg', '版块', 1),
-              const _ShortsCenterButton(),
-              _tabButtonWithBadge('assets/icons/chatbubbles.svg', '消息', 3),
-              _tabButton('assets/icons/person.svg', '我的', 4),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _tabButton(String asset, String label, int index) {
-    final selected = selection == index;
-    final color = selected
-        ? const Color(AppTheme.accent)
-        : const Color(AppTheme.textSecondary);
-    return Expanded(
-      child: InkWell(
-        onTap: () => onChanged(index),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SvgPicture.asset(
-                asset,
-                width: 23,
-                height: 23,
-                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-              ),
-              const SizedBox(height: 2),
-              SizedBox(
-                height: 13,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10.5,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 消息 tab：右上角未读红点（复刻音乐端消息小红点）
-  Widget _tabButtonWithBadge(String asset, String label, int index) {
-    final selected = selection == index;
-    final color = selected
-        ? const Color(AppTheme.accent)
-        : const Color(AppTheme.textSecondary);
-    return Expanded(
-      child: InkWell(
-        onTap: () => onChanged(index),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ValueListenableBuilder<int>(
-                valueListenable: NotifyBus.shared.unread,
-                builder: (_, n, __) => Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    SvgPicture.asset(
-                      asset,
-                      width: 23,
-                      height: 23,
-                      colorFilter:
-                          ColorFilter.mode(color, BlendMode.srcIn),
-                    ),
-                    if (n > 0)
-                      Positioned(
-                        right: -5,
-                        top: -2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 3, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF4D6D),
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          constraints: const BoxConstraints(minWidth: 8),
-                          child: Text(
-                            n > 99 ? '99+' : '$n',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 8, height: 1.2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 2),
-              SizedBox(
-                height: 13,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10.5,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 中间短视频按钮：凸起圆钮（复刻音乐端播放控制圆钮）
-class _ShortsCenterButton extends StatelessWidget {
-  const _ShortsCenterButton();
-
-  @override
-  Widget build(BuildContext context) {
-    // 中间凸起按钮：样式固定，选中态由父级重建驱动
-    return const SizedBox(width: 64, child: _ShortsButtonInner());
-  }
-}
-
-class _ShortsButtonInner extends StatelessWidget {
-  const _ShortsButtonInner();
-
-  @override
-  Widget build(BuildContext context) {
-    // 读取父级选中态
-    final sel = _ShortsSelectionScope.of(context)?.selection ?? 0;
-    final isActive = sel == 2;
-    return Center(
-      child: GestureDetector(
-        onTap: () {
-          if (isActive) {
-            // 短视频页内：中间按钮 = 发布入口（点击跳发布页）
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PostEditorPage()),
-            );
-          } else {
-            _ShortsSelectionScope.of(context)?.onChanged(2);
-          }
-        },
-        child: Container(
-          key: const ValueKey('shortsCenterBtn'),
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            // 纯薄荷绿圆钮（复刻音乐 AppTabBar 播放控制钮样式）
-            color: const Color(AppTheme.accent),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(AppTheme.accent).withOpacity(0.35),
-                blurRadius: 12,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: SvgPicture.asset(
-            // 短视频页内显示发布 + 号（更小），其他 tab 显示圆形播放键
-            isActive ? 'assets/icons/add.svg' : 'assets/icons/play-circle.svg',
-            width: isActive ? 16 : 24,
-            height: isActive ? 16 : 24,
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 轻量 InheritedWidget：中间按钮读取选中态并触发切换
-class _ShortsSelectionScope extends InheritedWidget {
-  final int selection;
-  final ValueChanged<int> onChanged;
-  const _ShortsSelectionScope({
-    required this.selection,
+/// 沉浸式底部导航：非短视频页为毛玻璃条，短视频页全透明只留渐变。
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({
+    required this.index,
+    required this.immersive,
     required this.onChanged,
-    required super.child,
+    required this.onPublish,
   });
 
-  static _ShortsSelectionScope? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_ShortsSelectionScope>();
+  final int index;
+  final bool immersive;
+  final ValueChanged<int> onChanged;
+  final VoidCallback onPublish;
 
   @override
-  bool updateShouldNotify(_ShortsSelectionScope old) =>
-      old.selection != selection;
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    final bar = Container(
+      height: kTabBarContentH,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.x2),
+      child: Row(
+        children: [
+          _NavItem(
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_rounded,
+            label: '首页',
+            active: index == 0,
+            onTap: () => onChanged(0),
+          ),
+          _NavItem(
+            icon: Icons.dashboard_outlined,
+            activeIcon: Icons.dashboard_rounded,
+            label: '版块',
+            active: index == 1,
+            onTap: () => onChanged(1),
+          ),
+          Expanded(
+            child: Center(
+              child: _CenterButton(
+                active: immersive,
+                onTap: immersive ? onPublish : () => onChanged(2),
+              ),
+            ),
+          ),
+          _NavItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            activeIcon: Icons.chat_bubble_rounded,
+            label: '消息',
+            active: index == 3,
+            onTap: () => onChanged(3),
+            badge: NotifyBus.shared.unread,
+          ),
+          _NavItem(
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            label: '我的',
+            active: index == 4,
+            onTap: () => onChanged(4),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: immersive
+            ? AppEffects.navScrim
+            : const LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [Color(0xF7000000), Color(0xC9000000)],
+              ),
+        border: immersive
+            ? null
+            : const Border(top: BorderSide(color: Color(AppColors.hairline))),
+      ),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(
+            sigmaX: immersive ? 0.001 : 22,
+            sigmaY: immersive ? 0.001 : 22,
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottom),
+            child: bar,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.badge,
+  });
+
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final ValueListenable<int>? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active
+        ? const Color(AppColors.textPrimary)
+        : const Color(AppColors.textTertiary);
+
+    Widget iconWidget = Icon(active ? activeIcon : icon, size: 23, color: color);
+
+    if (badge != null) {
+      iconWidget = ValueListenableBuilder<int>(
+        valueListenable: badge!,
+        builder: (_, n, child) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            child!,
+            if (n > 0)
+              Positioned(right: -7, top: -4, child: CountBadge(count: n)),
+          ],
+        ),
+        child: iconWidget,
+      );
+    }
+
+    return Expanded(
+      child: PressableScale(
+        onTap: onTap,
+        scale: 0.9,
+        child: SizedBox(
+          height: kTabBarContentH,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedSwitcher(
+                duration: AppMotion.fast,
+                child: iconWidget,
+              ),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: AppMotion.fast,
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.1,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                  letterSpacing: 0.2,
+                ),
+                child: Text(label),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 中间按钮：薄荷绿圆钮（短视频入口 / 页内变「发布」）。
+class _CenterButton extends StatelessWidget {
+  const _CenterButton({required this.active, required this.onTap});
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      scale: 0.9,
+      child: AnimatedContainer(
+        key: const ValueKey('shortsCenterBtn'),
+        duration: AppMotion.base,
+        width: 52,
+        height: 34,
+        decoration: BoxDecoration(
+          color: const Color(AppColors.accent),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: AppEffects.accentGlow(opacity: 0.35),
+        ),
+        child: AnimatedSwitcher(
+          duration: AppMotion.fast,
+          child: Icon(
+            active ? Icons.add_rounded : Icons.play_arrow_rounded,
+            key: ValueKey(active),
+            color: const Color(AppColors.onAccent),
+            size: active ? 22 : 26,
+          ),
+        ),
+      ),
+    );
+  }
 }

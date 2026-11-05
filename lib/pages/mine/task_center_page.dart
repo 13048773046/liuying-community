@@ -5,8 +5,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
-import '../../config.dart';
-import '../../utils/responsive.dart';
+import '../../design/components.dart';
 import '../post/post_editor.dart';
 
 class TaskCenterPage extends StatefulWidget {
@@ -53,7 +52,8 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
     }
   }
 
-  bool get _signedToday => _signins.contains(DateTime.now().toString().split(' ')[0]);
+  bool get _signedToday =>
+      _signins.contains(DateTime.now().toString().split(' ')[0]);
 
   Future<void> _signin() async {
     if (_signing) return;
@@ -65,18 +65,12 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
         _signins.add(DateTime.now().toString().split(' ')[0]);
         _signing = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('签到成功，经验 +10'),
-          backgroundColor: Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating));
+      showAppToast(context, '签到成功，经验 +10');
       await _load();
     } catch (e) {
       if (!mounted) return;
       setState(() => _signing = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$e'),
-          backgroundColor: const Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating));
+      showAppToast(context, '$e');
     }
   }
 
@@ -86,17 +80,11 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
     try {
       await ApiClient.claimTask(id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('已领取奖励'),
-          backgroundColor: Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating));
+      showAppToast(context, '已领取奖励');
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$e'),
-          backgroundColor: const Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating));
+      showAppToast(context, '$e');
     } finally {
       if (mounted) setState(() => _claiming = '');
     }
@@ -104,85 +92,98 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        foregroundColor: const Color(AppTheme.textPrimary),
-        elevation: 0,
-        title: const Text('任务中心',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          const GlassTopBar(
+            title: '任务中心',
+            subtitle: '每日签到 · 完成任务领经验',
+            solid: true,
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2.4))
+                : ApiClient.token == null
+                    ? _notLogin()
+                    : _body(),
+          ),
+        ],
       ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2.5))
-          : ApiClient.token == null
-              ? _notLogin()
-              : RefreshIndicator(
-                  color: const Color(AppTheme.accent),
-                  backgroundColor: const Color(AppTheme.card),
-                  onRefresh: _load,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24+ MediaQuery.paddingOf(context).bottom),
-                    children: [
-                      _campaignCard(),
-                      const SizedBox(height: 14),
-                      _signinCard(),
-                      if (_tasks.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        const Text('更多任务',
-                            style: TextStyle(
-                                color: Color(AppTheme.textPrimary),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 10),
-                        for (final t in _tasks) _taskTile(t),
-                      ],
-                    ],
-                  ),
-                ),
     );
   }
 
   Widget _notLogin() {
     return ListView(
-      padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
       physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 120),
-        const Icon(Icons.lock_outline,
-            size: 52, color: Color(AppTheme.textTertiary)),
-        const SizedBox(height: 10),
-        const Center(
-          child: Text('登录后可参与任务、领取奖励',
-              style: TextStyle(
-                  color: Color(AppTheme.textSecondary), fontSize: 13.5)),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        AppSpace.x8,
+        AppSpace.gutter,
+        AppSpace.x6 + MediaQuery.paddingOf(context).bottom,
+      ),
+      children: const [
+        EmptyState(
+          icon: Icons.lock_outline_rounded,
+          title: '登录后可参与任务',
+          message: '登录后即可签到、领取任务奖励',
         ),
       ],
     );
   }
 
+  Widget _body() {
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          AppSpace.gutter,
+          AppSpace.x2,
+          AppSpace.gutter,
+          AppSpace.x6 + MediaQuery.paddingOf(context).bottom,
+        ),
+        children: [
+          _campaignCard(),
+          const SizedBox(height: AppSpace.x3),
+          _signinCard(),
+          if (_tasks.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.x2),
+            const SectionHeader(
+              title: '更多任务',
+              padding: EdgeInsets.fromLTRB(0, AppSpace.x5, 0, AppSpace.x3),
+            ),
+            for (final t in _tasks) _taskTile(t),
+          ],
+        ],
+      ),
+    );
+  }
+
   /// 发帖赢好礼活动头卡
   Widget _campaignCard() {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => const PostEditorPage())),
+    return PressableScale(
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const PostEditorPage())),
       child: Container(
-        height: rw(context, 96),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(AppSpace.x4),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
-            colors: [Color(0xFF1E3A31), Color(0xFF14221E)],
+            colors: [
+              const Color(AppColors.accent).withValues(alpha: 0.16),
+              const Color(AppColors.card),
+            ],
           ),
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-              color: const Color(AppTheme.accent).withValues(alpha: 0.25)),
+            color: const Color(AppColors.accent).withValues(alpha: 0.28),
+          ),
         ),
         child: Row(
           children: [
@@ -190,43 +191,30 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: const Color(AppTheme.accent).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(13),
+                color: const Color(AppColors.accent).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
               child: const Icon(Icons.emoji_events_outlined,
-                  color: Color(AppTheme.accent), size: 26),
+                  color: Color(AppColors.accent), size: 24),
             ),
-            const SizedBox(width: 13),
+            const SizedBox(width: AppSpace.x3),
             const Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('发帖赢好礼',
-                      style: TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
-                  SizedBox(height: 4),
-                  Text('发布 1 篇内容，赢取限定装扮',
-                      style: TextStyle(
-                          color: Color(AppTheme.textSecondary),
-                          fontSize: 12)),
+                  Text('发帖赢好礼', style: AppType.title),
+                  SizedBox(height: 3),
+                  Text('发布 1 篇内容，赢取限定装扮', style: AppType.caption),
                 ],
               ),
             ),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.accent),
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-              ),
-              child: const Text('去参与',
-                  style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold)),
+            const SizedBox(width: AppSpace.x2),
+            PillButton(
+              label: '去参与',
+              size: PillSize.sm,
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const PostEditorPage())),
             ),
           ],
         ),
@@ -238,71 +226,52 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
   Widget _signinCard() {
     final done = _signedToday;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpace.x4),
       decoration: BoxDecoration(
-        color: const Color(AppTheme.card),
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        color: const Color(AppColors.card),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: const Color(AppColors.border)),
       ),
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: done
-                  ? const Color(AppTheme.accentSoft)
-                  : const Color(AppTheme.bg),
-              borderRadius: BorderRadius.circular(11),
+                  ? const Color(AppColors.accentSoft)
+                  : const Color(AppColors.elevated),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Icon(
-              done ? Icons.check_circle : Icons.calendar_today_outlined,
+              done
+                  ? Icons.check_circle_rounded
+                  : Icons.calendar_today_rounded,
               color: done
-                  ? const Color(AppTheme.accent)
-                  : const Color(0xFFFFB84D),
+                  ? const Color(AppColors.accent)
+                  : const Color(AppColors.warning),
               size: 20,
             ),
           ),
-          const SizedBox(width: 11),
+          const SizedBox(width: AppSpace.x3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(done ? '今日已签到' : '每日签到',
-                    style: const TextStyle(
-                        color: Color(AppTheme.textPrimary), fontSize: 14.5)),
+                    style: AppType.title.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                const Text('签到得经验 +10',
-                    style: TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 11.5)),
+                const Text('签到得经验 +10', style: AppType.caption),
               ],
             ),
           ),
-          GestureDetector(
+          PillButton(
+            label: done ? '已完成' : '签到',
+            size: PillSize.sm,
+            variant: done ? PillVariant.ghost : PillVariant.primary,
+            loading: _signing,
             onTap: done ? null : _signin,
-            child: Container(
-              width: 74,
-              height: 30,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: done
-                    ? const Color(AppTheme.elevated)
-                    : const Color(AppTheme.accent),
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-              ),
-              child: _signing
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Color(AppTheme.accent)))
-                  : Text(done ? '已完成' : '签到',
-                      style: TextStyle(
-                          color: done
-                              ? const Color(AppTheme.textSecondary)
-                              : Colors.black,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600)),
-            ),
           ),
         ],
       ),
@@ -318,78 +287,65 @@ class _TaskCenterPageState extends State<TaskCenterPage> {
     final done = status == 'done';
     final id = (t['id'] ?? '') as String;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: AppSpace.x2),
+      padding: const EdgeInsets.all(AppSpace.x3),
       decoration: BoxDecoration(
-        color: const Color(AppTheme.card),
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(AppColors.card),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: const Color(AppColors.border)),
       ),
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: claimed
-                  ? const Color(AppTheme.accentSoft)
-                  : const Color(AppTheme.bg),
-              borderRadius: BorderRadius.circular(10),
+                  ? const Color(AppColors.accentSoft)
+                  : const Color(AppColors.elevated),
+              borderRadius: BorderRadius.circular(AppRadius.xs),
             ),
             child: Icon(
-              claimed ? Icons.check_circle : Icons.bolt,
+              claimed ? Icons.check_circle_rounded : Icons.bolt_rounded,
               color: claimed
-                  ? const Color(AppTheme.accent)
-                  : const Color(0xFFFFB84D),
+                  ? const Color(AppColors.accent)
+                  : const Color(AppColors.warning),
               size: 18,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpace.x3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(name,
-                    style: const TextStyle(
-                        color: Color(AppTheme.textPrimary), fontSize: 14)),
+                    style:
+                        AppType.body.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(desc.isEmpty ? '奖励经验 +$reward' : '$desc · +$reward 经验',
-                    style: const TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 11)),
+                Text(
+                  desc.isEmpty ? '奖励经验 +$reward' : '$desc · +$reward 经验',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.caption,
+                ),
               ],
             ),
           ),
+          const SizedBox(width: AppSpace.x2),
           if (claimed)
-            const Text('已领取',
-                style: TextStyle(
-                    color: Color(AppTheme.accent), fontSize: 12))
+            Text('已领取',
+                style: AppType.caption
+                    .copyWith(color: const Color(AppColors.accent)))
           else if (done)
-            GestureDetector(
+            PillButton(
+              label: '领取',
+              size: PillSize.sm,
+              loading: _claiming == id,
               onTap: () => _claim(id),
-              child: Container(
-                width: 64,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(AppTheme.accent),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                ),
-                child: _claiming == id
-                    ? const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.black))
-                    : const Text('领取',
-                        style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)),
-              ),
             )
           else
-            const Text('进行中',
-                style: TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 12)),
+            Text('进行中', style: AppType.caption),
         ],
       ),
     );

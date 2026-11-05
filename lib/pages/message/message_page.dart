@@ -1,6 +1,6 @@
-/// 消息页（二级架构）：官方通知/互动通知 为入口项 + 私信会话直接平铺
+/// 消息页（沉浸黑）：通知入口 + 私信会话平铺
 ///
-/// - 顶部两个入口项：互动通知 / 官方通知（带未读数字角标）
+/// - 顶部两个入口项：互动通知 / 官方通知（未读数字角标）
 ///   - 互动通知 → 二级列表页（/notifications，已隔离 community_%）
 ///   - 官方通知 → 聊天框页（只读气泡，对齐音乐项目官方通知界面）
 /// - 私信：不设入口页，最近会话直接平铺在消息页（微信式），点会话进聊天框
@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../design/components.dart';
 import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
 import '../mine/login_page.dart';
@@ -33,6 +34,9 @@ class _MessagePageState extends State<MessagePage> {
 
   int _interactUnread = 0;
   int _officialUnread = 0;
+
+  /// 分组：0 = 全部（通知入口 + 私信） / 1 = 只看私信
+  int _seg = 0;
 
   /// 私信会话（直接平铺在一级列表）
   List<Map<String, dynamic>> _dmConvs = [];
@@ -164,155 +168,6 @@ class _MessagePageState extends State<MessagePage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      body: SafeArea(
-        // 底部导航栏避让由 RootPage 统一处理，这里只避让顶部状态栏
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
-              child: Text('消息',
-                  style: TextStyle(
-                      color: Color(AppTheme.textPrimary),
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold)),
-            ),
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                          color: Color(AppTheme.accent), strokeWidth: 2.5))
-                  : _needLogin
-                      ? _loginEmpty()
-                      : _loadError != null
-                          ? _errorRetry()
-                          : RefreshIndicator(
-                              color: const Color(AppTheme.accent),
-                              backgroundColor: const Color(AppTheme.card),
-                              onRefresh: _load,
-                              child: ListView(
-                                // 底部避让：动态取导航栏实际高度
-                                padding: EdgeInsets.only(
-                                    bottom: tabBarBottomInset(context)),
-                                children: [
-                                  // 官方 / 互动 两个入口项
-                                  _entry(
-                                    icon: Icons.favorite_outline_rounded,
-                                    color: const Color(AppTheme.heart),
-                                    title: '互动通知',
-                                    subtitle: '点赞、评论、@提及、新增关注',
-                                    unread: _interactUnread,
-                                    onTap: () =>
-                                        _open(() => const NotifListPage()),
-                                  ),
-                                  _divider(),
-                                  _entry(
-                                    icon: Icons.campaign_outlined,
-                                    color: const Color(AppTheme.sky),
-                                    title: '官方通知',
-                                    subtitle: '官方公告与活动提醒',
-                                    unread: _officialUnread,
-                                    onTap: () => _open(
-                                        () => const OfficialMessagesPage()),
-                                  ),
-                                  _divider(),
-                                  // 私信分组标题
-                                  const Padding(
-                                    padding: EdgeInsets.fromLTRB(16, 16, 16, 6),
-                                    child: Text('私信',
-                                        style: TextStyle(
-                                            color: Color(AppTheme.textSecondary),
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600)),
-                                  ),
-                                  if (_dmError != null && _dmConvs.isEmpty)
-                                    _dmErrorTile(_dmError!)
-                                  else if (_dmLoading && _dmConvs.isEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 24),
-                                      child: Center(
-                                        child: SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Color(
-                                                    AppTheme.accent))),
-                                      ),
-                                    )
-                                  else if (_dmConvs.isEmpty)
-                                    const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 26),
-                                      child: Center(
-                                        child: Text('暂无私信，在互相关注的好友主页点「私信」发起',
-                                            style: TextStyle(
-                                                color: Color(
-                                                    AppTheme.textTertiary),
-                                                fontSize: 12.5)),
-                                      ),
-                                    )
-                                  else ...[
-                                    ..._dmConvs.map((it) => buildConvTile(it,
-                                        onTap: () => _openChat(it))),
-                                    if (_dmHasMore)
-                                      GestureDetector(
-                                        onTap: () => _loadDm(),
-                                        behavior: HitTestBehavior.opaque,
-                                        child: const Padding(
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 12),
-                                          child: Center(
-                                            child: Text('加载更多',
-                                                style: TextStyle(
-                                                    color: Color(
-                                                        AppTheme.textSecondary),
-                                                    fontSize: 13)),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ],
-                              ),
-                            ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _dmErrorTile(String msg) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Center(
-        child: Column(
-          children: [
-            Text(msg,
-                style: const TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 12.5)),
-            const SizedBox(height: 10),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(AppTheme.accent),
-                side: const BorderSide(color: Color(AppTheme.accent)),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18)),
-              ),
-              onPressed: () => _loadDm(refresh: true),
-              child: const Text('重新加载'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _open(Widget Function() page) async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => page()),
@@ -320,8 +175,128 @@ class _MessagePageState extends State<MessagePage> {
     if (mounted) _load();
   }
 
-  Widget _divider() => const Divider(
-      height: 1, indent: 68, endIndent: 16, color: Color(AppTheme.border));
+  void _switchSeg(int i) {
+    if (_seg == i) return;
+    setState(() => _seg = i);
+  }
+
+  // ------------------------------------------------------------------ UI
+
+  @override
+  Widget build(BuildContext context) {
+    return ImmersivePage(
+      child: SafeArea(
+        // 底部导航栏避让由 RootPage 统一处理，这里只避让顶部状态栏
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _header(),
+            FeedTabs(
+              labels: const ['全部', '私信'],
+              index: _seg,
+              onChanged: _switchSeg,
+            ),
+            Expanded(child: _body()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x3, AppSpace.gutter, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          const Text('消息', style: AppType.h1),
+          const SizedBox(width: AppSpace.x2),
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.x1),
+            child: Text('互动 · 官方 · 私信', style: AppType.micro),
+          ),
+          const Spacer(),
+          IconCircleButton(
+            icon: Icons.sync_rounded,
+            size: 34,
+            iconSize: 17,
+            background: Colors.white.withValues(alpha: 0.06),
+            onTap: () {
+              _load();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _body() {
+    if (_loading) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
+        ),
+      );
+    }
+    if (_needLogin) return _loginEmpty();
+    if (_loadError != null) {
+      return Center(
+        child: ErrorState(
+          message: _loadError!,
+          onRetry: () {
+            _load();
+          },
+        ),
+      );
+    }
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: _load,
+      child: ListView(
+        physics:
+            const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: EdgeInsets.only(
+            bottom: tabBarBottomInset(context) + AppSpace.x6),
+        children: _rows(),
+      ),
+    );
+  }
+
+  List<Widget> _rows() {
+    return [
+      if (_seg == 0) ...[
+        _entry(
+          icon: Icons.favorite_rounded,
+          color: const Color(AppColors.heart),
+          title: '互动通知',
+          subtitle: '点赞、评论、@提及、新增关注',
+          unread: _interactUnread,
+          onTap: () => _open(() => const NotifListPage()),
+        ),
+        const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
+        _entry(
+          icon: Icons.campaign_rounded,
+          color: const Color(AppColors.info),
+          title: '官方通知',
+          subtitle: '官方公告与活动提醒',
+          unread: _officialUnread,
+          onTap: () => _open(() => const OfficialMessagesPage()),
+        ),
+        const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
+      ],
+      const SectionHeader(
+        title: '私信',
+        padding: EdgeInsets.fromLTRB(
+            AppSpace.gutter, AppSpace.x5, AppSpace.gutter, AppSpace.x2),
+      ),
+      ..._dmRows(),
+    ];
+  }
 
   Widget _entry({
     required IconData icon,
@@ -331,141 +306,88 @@ class _MessagePageState extends State<MessagePage> {
     required int unread,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Icon(icon, color: color, size: 21),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 3),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textTertiary),
-                          fontSize: 12)),
-                ],
-              ),
-            ),
-            if (unread > 0)
-              Container(
-                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF4D4F),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  unread > 99 ? '99+' : '$unread',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold),
-                ),
-              )
-            else
-              const Icon(Icons.chevron_right_rounded,
-                  color: Color(AppTheme.textTertiary), size: 20),
-          ],
+    return ListRow(
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: AppRadius.rMd,
         ),
+        child: Icon(icon, color: color, size: 21),
       ),
+      title: title,
+      subtitle: subtitle,
+      showChevron: false,
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.gutter, vertical: AppSpace.x3),
+      trailing: unread > 0
+          ? CountBadge(count: unread)
+          : const Icon(Icons.chevron_right_rounded,
+              size: 20, color: Color(AppColors.textTertiary)),
     );
   }
 
-  Widget _empty(IconData icon, String title, String subtitle,
-      {Widget? action}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60),
-      child: Center(
-        child: Column(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.card),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(icon,
-                  size: 30, color: const Color(AppTheme.textTertiary)),
-            ),
-            const SizedBox(height: 14),
-            Text(title,
-                style: const TextStyle(
-                    color: Color(AppTheme.textPrimary),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Color(AppTheme.textTertiary),
-                    fontSize: 12.5,
-                    height: 1.6)),
-            if (action != null) ...[
-              const SizedBox(height: 18),
-              action,
-            ],
-          ],
+  List<Widget> _dmRows() {
+    if (_dmError != null && _dmConvs.isEmpty) {
+      return [
+        ErrorState(
+          message: _dmError!,
+          onRetry: () {
+            _loadDm(refresh: true);
+          },
         ),
-      ),
-    );
+      ];
+    }
+    if (_dmLoading && _dmConvs.isEmpty) {
+      return const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: AppSpace.x7),
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      ];
+    }
+    if (_dmConvs.isEmpty) {
+      return const [
+        EmptyState(
+          compact: true,
+          icon: Icons.forum_outlined,
+          title: '暂无私信',
+          message: '与互相关注的好友开启私聊，在对方主页点击「私信」即可发起',
+        ),
+      ];
+    }
+    return [
+      for (final it in _dmConvs) ...[
+        RepaintBoundary(child: buildConvTile(it, onTap: () => _openChat(it))),
+        const Hairline(indent: AppSpace.gutter + 48 + AppSpace.x3),
+      ],
+      if (_dmHasMore || _dmLoading)
+        LoadMoreFooter(
+          loading: _dmLoading,
+          hasMore: _dmHasMore,
+          onTap: () {
+            _loadDm();
+          },
+        ),
+    ];
   }
 
   Widget _loginEmpty() {
-    return _empty(
-      Icons.lock_outline,
-      '登录后查看消息',
-      '互动通知、官方通知、私信\n登录后才会出现',
-      action: FilledButton(
-        style: FilledButton.styleFrom(
-          backgroundColor: const Color(AppTheme.accent),
-          foregroundColor: Colors.black,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-        ),
-        onPressed: _goLogin,
-        child: const Text('去登录',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  Widget _errorRetry() {
-    return _empty(
-      Icons.wifi_off_outlined,
-      '加载失败',
-      _loadError ?? '请检查网络后重试',
-      action: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(AppTheme.accent),
-          side: const BorderSide(color: Color(AppTheme.accent)),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-        ),
-        onPressed: _load,
-        child: const Text('重新加载',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+    return Center(
+      child: EmptyState(
+        icon: Icons.lock_outline_rounded,
+        title: '登录后查看消息',
+        message: '互动通知、官方通知、私信\n登录后才会出现',
+        actionLabel: '去登录',
+        onAction: _goLogin,
       ),
     );
   }

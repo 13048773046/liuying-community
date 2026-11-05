@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
-import '../../widgets/user_avatar.dart';
+import '../../design/components.dart';
 import '../user/user_profile.dart';
 
 class UserListPage extends StatefulWidget {
@@ -84,158 +84,125 @@ class _UserListPageState extends State<UserListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        foregroundColor: const Color(AppTheme.textPrimary),
-        elevation: 0,
-        title: Text(widget.title,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          GlassTopBar(title: widget.title, solid: true),
+          Expanded(
+            child: !_loaded
+                ? const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2.4))
+                : _items.isEmpty
+                    ? _empty()
+                    : _list(),
+          ),
+        ],
       ),
-      body: !_loaded
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2.5))
-          : _items.isEmpty
-              ? ListView(
-                    padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
-                  children: [
-                    const SizedBox(height: 120),
-                    Icon(widget.kind == 'followings'
-                        ? Icons.person_add_alt_outlined
-                        : Icons.person_outline,
-                        size: 52, color: const Color(AppTheme.textTertiary)),
-                    const SizedBox(height: 10),
-                    Center(
-                      child: Text(
-                        widget.kind == 'followings' ? '还没有关注任何人' : '还没有粉丝',
-                        style: const TextStyle(
-                            color: Color(AppTheme.textSecondary),
-                            fontSize: 13.5),
-                      ),
-                    ),
-                  ],
-                )
-              : RefreshIndicator(
-                  color: const Color(AppTheme.accent),
-                  backgroundColor: const Color(AppTheme.card),
-                  onRefresh: () => _load(refresh: true),
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (n) {
-                      if (n.metrics.extentAfter < 300) _load();
-                      return false;
-                    },
-                    child: ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      itemCount: _items.length + (_hasMore ? 1 : 0),
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) {
-                        if (i >= _items.length) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 14),
-                            child: Center(
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Color(AppTheme.accent)),
-                              ),
-                            ),
-                          );
-                        }
-                        final u = _items[i];
-                        final uid = (u['id'] ?? '') as String;
-                        final name = (u['name'] ?? '用户') as String;
-                        final avatar = (u['avatar'] ?? '') as String;
-                        final signature = (u['signature'] ?? '') as String;
-                        final following = _following.contains(uid);
-                        final isSelf = uid == ApiClient.userId;
-                        return GestureDetector(
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      UserProfilePage(uid: uid))),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(AppTheme.card),
-                              borderRadius:
-                                  BorderRadius.circular(AppTheme.radiusCard),
-                            ),
-                            child: Row(
-                              children: [
-                                ClipOval(
-                                  child: UserAvatar(url: avatar, size: 44),
-                                ),
-                                const SizedBox(width: 11),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(name,
-                                          style: const TextStyle(
-                                              color: Color(AppTheme.textPrimary),
-                                              fontSize: 14.5,
-                                              fontWeight: FontWeight.w500)),
-                                      if (signature.isNotEmpty)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 2),
-                                          child: Text(signature,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                  color:
-                                                      Color(AppTheme.textTertiary),
-                                                  fontSize: 11.5)),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                if (!isSelf)
-                                  GestureDetector(
-                                    onTap: () => _toggle(uid),
-                                    child: Container(
-                                      width: 66,
-                                      height: 30,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: following
-                                            ? Colors.transparent
-                                            : const Color(AppTheme.accent),
-                                        borderRadius: BorderRadius.circular(
-                                            AppTheme.radiusPill),
-                                        border: following
-                                            ? Border.all(
-                                                color: const Color(
-                                                    AppTheme.border))
-                                            : null,
-                                      ),
-                                      child: Text(
-                                        following ? '已关注' : '+ 关注',
-                                        style: TextStyle(
-                                            color: following
-                                                ? const Color(
-                                                    AppTheme.textSecondary)
-                                                : Colors.black,
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+    );
+  }
+
+  Widget _empty() {
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: () => _load(refresh: true),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          AppSpace.gutter,
+          AppSpace.x8,
+          AppSpace.gutter,
+          AppSpace.x6 + MediaQuery.paddingOf(context).bottom,
+        ),
+        children: [
+          EmptyState(
+            icon: widget.kind == 'followings'
+                ? Icons.person_add_alt_outlined
+                : Icons.person_outline_rounded,
+            title: widget.kind == 'followings' ? '还没有关注任何人' : '还没有粉丝',
+            message: widget.kind == 'followings'
+                ? '去发现页找找感兴趣的作者吧'
+                : '发布优质内容，会有人循着光找到你',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _list() {
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: () => _load(refresh: true),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n.metrics.extentAfter < 300) _load();
+          return false;
+        },
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            AppSpace.gutter,
+            AppSpace.x2,
+            AppSpace.gutter,
+            AppSpace.x6 + MediaQuery.paddingOf(context).bottom,
+          ),
+          itemCount: _items.length + (_hasMore ? 1 : 0),
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpace.listGap),
+          itemBuilder: (_, i) {
+            if (i >= _items.length) {
+              return const LoadMoreFooter(loading: true);
+            }
+            return _userCard(_items[i]);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _userCard(Map<String, dynamic> u) {
+    final uid = (u['id'] ?? '') as String;
+    final name = (u['name'] ?? '用户') as String;
+    final avatar = (u['avatar'] ?? '') as String;
+    final signature = (u['signature'] ?? '') as String;
+    final following = _following.contains(uid);
+    final isSelf = uid == ApiClient.userId;
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(AppColors.card),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: const Color(AppColors.border)),
+      ),
+      child: ListRow(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.x3,
+          vertical: AppSpace.x3,
+        ),
+        showChevron: false,
+        leading: AppAvatar(
+          url: avatarUrl(avatar),
+          name: name,
+          size: 44,
+        ),
+        title: name,
+        subtitle: signature.isEmpty ? null : signature,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
+        ),
+        trailing: isSelf
+            ? null
+            : PillButton(
+                label: following ? '已关注' : '关注',
+                icon: following ? null : Icons.add_rounded,
+                size: PillSize.sm,
+                variant: following ? PillVariant.ghost : PillVariant.primary,
+                onTap: () => _toggle(uid),
+              ),
+      ),
     );
   }
 }

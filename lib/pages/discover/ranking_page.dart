@@ -1,12 +1,14 @@
-/// 排行榜页：热帖 / 话题榜 / 达人榜 三个 Tab
+/// 排行榜页：热帖 / 话题榜 / 达人榜 三个分段（[FeedTabs]）
+///
+/// 版式：前三名「大号数字 + 头像/标识行」，其余用 [ListRow] 紧凑列表。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../design/components.dart';
 import '../../models/feed_item.dart';
-import '../../widgets/user_avatar.dart';
 import '../post/post_detail.dart';
 import '../user/user_profile.dart';
 import 'topic_detail_page.dart';
@@ -66,312 +68,312 @@ class _RankingPageState extends State<RankingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('排行榜',
-            style: TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                fontWeight: FontWeight.w600)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 18),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      body: Column(
+    return ImmersivePage(
+      child: Column(
         children: [
-          // Tab
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
-            child: Row(
-              children: [
-                for (final (label, v) in [
-                  ('热帖榜', 0),
-                  ('话题榜', 1),
-                  ('达人榜', 2),
-                ])
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _tab = v),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: _tab == v
-                              ? const Color(AppTheme.accent)
-                                  .withValues(alpha: 0.14)
-                              : Colors.transparent,
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusPill),
-                        ),
-                        child: Text(label,
-                            style: TextStyle(
-                              color: _tab == v
-                                  ? const Color(AppTheme.accent)
-                                  : const Color(AppTheme.textSecondary),
-                              fontSize: 13.5,
-                              fontWeight: _tab == v
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            )),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          const GlassTopBar(title: '排行榜', solid: true),
+          FeedTabs(
+            labels: const ['热帖榜', '话题榜', '达人榜'],
+            index: _tab,
+            onChanged: (i) => setState(() => _tab = i),
           ),
-          const Divider(
-              height: 1, color: Color(AppTheme.border), thickness: 0.5),
-          Expanded(
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: Color(AppTheme.accent), strokeWidth: 2.5))
-                : switch (_tab) {
-                    0 => _postList(),
-                    1 => _topicList(),
-                    _ => _userList(),
-                  },
-          ),
+          Expanded(child: _loading ? const _RankingSkeleton() : _body()),
         ],
       ),
     );
   }
 
-  // ---------- 热帖榜 ----------
+  Widget _body() {
+    return switch (_tab) {
+      0 => _postList(),
+      1 => _topicList(),
+      _ => _userList(),
+    };
+  }
+
+  // ---------------------------------------------------------------- 跳转
+  void _openPost(FeedItem p) {
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => PostDetailPage(postId: p.id)));
+  }
+
+  void _openTopic(Map<String, dynamic> t) {
+    final name = (t['name'] ?? '') as String;
+    final count = ((t['count'] ?? 0) as num).toInt();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => TopicDetailPage(topic: name, count: count)),
+    );
+  }
+
+  void _openUser(String uid) {
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)));
+  }
+
+  // -------------------------------------------------------------- 热帖榜
   Widget _postList() {
-    if (_posts.isEmpty) {
-      return const Center(
-          child: Text('暂无数据',
-              style: TextStyle(color: Color(AppTheme.textSecondary))));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.all(12),
-      itemCount: _posts.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final p = _posts[i];
-        return GestureDetector(
-          onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => PostDetailPage(postId: p.id))),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(AppTheme.card),
-              borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+    if (_posts.isEmpty) return _empty();
+    final top = _posts.take(3).toList();
+    return ListView(
+      padding: _listPadding(context),
+      children: [
+        for (var i = 0; i < top.length; i++)
+          _podiumRow(
+            rank: i,
+            leading: AppAvatar(
+              url: avatarUrlOf(top[i].author.id),
+              size: 44,
+              name: top[i].author.name,
+              ring: top[i].author.isAdmin,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 名次
-                SizedBox(
-                  width: 30,
-                  child: Text(
-                    '${i + 1}',
-                    style: TextStyle(
-                      color: i < 3
-                          ? const Color(0xFFFFB84D)
-                          : const Color(AppTheme.textTertiary),
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p.content.isEmpty ? '（无文字内容）' : p.content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Color(AppTheme.textPrimary),
-                            fontSize: 14,
-                            height: 1.3),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          UserAvatar(
-                              url: p.author.avatar,
-                              name: p.author.name,
-                              size: 16),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(p.author.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: Color(AppTheme.textTertiary),
-                                    fontSize: 11)),
-                          ),
-                          Text(
-                            '${_fmt(p.likeCount)} 赞',
-                            style: const TextStyle(
-                                color: Color(AppTheme.textTertiary),
-                                fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            title: top[i].content.isEmpty ? '（无文字内容）' : top[i].content,
+            subtitle:
+                '${_authorName(top[i].author.name)} · ${formatCount(top[i].likeCount)} 赞',
+            onTap: () => _openPost(top[i]),
           ),
-        );
-      },
+        if (_posts.length > 3) ...[
+          const Hairline(),
+          for (var i = 3; i < _posts.length; i++)
+            ListRow(
+              leading: _rankNumber(i),
+              title: _posts[i].content.isEmpty ? '（无文字内容）' : _posts[i].content,
+              subtitle:
+                  '${_authorName(_posts[i].author.name)} · ${formatCount(_posts[i].likeCount)} 赞',
+              showChevron: false,
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.x3),
+              onTap: () => _openPost(_posts[i]),
+            ),
+        ],
+      ],
     );
   }
 
-  // ---------- 话题榜 ----------
+  // -------------------------------------------------------------- 话题榜
   Widget _topicList() {
-    if (_topics.isEmpty) {
-      return const Center(
-          child: Text('暂无数据',
-              style: TextStyle(color: Color(AppTheme.textSecondary))));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.all(12),
-      itemCount: _topics.length,
-      separatorBuilder: (_, __) => const Divider(
-          height: 1, color: Color(AppTheme.border), thickness: 0.5),
-      itemBuilder: (_, i) {
-        final t = _topics[i];
-        final name = (t['name'] ?? '') as String;
-        final count = ((t['count'] ?? 0) as num).toInt();
-        return GestureDetector(
-          onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) =>
-                      TopicDetailPage(topic: name, count: count))),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 30,
-                  child: Text(
-                    '${i + 1}',
-                    style: TextStyle(
-                      color: i < 3
-                          ? const Color(0xFFFFB84D)
-                          : const Color(AppTheme.textTertiary),
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text('#$name',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600)),
-                ),
-                Text('$_fmt(count) 帖',
-                    style: const TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 12)),
-              ],
-            ),
+    if (_topics.isEmpty) return _empty();
+    final top = _topics.take(3).toList();
+    return ListView(
+      padding: _listPadding(context),
+      children: [
+        for (var i = 0; i < top.length; i++)
+          _podiumRow(
+            rank: i,
+            leading: _hashTile(),
+            title: '#${top[i]['name'] ?? ''}',
+            subtitle:
+                '${formatCount(((top[i]['count'] ?? 0) as num).toInt())} 帖参与',
+            onTap: () => _openTopic(top[i]),
           ),
-        );
-      },
+        if (_topics.length > 3) ...[
+          const Hairline(),
+          for (var i = 3; i < _topics.length; i++)
+            ListRow(
+              leading: _rankNumber(i),
+              title: '#${_topics[i]['name'] ?? ''}',
+              subtitle:
+                  '${formatCount(((_topics[i]['count'] ?? 0) as num).toInt())} 帖参与',
+              showChevron: false,
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.x3),
+              onTap: () => _openTopic(_topics[i]),
+            ),
+        ],
+      ],
     );
   }
 
-  // ---------- 达人榜 ----------
+  // -------------------------------------------------------------- 达人榜
   Widget _userList() {
-    if (_users.isEmpty) {
-      return const Center(
-          child: Text('暂无数据',
-              style: TextStyle(color: Color(AppTheme.textSecondary))));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.all(12),
-      itemCount: _users.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final u = (_users[i]['user'] ?? {}) as Map<String, dynamic>;
-        final uid = (u['id'] ?? '') as String;
-        final name = (u['name'] ?? '') as String;
-        final avatar = (u['avatar'] ?? '') as String;
-        final exp = ((_users[i]['exp'] ?? 0) as num).toInt();
-        final lv = ((_users[i]['level'] ?? 0) as num).toInt();
-        return GestureDetector(
-          onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => UserProfilePage(uid: uid))),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(AppTheme.card),
-              borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+    if (_users.isEmpty) return _empty();
+    final top = _users.take(3).toList();
+    return ListView(
+      padding: _listPadding(context),
+      children: [
+        for (var i = 0; i < top.length; i++)
+          _podiumRow(
+            rank: i,
+            leading: AppAvatar(
+              url: avatarUrlOf(_uidOf(top[i])),
+              size: 44,
+              name: _nameOf(top[i]),
             ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 30,
-                  child: Text(
-                    '${i + 1}',
-                    style: TextStyle(
-                      color: i < 3
-                          ? const Color(0xFFFFB84D)
-                          : const Color(AppTheme.textTertiary),
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+            title: _nameOf(top[i]),
+            subtitle:
+                'LV.${_levelOf(top[i])} · ${formatCount(_expOf(top[i]))} 经验',
+            onTap: () => _openUser(_uidOf(top[i])),
+          ),
+        if (_users.length > 3) ...[
+          const Hairline(),
+          for (var i = 3; i < _users.length; i++)
+            ListRow(
+              leading: AppAvatar(
+                url: avatarUrlOf(_uidOf(_users[i])),
+                size: 40,
+                name: _nameOf(_users[i]),
+              ),
+              title: _nameOf(_users[i]),
+              subtitle:
+                  'LV.${_levelOf(_users[i])} · ${formatCount(_expOf(_users[i]))} 经验',
+              showChevron: false,
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.x3),
+              onTap: () => _openUser(_uidOf(_users[i])),
+            ),
+        ],
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------- 原子件
+  EdgeInsets _listPadding(BuildContext context) => EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        AppSpace.x4,
+        AppSpace.gutter,
+        MediaQuery.paddingOf(context).bottom + 28,
+      );
+
+  String _authorName(String name) => name.isEmpty ? '匿名用户' : name;
+
+  String _uidOf(Map<String, dynamic> e) =>
+      (((e['user'] ?? {}) as Map<String, dynamic>)['id'] ?? '') as String;
+
+  String _nameOf(Map<String, dynamic> e) =>
+      (((e['user'] ?? {}) as Map<String, dynamic>)['name'] ?? '') as String;
+
+  int _levelOf(Map<String, dynamic> e) =>
+      ((e['level'] ?? 0) as num).toInt();
+
+  int _expOf(Map<String, dynamic> e) => ((e['exp'] ?? 0) as num).toInt();
+
+  /// 前三名：大号数字 + 头像/标识行 + 标题/副标题
+  Widget _podiumRow({
+    required int rank,
+    required Widget leading,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return PressableScale(
+      onTap: onTap,
+      scale: 0.98,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpace.x4),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 42,
+              child: Text(
+                '${rank + 1}',
+                style: AppType.h1.copyWith(
+                  fontSize: 30,
+                  height: 1,
+                  color: rank == 0
+                      ? const Color(AppColors.accent)
+                      : const Color(AppColors.textPrimary),
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-                UserAvatar(url: avatar, name: name, size: 42),
-                const SizedBox(width: 10),
+              ),
+            ),
+            const SizedBox(width: AppSpace.x1),
+            leading,
+            const SizedBox(width: AppSpace.x3),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.body,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.micro,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _rankNumber(int i) {
+    return SizedBox(
+      width: 26,
+      child: Text(
+        '${i + 1}',
+        style: AppType.label.copyWith(
+          color: const Color(AppColors.textTertiary),
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+
+  Widget _hashTile() {
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(AppColors.accent).withValues(alpha: 0.12),
+        borderRadius: AppRadius.rSm,
+      ),
+      child: Text('#',
+          style: AppType.h2.copyWith(color: const Color(AppColors.accent))),
+    );
+  }
+
+  Widget _empty() => const Center(
+        child: EmptyState(
+          icon: Icons.leaderboard_outlined,
+          title: '暂无数据',
+          message: '榜单还在统计中，稍后再来看看',
+        ),
+      );
+}
+
+/// 首屏骨架：名次 + 文字的列表占位。
+class _RankingSkeleton extends StatelessWidget {
+  const _RankingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 0),
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        for (var i = 0; i < 6; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.x4),
+            child: Row(
+              children: const [
+                SkeletonBox(width: 26, height: 26, radius: AppRadius.xs),
+                SizedBox(width: AppSpace.x2),
+                SkeletonBox(width: 44, height: 44, radius: 22),
+                SizedBox(width: AppSpace.x3),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text('LV.$lv · ${_fmt(exp)} 经验',
-                          style: const TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 11)),
+                      SkeletonBox(height: 12),
+                      SizedBox(height: AppSpace.x2),
+                      SkeletonBox(width: 120, height: 10),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
+      ],
     );
-  }
-
-  String _fmt(int n) {
-    if (n >= 10000) {
-      final w = n / 10000;
-      return w >= 100
-          ? '${w.toStringAsFixed(0)}万'
-          : '${w.toStringAsFixed(1)}万';
-    }
-    return '$n';
   }
 }

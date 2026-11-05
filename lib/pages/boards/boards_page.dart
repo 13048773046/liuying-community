@@ -1,11 +1,12 @@
-/// 版块页：顶部一级 Tab 横滑 + 二级子版块 Tab，点击二级直接在当前页切换帖子流（不跳转）
+/// 版块页：一级版块标签横滑（[TagRail]）+ 二级子版块胶囊（[TagPill]），
+/// 内容为三列作品网格（[BoardFeedGrid]），点击二级直接在当前页切换帖子流（不跳转）
 /// 数据来自 /boards（含 children 二级分类）
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
-import '../../config.dart';
+import '../../design/components.dart';
 import '../../widgets/board_feed_grid.dart';
 
 class Board {
@@ -60,8 +61,7 @@ class _BoardsPageState extends State<BoardsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('版块加载失败：$e')));
+      showAppToast(context, '版块加载失败：$e');
     }
   }
 
@@ -75,143 +75,123 @@ class _BoardsPageState extends State<BoardsPage> {
     return b.id;
   }
 
+  static String _label(Board b) => b.icon.isEmpty ? b.name : '${b.icon} ${b.name}';
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      body: SafeArea(
+    return ImmersivePage(
+      child: SafeArea(
         // 底部导航栏避让由 BoardFeedGrid 用 tabBarBottomInset 动态处理
         bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Text(
-                '社区版块',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            _header(),
             if (!_loading && _boards.isNotEmpty) ...[
-              _topTabs(),
-              if (_boards[_sel].children.isNotEmpty) _subTabs(_boards[_sel]),
+              TagRail(
+                labels: _boards.map(_label).toList(),
+                index: _sel,
+                onChanged: (i) => setState(() {
+                  _sel = i;
+                  _sub = 0;
+                }),
+              ),
+              if (_boards[_sel].children.isNotEmpty) _subRail(_boards[_sel]),
             ],
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                          color: Color(AppTheme.accent)))
-                  : _boards.isEmpty
-                      ? const Center(
-                          child: Text('暂无版块',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textSecondary))))
-                      : BoardFeedGrid(boardId: _activeBoardId),
-            ),
+            Expanded(child: _content()),
           ],
         ),
       ),
     );
   }
 
-  /// 顶部一级板块 Tab（横向滑，选中薄荷绿）
-  Widget _topTabs() {
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _boards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final b = _boards[i];
-          final selected = i == _sel;
-          return GestureDetector(
-            onTap: () => setState(() {
-              _sel = i;
-              _sub = 0;
-            }),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected
-                    ? const Color(AppTheme.accent).withValues(alpha: 0.16)
-                    : const Color(AppTheme.card),
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                border: Border.all(
-                    color: selected
-                        ? const Color(AppTheme.accent)
-                        : const Color(AppTheme.border),
-                    width: selected ? 1.2 : 0.5),
-              ),
-              child: Text(
-                '${b.icon} ${b.name}',
-                style: TextStyle(
-                  color: selected
-                      ? const Color(AppTheme.accent)
-                      : const Color(AppTheme.textSecondary),
-                  fontSize: 13,
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ),
-          );
-        },
+  // ------------------------------------------------------------------ 标题
+  Widget _header() {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x3, AppSpace.gutter, AppSpace.x2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('社区版块', style: AppType.h1),
+          SizedBox(height: 3),
+          Text('按版块找到同好', style: AppType.micro),
+        ],
       ),
     );
   }
 
-  /// 二级子版块 Tab（选中一级板块下 children，点击直接切换帖子流）
-  Widget _subTabs(Board b) {
+  // ------------------------------------------------------------ 二级子版块
+  Widget _subRail(Board b) {
     return SizedBox(
-      height: 36,
+      height: 42,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.gutter, vertical: AppSpace.x1),
         itemCount: b.children.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (_, i) {
-          final c = b.children[i];
-          final selected = i == _sub;
-          return GestureDetector(
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.x2),
+        itemBuilder: (_, i) => Center(
+          child: TagPill(
+            label: _label(b.children[i]),
+            active: i == _sub,
+            compact: true,
             onTap: () => setState(() => _sub = i),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              padding: const EdgeInsets.symmetric(horizontal: 13),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected
-                    ? const Color(AppTheme.accent)
-                    : const Color(AppTheme.card),
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                border: Border.all(
-                    color: selected
-                        ? const Color(AppTheme.accent)
-                        : const Color(AppTheme.border),
-                    width: selected ? 1.2 : 0.5),
-              ),
-              child: Text(
-                '${c.icon} ${c.name}',
-                style: TextStyle(
-                  color: selected
-                      ? Colors.black
-                      : const Color(AppTheme.textSecondary),
-                  fontSize: 12,
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ),
-          );
-        },
+          ),
+        ),
       ),
+    );
+  }
+
+  // ------------------------------------------------------------------ 内容
+  Widget _content() {
+    if (_loading) return const _BoardsSkeleton();
+    if (_boards.isEmpty) {
+      return const Center(
+        child: EmptyState(
+          icon: Icons.dashboard_outlined,
+          title: '暂无版块',
+          message: '版块正在整理中，稍后再来看看',
+        ),
+      );
+    }
+    return BoardFeedGrid(boardId: _activeBoardId);
+  }
+}
+
+/// 首屏骨架：版块行占位。
+class _BoardsSkeleton extends StatelessWidget {
+  const _BoardsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 0),
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        for (var i = 0; i < 4; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.x3),
+            child: Row(
+              children: const [
+                SkeletonBox(width: 56, height: 56, radius: AppRadius.sm),
+                SizedBox(width: AppSpace.x3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonBox(height: 13),
+                      SizedBox(height: AppSpace.x2),
+                      SkeletonBox(width: 140, height: 11),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

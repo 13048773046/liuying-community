@@ -1,7 +1,7 @@
 /// 通知实时总线（P0）：WebSocket 连接 + 未读数 + 通知事件流
 ///
 /// 协议（community/handlers/ws.py）：
-/// - 握手：wss://…/community/api/ws?token=<token>
+/// - 握手：`wss://…/community/api/ws?token=<token>`
 /// - 下行 hello：{kind:'hello', uid, unread}
 /// - 下行 notification：{kind:'notification', notification:{...}, unread}
 /// - 服务端 25s ping，dart:io 自动回 pong
@@ -47,6 +47,12 @@ class NotifyBus {
   int get currentDmUnread => _dmUnread;
 
   bool get connected => _connected;
+
+  /// 本地清零未读（用于「全部已读」后立刻消红点）
+  void clearUnread() => _setUnread(0);
+
+  /// 本地设置未读（用于按接口返回值同步）
+  void setUnread(int n) => _setUnread(n);
 
   void connect(String token) {
     if (token.isEmpty) return;

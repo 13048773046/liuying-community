@@ -1,4 +1,4 @@
-/// 视频隐藏式控制条（抖音式）：可拖进度条 + 播放/暂停 + 当前时间/总时长
+/// 视频隐藏式控制条（抖音式）：细白进度条 + 黑底半透明胶囊
 ///
 /// 由父级控制显隐（点画面调出/隐藏），本组件只负责渲染与交互：
 ///  - 内部监听 controller 更新进度/时长
@@ -9,7 +9,10 @@ library;
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+
 import 'package:video_player/video_player.dart';
+
+import '../design/components.dart';
 
 /// 时间格式 mm:ss / h:mm:ss
 String fmtDuration(Duration d) {
@@ -110,32 +113,45 @@ class _VideoControlsBarState extends State<VideoControlsBar> {
     final val = _dragMs >= 0
         ? _dragMs
         : (durMs > 0 ? posMs.clamp(0.0, durMs) : 0.0);
-    return Container(
-      padding: EdgeInsets.fromLTRB(12, 16, 8, 8 + widget.bottomInset),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [Colors.black87, Colors.black38, Colors.transparent],
-          stops: [0.0, 0.55, 1.0],
-        ),
+    final playing = widget.controller.value.isPlaying;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.x3,
+        0,
+        AppSpace.x3,
+        AppSpace.x3 + widget.bottomInset,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Text(fmtDuration(_pos),
-                  style: const TextStyle(color: Colors.white, fontSize: 11)),
-              Expanded(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(AppSpace.x1, 2, AppSpace.x3, 2),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: AppRadius.rPill,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        child: Row(
+          children: [
+            IconCircleButton(
+              icon: playing
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
+              size: 30,
+              iconSize: 18,
+              background: Colors.white.withValues(alpha: 0.12),
+              onTap: _togglePlay,
+            ),
+            const SizedBox(width: AppSpace.x1),
+            Expanded(
+              child: SizedBox(
+                height: 26,
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2.5,
+                    trackHeight: 2,
                     activeTrackColor: Colors.white,
-                    inactiveTrackColor: Colors.white24,
+                    inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
                     thumbColor: Colors.white,
                     thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 5),
+                        const RoundSliderThumbShape(enabledThumbRadius: 4),
                     overlayShape:
                         const RoundSliderOverlayShape(overlayRadius: 10),
                     trackShape: const RoundedRectSliderTrackShape(),
@@ -151,24 +167,17 @@ class _VideoControlsBarState extends State<VideoControlsBar> {
                   ),
                 ),
               ),
-              Text(fmtDuration(_dur),
-                  style: const TextStyle(color: Colors.white70, fontSize: 11)),
-              const SizedBox(width: 4),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-                iconSize: 22,
-                color: Colors.white,
-                icon: Icon(
-                  widget.controller.value.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                ),
-                onPressed: _togglePlay,
+            ),
+            const SizedBox(width: AppSpace.x1),
+            Text(
+              '${fmtDuration(_pos)} / ${fmtDuration(_dur)}',
+              style: AppType.micro.copyWith(
+                color: const Color(AppColors.textSecondary),
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

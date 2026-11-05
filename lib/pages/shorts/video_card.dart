@@ -12,7 +12,11 @@ import 'package:video_player/video_player.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../design/components.dart';
+import '../../services/app_route_observer.dart';
 import '../../utils/music_bgm.dart';
+import '../../utils/playback_prefs.dart';
+import '../../utils/share_util.dart';
 import '../../models/feed_item.dart';
 import '../mine/login_page.dart';
 import '../user/user_profile.dart';
@@ -31,7 +35,8 @@ class VideoCard extends StatefulWidget {
   State<VideoCard> createState() => _VideoCardState();
 }
 
-class _VideoCardState extends State<VideoCard> {
+class _VideoCardState extends State<VideoCard>
+    with RouteAware, WidgetsBindingObserver {
   VideoPlayerController? _video;
   bool _failed = false;
   bool _liked = false;
@@ -40,7 +45,21 @@ class _VideoCardState extends State<VideoCard> {
   int _commentCount = 0;
   int _shareCount = 0;
   bool _followed = false;
-  bool _muted = false;
+
+  /// 静音（视频原声与配乐一起静音，全局共享：滑到下一条也保持）
+  bool _muted = PlaybackPrefs.muted.value;
+
+  /// 三个可见性条件任一为 false 就必须暂停：
+  /// - `_routeVisible`：短视频页被别的路由盖住（进了详情/评论等）
+  /// - `_tickerEnabled`：所在 Tab 不再活跃（RootPage 的 TickerMode）
+  /// - `_appResumed`：App 退到后台
+  bool _routeVisible = true;
+  bool _tickerEnabled = true;
+  bool _appResumed = true;
+
+  /// 真正允许出声的条件：当前页 + 页面可见 + Tab 活跃 + App 在前台
+  bool get _shouldPlay =>
+      widget.isActive && _routeVisible && _tickerEnabled && _appResumed;
 
   /// 是否带配乐（有配乐时视频静音、BGM 作为声音，抖音式）
   bool get _useBgm {
@@ -49,11 +68,15 @@ class _VideoCardState extends State<VideoCard> {
     final u = m['url'];
     return u is String && u.isNotEmpty;
   }
+
   bool _controls = false;
   Timer? _hideTimer;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    PlaybackPrefs.muted.addListener(_onMuteChanged);
     _liked = widget.item.liked;
     _likeCount = widget.item.likeCount;
     _faved = widget.item.faved;
@@ -65,6 +88,45 @@ class _VideoCardState extends State<VideoCard> {
       // 图文/纯文帖：短视频 tab 同样播放所选配乐（抖音式图集有 BGM）
       _syncBgm();
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) appRouteObserver.subscribe(this, route);
+
+    // RootPage 用 TickerMode 标记「当前活跃的 Tab」：切走 Tab 时这里会收到变化
+    final enabled = TickerMode.valuesOf(context).enabled;
+    if (enabled != _tickerEnabled) {
+      _tickerEnabled = enabled;
+      _applyPlayback();
+    }
+  }
+
+  // ---------------- RouteAware：被别的页面盖住 / 回到本页 ----------------
+
+  @override
+  void didPushNext() {
+    // 从短视频页 push 了详情/评论等页面：立刻停声
+    _routeVisible = false;
+    _applyPlayback();
+  }
+
+  @override
+  void didPopNext() {
+    _routeVisible = true;
+    _applyPlayback();
+  }
+
+  // ---------------- 前后台 ----------------
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final resumed = state == AppLifecycleState.resumed;
+    if (resumed == _appResumed) return;
+    _appResumed = resumed;
+    _applyPlayback();
   }
 
   Future<void> _initVideo() async {
@@ -87,33 +149,25 @@ class _VideoCardState extends State<VideoCard> {
       setState(() {
         _video = c;
       });
-      if (widget.isActive) {
-        c.setLooping(true);
-        c.play();
-        if (_useBgm) {
-          c.setVolume(0);
-        } else {
-          c.setVolume(_muted ? 0 : 1);
-        }
-        _syncBgm();
-      }
+      _applyPlayback();
     } catch (_) {
       if (!mounted) return;
       setState(() => _failed = true);
     }
   }
 
-  /// 配乐播放状态同步（视频帖与图文帖共用）：
-  /// - 当前页且带配乐 → 播配乐（视频帖同时静音视频原声）
-  /// - 当前页无配乐 → 停配乐
-  /// - 离屏页不干预（下一页 isActive 会覆盖）
+  /// 配乐同步：只有允许出声且本条带配乐时才播；否则只在「当前播的就是这条」时停，
+  /// 避免误停别的页面正在播放的配乐。
   void _syncBgm() {
-    if (!widget.isActive) return;
     final m = widget.item.music;
     final u = m?['url'];
-    if (u is String && u.isNotEmpty) {
+    final hasBgm = u is String && u.isNotEmpty;
+    if (_shouldPlay && hasBgm) {
       MusicBgm.I.play(u);
-    } else {
+      MusicBgm.I.setMuted(_muted);
+      return;
+    }
+    if (hasBgm && MusicBgm.I.url == u) {
       MusicBgm.I.stop();
     }
   }
@@ -122,34 +176,52 @@ class _VideoCardState extends State<VideoCard> {
   void didUpdateWidget(covariant VideoCard old) {
     super.didUpdateWidget(old);
     if (old.isActive != widget.isActive) {
-      _syncPlayback();
-      _syncBgm();
+      _applyPlayback();
     }
   }
 
-  /// 播放状态同步：当前页播、离屏页暂停（等效音乐端 isCurrent 高频状态隔离）
-  void _syncPlayback() {
+  /// 统一入口：按可见性决定「播还是停」，视频与配乐一起处理。
+  void _applyPlayback() {
     final v = _video;
-    if (v == null || !v.value.isInitialized) return;
-    if (widget.isActive) {
-      v.setLooping(true);
-      v.play();
-      if (_useBgm) {
-        v.setVolume(0);
+    if (v != null && v.value.isInitialized) {
+      if (_shouldPlay) {
+        v.setLooping(true);
+        v.play();
+        v.setVolume((_useBgm || _muted) ? 0 : 1);
       } else {
-        v.setVolume(_muted ? 0 : 1);
+        v.pause();
+        v.setVolume(0);
       }
-    } else {
-      v.pause();
     }
+    _syncBgm();
+  }
+
+  /// 别的卡片切换了静音 → 本卡片同步
+  void _onMuteChanged() {
+    if (!mounted || _muted == PlaybackPrefs.muted.value) return;
+    setState(() => _muted = PlaybackPrefs.muted.value);
+    _applyPlayback();
+  }
+
+  /// 静音开关（视频原声 + 配乐，写入全局）
+  void _toggleMute() {
+    PlaybackPrefs.muted.value = !_muted;
+    setState(() => _muted = PlaybackPrefs.muted.value);
+    _applyPlayback();
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    PlaybackPrefs.muted.removeListener(_onMuteChanged);
+    appRouteObserver.unsubscribe(this);
     _video?.dispose();
-    // 页面销毁时停配乐，避免残留
-    MusicBgm.I.stop();
+    // 只停「自己正在播的」配乐，避免影响别的页面
+    final u = widget.item.music?['url'];
+    if (u is String && u.isNotEmpty && MusicBgm.I.url == u) {
+      MusicBgm.I.stop();
+    }
     super.dispose();
   }
 
@@ -171,7 +243,7 @@ class _VideoCardState extends State<VideoCard> {
       return;
     }
     try {
-      final r = await ApiClient.toggleLike(widget.item.id);
+      final r = await ApiClient.setPostLike(widget.item.id, liked: _liked);
       if (!mounted) return;
       setState(() {
         _liked = r['liked'] == true;
@@ -186,11 +258,17 @@ class _VideoCardState extends State<VideoCard> {
       _needLogin();
       return;
     }
+    final next = !_faved;
+    setState(() => _faved = next);
     try {
-      final r = await ApiClient.toggleFav(widget.item.id);
+      // faved 传「当前是否已收藏」：true → DELETE 取消，false → POST 收藏
+      final r = await ApiClient.toggleFav(widget.item.id, faved: !next);
       if (!mounted) return;
-      setState(() => _faved = r['faved'] == true);
-    } catch (_) {}
+      setState(() => _faved = boolOf(r['faved'], next));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _faved = !next);
+    }
   }
 
   Future<void> _toggleFollow() async {
@@ -212,9 +290,18 @@ class _VideoCardState extends State<VideoCard> {
       // 服务端返回 shareCount（此前误读 count 导致分享计数永不更新）
       setState(() => _shareCount =
           ((r['shareCount'] ?? _shareCount + 1) as num).toInt());
-    } catch (_) {}
-    // 系统分享（Android/iOS 平台通道）
-    // TODO: 接入 share_plus 后打开系统分享面板
+    } catch (_) {
+      // 上报失败不影响系统分享
+    }
+    if (!mounted) return;
+    // 当前渲染位置（iPad 上 sharePositionOrigin 必填）
+    Rect? origin;
+    final ro = context.findRenderObject();
+    if (ro is RenderBox && ro.hasSize) {
+      origin = ro.localToGlobal(Offset.zero) & ro.size;
+    }
+    // 系统分享面板：失败由 share_util 内部静默，不影响上面的计数
+    await sharePostLink(widget.item.content, widget.item.id, origin: origin);
   }
 
   /// 打开评论：先弹抖音式完整弹窗（50% 屏高）；
@@ -313,24 +400,25 @@ class _VideoCardState extends State<VideoCard> {
       return CachedNetworkImage(
         imageUrl: mediaUrl(cover),
         fit: BoxFit.cover,
-        placeholder: (_, __) => const _MediaLoading(),
-        errorWidget: (_, __, ___) => const _MediaLoading(),
+        placeholder: (_, _) => const _MediaLoading(),
+        errorWidget: (_, _, _) => const _MediaLoading(),
       );
     }
     // 加载失败：显示重试
     if (_failed) {
-      return GestureDetector(
+      return PressableScale(
         onTap: _initVideo,
+        scale: 0.98,
         child: Container(
-          color: const Color(0xFF14141B),
-          child: const Center(
+          color: const Color(AppColors.canvas),
+          child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.refresh, color: Color(AppTheme.textSecondary), size: 34),
-                SizedBox(height: 8),
-                Text('视频加载失败，点击重试',
-                    style: TextStyle(color: Color(AppTheme.textSecondary), fontSize: 12)),
+                const Icon(Icons.refresh_rounded,
+                    color: Color(AppColors.textSecondary), size: 34),
+                const SizedBox(height: AppSpace.x2),
+                Text('视频加载失败，点击重试', style: AppType.caption),
               ],
             ),
           ),
@@ -349,9 +437,9 @@ class _VideoCardState extends State<VideoCard> {
       bottom: 0,
       child: SafeArea(
         child: Padding(
-          // 底部避让透明导航栏：54(导航栏本体) + 底部安全区 + 12 间距
+          // 底部避让透明导航栏：导航栏本体 + 底部安全区 + 间距
           padding: EdgeInsets.fromLTRB(
-              14, 0, 8, 12 + _navBarHeight(context)),
+              AppSpace.x3, 0, AppSpace.x2, AppSpace.x3 + _navBarHeight(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -364,20 +452,19 @@ class _VideoCardState extends State<VideoCard> {
                       a.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: AppType.body.copyWith(
                         color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                   if (a.isAdmin) ...[
-                    const SizedBox(width: 5),
+                    const SizedBox(width: AppSpace.x1),
                     const _VerifiedBadge(name: '管理员'),
                   ],
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.x2),
               // 文案：话题高亮 + @提及高亮
               // 图文帖：正文收起两行 + 「展开」按钮，点击进入帖子详情（抖音式）
               if (f.content.isNotEmpty)
@@ -388,34 +475,30 @@ class _VideoCardState extends State<VideoCard> {
                   maxLines: widget.item.isVideo ? null : 2,
                 ),
               if (!widget.item.isVideo && f.content.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                GestureDetector(
+                const SizedBox(height: AppSpace.x1),
+                PressableScale(
                   onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) =>
                               PostDetailPage(postId: widget.item.id),
                         ),
                       ),
-                  child: const Text('展开',
-                      style: TextStyle(
-                          color: Color(AppTheme.accent),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600)),
+                  child: Text('展开',
+                      style: AppType.label
+                          .copyWith(color: const Color(AppColors.accent))),
                 ),
               ],
-              const SizedBox(height: 6),
+              const SizedBox(height: AppSpace.x2),
               // 话题 tag 行
               if (f.topic.isNotEmpty)
                 Wrap(
-                  spacing: 8,
+                  spacing: AppSpace.x2,
                   children: [
                     for (final t in f.topic)
                       Text(
                         '#$t',
-                        style: const TextStyle(
-                          color: Color(AppTheme.lilac),
-                          fontSize: 13,
-                        ),
+                        style: AppType.label
+                            .copyWith(color: const Color(AppColors.lilac)),
                       ),
                   ],
                 ),
@@ -429,8 +512,8 @@ class _VideoCardState extends State<VideoCard> {
   Widget _buildActionRail() {
     final a = widget.item.author;
     return Positioned(
-      right: 10,
-      bottom: 20 + _navBarHeight(context),
+      right: AppSpace.x3,
+      bottom: AppSpace.x5 + _navBarHeight(context),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -455,13 +538,14 @@ class _VideoCardState extends State<VideoCard> {
                     right: 0,
                     bottom: -8,
                     child: Center(
-                      child: GestureDetector(
+                      child: PressableScale(
                         onTap: _toggleFollow,
+                        scale: 0.9,
                         child: Container(
                           width: 22,
                           height: 22,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF4D6D),
+                            color: const Color(AppColors.heart),
                             shape: BoxShape.circle,
                             border:
                                 Border.all(color: Colors.white, width: 1.5),
@@ -474,10 +558,10 @@ class _VideoCardState extends State<VideoCard> {
                   ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpace.x5),
             _RailAction(
               asset: 'assets/icons/heart.svg',
-              color: _liked ? const Color(0xFFFF4D6D) : Colors.white,
+              color: _liked ? const Color(AppColors.heart) : Colors.white,
               count: _likeCount,
               onTap: _toggleLike,
             ),
@@ -493,9 +577,29 @@ class _VideoCardState extends State<VideoCard> {
             ),
             _RailAction(
               asset: 'assets/icons/star.svg',
-              color: _faved ? const Color(0xFFFFB84D) : Colors.white,
+              color: _faved ? const Color(AppColors.warning) : Colors.white,
               count: 0,
               onTap: _toggleFav,
+            ),
+            const SizedBox(height: AppSpace.x3),
+            // 静音开关（视频原声 + 配乐）
+            PressableScale(
+              onTap: _toggleMute,
+              scale: 0.86,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                ),
+                child: Icon(
+                  _muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                  size: 19,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         ),
@@ -530,8 +634,8 @@ class _ImageMediaState extends State<_ImageMedia> {
             imageUrl: mediaUrl(url),
             fit: BoxFit.fitWidth,
             width: double.infinity,
-            placeholder: (_, __) => const _MediaLoading(),
-            errorWidget: (_, __, ___) => const _MediaLoading(),
+            placeholder: (_, _) => const _MediaLoading(),
+            errorWidget: (_, _, _) => const _MediaLoading(),
           ),
         ),
       );
@@ -552,18 +656,18 @@ class _ImageMediaState extends State<_ImageMedia> {
         ),
         // 页码指示（右下角，抖音图集式）
         Positioned(
-          right: 12,
-          bottom: 18 + _navBarHeight(context),
+          right: AppSpace.x3,
+          bottom: AppSpace.x4 + _navBarHeight(context),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.x3, vertical: AppSpace.x1),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.45),
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.black.withValues(alpha: 0.45),
+              borderRadius: AppRadius.rSm,
             ),
             child: Text(
               '${_idx + 1}/${imgs.length}',
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              style: AppType.numeric.copyWith(color: Colors.white),
             ),
           ),
         ),
@@ -594,8 +698,8 @@ class _BottomGradient extends StatelessWidget {
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
             colors: [
-              Colors.black.withOpacity(0.72),
-              Colors.black.withOpacity(0.30),
+              Colors.black.withValues(alpha: 0.72),
+              Colors.black.withValues(alpha: 0.30),
               Colors.transparent,
             ],
           ),
@@ -610,14 +714,14 @@ class _MediaLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF14141B),
+      color: const Color(AppColors.canvas),
       child: const Center(
         child: SizedBox(
           width: 30,
           height: 30,
           child: CircularProgressIndicator(
             strokeWidth: 2.5,
-            color: Color(AppTheme.accent),
+            color: Color(AppColors.accent),
           ),
         ),
       ),
@@ -625,6 +729,7 @@ class _MediaLoading extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _Avatar extends StatelessWidget {
   final dynamic a;
   final double size;
@@ -638,14 +743,15 @@ class _Avatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.35), width: 1),
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1),
       ),
       child: ClipOval(
         child: url != null && url.toString().isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: url.toString(),
                 fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const _AvatarFallback(),
+                errorWidget: (_, _, _) => const _AvatarFallback(),
               )
             : const _AvatarFallback(),
       ),
@@ -668,20 +774,21 @@ class _RailAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
       ),
       child: ClipOval(
         child: avatar != null && avatar!.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: avatar!,
                 fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const _AvatarFallback(),
+                errorWidget: (_, _, _) => const _AvatarFallback(),
               )
             : const _AvatarFallback(),
       ),
     );
     if (onTap == null) return child;
-    return GestureDetector(onTap: onTap, child: child);
+    return PressableScale(onTap: onTap, scale: 0.92, child: child);
   }
 }
 
@@ -690,8 +797,9 @@ class _AvatarFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF3A3A46),
-      child: const Icon(Icons.person, color: Color(AppTheme.textSecondary), size: 18),
+      color: const Color(AppColors.elevated),
+      child: const Icon(Icons.person,
+          color: Color(AppColors.textSecondary), size: 18),
     );
   }
 }
@@ -703,21 +811,23 @@ class _VerifiedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.x1, vertical: 2),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(AppTheme.accent), Color(AppTheme.sky)],
+          colors: [Color(AppColors.accent), Color(AppColors.sky)],
         ),
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: AppRadius.rXs,
       ),
       child: Text(
         name,
-        style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.3),
+        style: AppType.micro.copyWith(color: Colors.white, height: 1.2),
       ),
     );
   }
 }
 
+// ignore: unused_element
 class _FollowButton extends StatelessWidget {
   final bool followed;
   final bool self;
@@ -728,20 +838,25 @@ class _FollowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (self) return const SizedBox.shrink();
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
+      scale: 0.94,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.x3, vertical: AppSpace.x1),
         decoration: BoxDecoration(
-          color: followed ? Colors.white.withOpacity(0.16) : const Color(AppTheme.accent),
-          borderRadius: BorderRadius.circular(12),
+          color: followed
+              ? Colors.white.withValues(alpha: 0.16)
+              : const Color(AppColors.accent),
+          borderRadius: AppRadius.rSm,
         ),
         child: Text(
           followed ? '已关注' : '关注',
-          style: TextStyle(
-            color: followed ? Colors.white.withOpacity(0.85) : Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+          style: AppType.caption.copyWith(
+            color: followed
+                ? Colors.white.withValues(alpha: 0.85)
+                : const Color(AppColors.onAccent),
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -780,8 +895,8 @@ class _ContentText extends StatelessWidget {
           text: m.group(0),
           style: TextStyle(
             color: isTopic
-                ? const Color(AppTheme.lilac)
-                : const Color(AppTheme.sky),
+                ? const Color(AppColors.lilac)
+                : const Color(AppColors.sky),
             fontWeight: FontWeight.w600,
           ),
         ));
@@ -793,8 +908,7 @@ class _ContentText extends StatelessWidget {
     }
     return Text.rich(
       TextSpan(
-        style: const TextStyle(
-            color: Colors.white, fontSize: 13.5, height: 1.45),
+        style: AppType.bodySm.copyWith(color: Colors.white, height: 1.45),
         children: spans,
       ),
       maxLines: maxLines,
@@ -817,11 +931,11 @@ class _RailAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+      scale: 0.9,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.only(bottom: AppSpace.x5),
         child: Column(
           children: [
             // 无圆形卡片背景：网上下载的开源实心图标（抖音式操作栏）
@@ -833,11 +947,10 @@ class _RailAction extends StatelessWidget {
             ),
             if (count > 0)
               Padding(
-                padding: const EdgeInsets.only(top: 3),
+                padding: const EdgeInsets.only(top: AppSpace.x1),
                 child: Text(
                   countText(count),
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  style: AppType.numeric.copyWith(color: Colors.white),
                 ),
               ),
           ],
@@ -859,22 +972,18 @@ class _TextMedia extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1C1C26), Color(0xFF14141B)],
+          colors: [Color(AppColors.card), Color(AppColors.canvas)],
         ),
       ),
       alignment: Alignment.center,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 120),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.x6, AppSpace.x8, AppSpace.x6, 120),
       child: Text(
         item.content,
         textAlign: TextAlign.center,
         maxLines: 8,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          height: 1.6,
-          fontWeight: FontWeight.w600,
-        ),
+        style: AppType.h2.copyWith(height: 1.6),
       ),
     );
   }

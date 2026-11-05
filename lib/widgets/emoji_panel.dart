@@ -14,18 +14,21 @@ import 'package:image_picker/image_picker.dart';
 
 import '../api/client.dart';
 import '../config.dart';
+import '../design/components.dart';
 import 'image_box.dart';
 
 /// 打开独立表情面板（弹层），返回选中的 {id, image}；取消返回 null
 Future<Map<String, dynamic>?> showEmojiPanel(BuildContext context) {
   return showModalBottomSheet<Map<String, dynamic>>(
     context: context,
-    backgroundColor: const Color(AppTheme.card),
     isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-    builder: (_) => EmojiPanel(
-      onPick: (e) => Navigator.of(context).pop(e),
+    backgroundColor: Colors.transparent,
+    builder: (_) => SheetShell(
+      heightFactor: 0.62,
+      padding: EdgeInsets.zero,
+      child: EmojiPanel(
+        onPick: (e) => Navigator.of(context).pop(e),
+      ),
     ),
   );
 }
@@ -108,15 +111,11 @@ class _EmojiPanelState extends State<EmojiPanel> {
         _uploading = false;
         _favTab = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('表情已添加'),
-          backgroundColor: Color(AppTheme.bg)));
+      showAppToast(context, '表情已添加');
     } catch (err) {
       if (!mounted) return;
       setState(() => _uploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('上传失败：$err'),
-          backgroundColor: const Color(AppTheme.bg)));
+      showAppToast(context, '上传失败：$err');
     }
   }
 
@@ -137,108 +136,65 @@ class _EmojiPanelState extends State<EmojiPanel> {
     } catch (_) {}
   }
 
+  /// 当前分类在 TagRail 中的位置：0 = 我的收藏，其余为官方分类
+  int get _catIndex {
+    if (_favTab) return 0;
+    final i = _cats.indexOf(_cat);
+    return i < 0 ? 0 : i + 1;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final labels = <String>['我的收藏', ..._cats];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         // 头部：标题 + 上传
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 6),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpace.x4, AppSpace.x1, AppSpace.x4, AppSpace.x2),
           child: Row(
             children: [
-              const Text('表情包',
-                  style: TextStyle(
-                      color: Color(AppTheme.textPrimary),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600)),
-              const Spacer(),
-              GestureDetector(
-                onTap: _uploading ? null : _upload,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(AppTheme.accent).withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      _uploading
-                          ? const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(AppTheme.accent)))
-                          : const Icon(Icons.add_photo_alternate_outlined,
-                              color: Color(AppTheme.accent), size: 15),
-                      const SizedBox(width: 4),
-                      const Text('上传表情',
-                          style: TextStyle(
-                              color: Color(AppTheme.accent),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
+              const Expanded(
+                child: Text('表情包', style: AppType.title),
+              ),
+              PillButton(
+                label: '上传表情',
+                icon: Icons.add_photo_alternate_outlined,
+                size: PillSize.sm,
+                variant: PillVariant.tonal,
+                loading: _uploading,
+                onTap: _upload,
               ),
             ],
           ),
         ),
-        // 分类 Tab
-        SizedBox(
-          height: 34,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: [
-              _catTab('我的收藏', _favTab, () {
-                setState(() => _favTab = true);
-              }),
-              for (final c in _cats)
-                _catTab(c, !_favTab && _cat == c, () {
-                  setState(() {
-                    _favTab = false;
-                    _cat = c;
-                  });
-                }),
-            ],
-          ),
+        // 分类：横向标签行
+        TagRail(
+          labels: labels,
+          index: _catIndex,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.x4),
+          onChanged: (i) {
+            if (i == 0) {
+              setState(() => _favTab = true);
+              return;
+            }
+            setState(() {
+              _favTab = false;
+              _cat = _cats[i - 1];
+            });
+          },
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.x2),
         // 网格
         Flexible(
           child: _loading
               ? const Center(
-                  child: CircularProgressIndicator(
-                      color: Color(AppTheme.accent), strokeWidth: 2))
+                  child: CircularProgressIndicator(strokeWidth: 2))
               : _buildGrid(),
         ),
       ],
-    );
-  }
-
-  Widget _catTab(String label, bool sel, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 13),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: sel
-              ? const Color(AppTheme.accent)
-              : const Color(AppTheme.elevated),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                color: sel ? Colors.black : const Color(AppTheme.textSecondary),
-                fontSize: 12,
-                fontWeight: sel ? FontWeight.w600 : FontWeight.w400)),
-      ),
     );
   }
 
@@ -253,62 +209,60 @@ class _EmojiPanelState extends State<EmojiPanel> {
             .toList();
     if (list.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.emoji_emotions_outlined,
-                size: 40, color: Color(AppTheme.textTertiary)),
-            const SizedBox(height: 8),
-            Text(_favTab ? '还没有收藏表情，点击右上角上传' : '暂无表情包',
-                style: const TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 12)),
-          ],
+        child: EmptyState(
+          compact: true,
+          icon: Icons.emoji_emotions_outlined,
+          title: _favTab ? '还没有收藏表情' : '暂无表情包',
+          message: _favTab ? '点右上角上传你自己的表情' : null,
         ),
       );
     }
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.x4, AppSpace.x1, AppSpace.x4, AppSpace.x4),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+        mainAxisSpacing: AppSpace.x2,
+        crossAxisSpacing: AppSpace.x2,
       ),
       itemCount: list.length,
       itemBuilder: (_, i) {
         final e = list[i];
         final img = (e['image'] ?? '') as String;
         final faved = _favs.any((x) => x['id'] == e['id']);
-        return GestureDetector(
+        return PressableScale(
           onTap: () => widget.onPick?.call(e),
+          scale: 0.94,
           child: Stack(
             children: [
               Positioned.fill(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.rSm,
                   child: img.isEmpty
-                      ? Container(color: const Color(AppTheme.elevated))
-                      : CachedNetworkImageCompat(url: mediaUrl(img), fit: BoxFit.cover),
+                      ? const ImagePlaceholder(radius: AppRadius.sm)
+                      : CachedNetworkImageCompat(
+                          url: mediaUrl(img), fit: BoxFit.cover),
                 ),
               ),
               Positioned(
-                right: 2,
-                top: 2,
-                child: GestureDetector(
+                right: AppSpace.x1,
+                top: AppSpace.x1,
+                child: PressableScale(
                   onTap: () => _toggleFav(e, !faved),
-                  behavior: HitTestBehavior.opaque,
+                  scale: 0.9,
                   child: Container(
-                    width: 20,
-                    height: 20,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
-                      color: Colors.black45,
+                      color: Colors.black.withValues(alpha: 0.45),
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
                     child: Icon(
-                      faved ? Icons.star : Icons.star_border,
-                      size: 12,
+                      faved ? Icons.star_rounded : Icons.star_border_rounded,
+                      size: 13,
                       color: faved
-                          ? const Color(AppTheme.accent)
+                          ? const Color(AppColors.warning)
                           : Colors.white,
                     ),
                   ),

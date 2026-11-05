@@ -1,9 +1,9 @@
-/// 通用网络图片（深色主题下加载/错误占位统一风格）
+/// 通用网络图片（沉浸黑：加载/失败统一用 [ImagePlaceholder]，布局不跳）
 library;
 
 import 'package:flutter/material.dart';
 
-import '../config.dart';
+import '../design/components.dart';
 
 class CachedNetworkImageCompat extends StatelessWidget {
   final String url;
@@ -11,13 +11,15 @@ class CachedNetworkImageCompat extends StatelessWidget {
   final double? height;
   final BoxFit fit;
   final double borderRadius;
-  const CachedNetworkImageCompat(
-      {super.key,
-      required this.url,
-      this.width,
-      this.height,
-      this.fit = BoxFit.cover,
-      this.borderRadius = 0});
+
+  const CachedNetworkImageCompat({
+    super.key,
+    required this.url,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -29,13 +31,13 @@ class CachedNetworkImageCompat extends StatelessWidget {
         child: Image.network(
           url,
           fit: fit,
-          errorBuilder: (_, __, ___) => Container(
-            color: const Color(AppTheme.card),
-            child: const Icon(Icons.broken_image,
-                color: Color(AppTheme.textTertiary), size: 28),
+          loadingBuilder: (_, child, progress) => progress == null
+              ? child
+              : ImagePlaceholder(radius: borderRadius),
+          errorBuilder: (_, _, _) => ImagePlaceholder(
+            icon: Icons.broken_image_outlined,
+            radius: borderRadius,
           ),
-          loadingBuilder: (_, child, prog) =>
-              prog == null ? child : Container(color: const Color(AppTheme.card)),
         ),
       ),
     );

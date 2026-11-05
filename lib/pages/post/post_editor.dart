@@ -1,12 +1,11 @@
-/// 发帖 / 发短视频页（P0）· UI v2
+/// 发帖 / 发短视频页（P0）· 沉浸黑版
 ///
 /// - 图文模式：富文本内容 + 最多 3 图 + 版块 + #话题（服务端自动解析 @与话题）
 /// - 视频模式：选本地视频上传（服务端转码）+ 文案/话题/版块 + 封面（auto 首帧或自定义上传）
 ///
-/// v2 变化：
-/// - 上传链路加固：本地 ≤50MB/≤60s 校验、错误中文浮层、失败自动重试（见 ApiClient.uploadVideo）
-/// - 状态流加固：发布中全局防重复提交、按钮 loading、阶段进度文案
-/// - UI 重做：自定义顶部导航（渐变发布钮）、带图标版块胶囊、字数统计 + 快捷插入、竖版媒体占位卡
+/// 版式：纯黑 + 玻璃顶栏（关闭）→ 图文/短视频分段 → 黑底无边框正文 →
+/// 3 列图片网格 / 竖版视频占位 → 配乐条 → 底部固定操作条（图标 + 发布胶囊）。
+/// 上传链路 / 状态流逻辑与上一版保持一致，仅重做视觉。
 library;
 
 import 'dart:async';
@@ -16,9 +15,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../api/client.dart';
-import 'music_picker_sheet.dart';
-import '../../config.dart';
+import '../../design/components.dart';
+import '../../models/feed_item.dart';
+import '../../utils/draft_store.dart';
 import '../../utils/responsive.dart';
+import 'music_picker_sheet.dart';
 
 /// 统一发布页：图文 / 短视频二合一（页内顶部 Tab 切换，抖音式）
 class PostEditorPage extends StatefulWidget {
@@ -59,16 +60,125 @@ class _PostEditorPageState extends State<PostEditorPage> {
       _boardId.isNotEmpty &&
       (_contentCtrl.text.trim().isNotEmpty || _images.isNotEmpty || _videoFile != null);
 
+  // ---------------- 本地草稿（未发布内容自动暂存） ----------------
+  Map<String, dynamic>? _draft;
+  Timer? _draftTimer;
+
   @override
   void initState() {
     super.initState();
     _loadBoards();
+    _contentCtrl.addListener(_scheduleDraftSave);
+    _checkDraft();
   }
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
+    // 关闭页面时兜底再存一次（防止输入后 1.2s 内就退出导致丢草稿）
+    if (!_publishing) _saveDraftNow();
+    _contentCtrl.removeListener(_scheduleDraftSave);
     _contentCtrl.dispose();
     super.dispose();
+  }
+
+  /// 进入页面时检查是否有上次未发布的草稿（不自动覆盖，给用户选）
+  Future<void> _checkDraft() async {
+    final d = await DraftStore.load();
+    if (!mounted || d == null) return;
+    // 用户已经开始输入就不打扰
+    if (_contentCtrl.text.trim().isNotEmpty) return;
+    setState(() => _draft = d);
+  }
+
+  /// 输入/选择变化后延迟保存，避免每个字符都写盘
+  void _scheduleDraftSave() {
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 1200), _saveDraftNow);
+  }
+
+  void _saveDraftNow() {
+    if (_publishing) return;
+    DraftStore.save(
+      content: _contentCtrl.text,
+      boardId: _boardId,
+      boardName: _boardId.isEmpty ? '' : _boardName(_boardId),
+      mode: _mode,
+      musicName: (_music?['name'] ?? '').toString(),
+    );
+  }
+
+  /// 从草稿恢复正文/版块/模式
+  void _restoreDraft() {
+    final d = _draft;
+    if (d == null) return;
+    setState(() {
+      _contentCtrl.text = (d['content'] ?? '').toString();
+      _boardId = (d['boardId'] ?? '').toString();
+      _mode = (d['mode'] ?? 'text').toString() == 'video' ? 'video' : 'text';
+      _draft = null;
+    });
+    showAppToast(context, '已恢复上次编辑的内容');
+  }
+
+  /// 丢弃草稿
+  Future<void> _discardDraft() async {
+    await DraftStore.clear();
+    if (!mounted) return;
+    setState(() => _draft = null);
+  }
+
+  /// 草稿恢复提示条
+  Widget _draftBanner() {
+    final d = _draft;
+    if (d == null) return const SizedBox.shrink();
+    final savedAt = ((d['savedAt'] ?? 0) as num).toInt();
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpace.x3),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.x3, AppSpace.x3, AppSpace.x2, AppSpace.x3),
+      decoration: BoxDecoration(
+        color: const Color(AppColors.accent).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+            color: const Color(AppColors.accent).withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history_rounded,
+              size: 18, color: Color(AppColors.accent)),
+          const SizedBox(width: AppSpace.x2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('有未发布的草稿', style: AppType.label),
+                const SizedBox(height: 2),
+                Text(
+                  savedAt > 0 ? '保存于 ${timeAgo(savedAt)}' : '未发布的内容还留着',
+                  style: AppType.micro,
+                ),
+              ],
+            ),
+          ),
+          PillButton(
+            label: '恢复',
+            size: PillSize.sm,
+            onTap: _restoreDraft,
+          ),
+          const SizedBox(width: AppSpace.x1),
+          PressableScale(
+            onTap: _discardDraft,
+            child: const Padding(
+              padding: EdgeInsets.all(AppSpace.x2),
+              child: Icon(Icons.close_rounded,
+                  size: 16, color: Color(AppColors.textTertiary)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadBoards() async {
@@ -181,7 +291,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
           if (_music != null) 'music': _music,
         });
         if (!mounted) return;
-        Navigator.pop(context, true);
+        await DraftStore.clear();
+    if (!mounted) return;
+    Navigator.pop(context, true);
         _toast('发布成功，等待审核');
       } else {
         // 短视频：上传 → 转码 → 发帖
@@ -225,7 +337,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
           if (_music != null) 'music': _music,
         });
         if (!mounted) return;
-        Navigator.pop(context, true);
+        await DraftStore.clear();
+    if (!mounted) return;
+    Navigator.pop(context, true);
         _toast('发布成功，等待审核');
       }
     } catch (e) {
@@ -247,236 +361,412 @@ class _PostEditorPageState extends State<PostEditorPage> {
 
   void _toast(String s, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(s, style: const TextStyle(fontSize: 13)),
-        backgroundColor: error ? const Color(0xFFC62828) : const Color(AppTheme.card),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
-      ));
+    showAppToast(context, s);
   }
 
   // ---------------- UI ----------------
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _topBar(),
-            _modeTab(),
-            Expanded(
-              child: AbsorbPointer(
-                // 发布中锁定输入区，防重复操作
-                absorbing: _publishing,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _boardBar(),
-                      const SizedBox(height: 14),
-                      _contentCard(),
-                      const SizedBox(height: 12),
-                      if (!isVideo) _imageGrid() else _videoSection(),
-                      const SizedBox(height: 12),
-                      _musicBar(),
-                      const SizedBox(height: 10),
-                      Text(
-                        isVideo
-                            ? '支持 #话题 / @好友，视频 ≤60s / ≤50MB'
-                            : '支持 #话题 / @好友，图片最多 $_maxImages 张',
-                        style: const TextStyle(
-                            color: Color(AppTheme.textTertiary), fontSize: 12),
-                      ),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          GlassTopBar(
+            title: '发布',
+            solid: true,
+            showBack: false,
+            actions: [
+              IconCircleButton(
+                icon: Icons.close_rounded,
+                size: 34,
+                iconSize: 18,
+                background: Colors.white.withValues(alpha: 0.06),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          // 图文 / 短视频分段
+          FeedTabs(
+            labels: const ['发图文', '发短视频'],
+            index: isVideo ? 1 : 0,
+            onChanged: (i) {
+              setState(() => _mode = i == 0 ? 'text' : 'video');
+              _scheduleDraftSave();
+            },
+          ),
+          Expanded(
+            child: AbsorbPointer(
+              // 发布中锁定输入区，防重复操作
+              absorbing: _publishing,
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpace.gutter, AppSpace.x2, AppSpace.gutter, AppSpace.x6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _draftBanner(),
+                    _boardRow(),
+                    const SizedBox(height: AppSpace.x4),
+                    _contentField(),
+                    if (_poll != null) ...[
+                      const SizedBox(height: AppSpace.x3),
+                      _pollSummary(),
                     ],
-                  ),
+                    const SizedBox(height: AppSpace.x4),
+                    if (!isVideo) _imageGrid() else _videoSection(),
+                    const SizedBox(height: AppSpace.x4),
+                    _musicBar(),
+                    const SizedBox(height: AppSpace.x4),
+                    Text(
+                      isVideo
+                          ? '支持 #话题 / @好友，视频 ≤60s / ≤50MB'
+                          : '支持 #话题 / @好友，图片最多 $_maxImages 张',
+                      style: AppType.caption,
+                    ),
+                  ],
                 ),
               ),
             ),
-            if (_publishing) _progressPanel(),
+          ),
+          if (_publishing) _progressPanel(),
+          _bottomBar(),
+        ],
+      ),
+    );
+  }
+
+  // ---------- 底部固定操作条：图标 + 发布胶囊 ----------
+  Widget _bottomBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(AppColors.canvas),
+        border: Border(top: BorderSide(color: Color(AppColors.hairline), width: 0.5)),
+      ),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.x3, vertical: AppSpace.x2),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            _barIcon(
+              icon: isVideo ? Icons.videocam_outlined : Icons.image_outlined,
+              active: isVideo ? _videoFile != null : _images.isNotEmpty,
+              badge: isVideo ? (_videoFile != null ? 1 : 0) : _images.length,
+              onTap: isVideo ? _pickVideo : _pickImages,
+            ),
+            _barIcon(
+              icon: Icons.tag_rounded,
+              onTap: _pickTopic,
+            ),
+            _barIcon(
+              icon: Icons.music_note_rounded,
+              active: _music != null,
+              onTap: _pickMusic,
+            ),
+            if (!isVideo)
+              _barIcon(
+                icon: Icons.how_to_vote_outlined,
+                active: _poll != null,
+                onTap: _editPoll,
+              ),
+            _barIcon(
+              icon: Icons.dashboard_outlined,
+              active: _boardId.isNotEmpty,
+              onTap: _openBoardSheet,
+            ),
+            const SizedBox(width: AppSpace.x2),
+            Expanded(
+              child: PillButton(
+                label: isVideo ? '发布视频' : '发布',
+                expand: true,
+                glow: true,
+                loading: _publishing,
+                enabled: _canPublish,
+                onTap: _publish,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ---------- 顶部导航：关闭 + 标题 + 渐变发布按钮 ----------
-  Widget _topBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-      child: Row(
-        children: [
-          // 关闭
-          _roundIconBtn(
-            icon: Icons.close,
-            onTap: () => Navigator.pop(context),
+  Widget _barIcon({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool active = false,
+    int badge = 0,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpace.x1),
+      child: IconCircleButton(
+        icon: icon,
+        size: 36,
+        iconSize: 19,
+        badge: badge,
+        background: Colors.white.withValues(alpha: 0.06),
+        color: active
+            ? const Color(AppColors.accent)
+            : const Color(AppColors.textPrimary),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  // ---------- 版块：一行已选状态 + SheetShell 选择面板 ----------
+  Widget _boardRow() {
+    final name = _boardId.isEmpty ? '选择版块' : _boardName(_boardId);
+    return PressableScale(
+      onTap: _openBoardSheet,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.x4, vertical: AppSpace.x3),
+        decoration: BoxDecoration(
+          color: const Color(AppColors.card),
+          borderRadius: AppRadius.rMd,
+          border: Border.all(
+            color: _boardId.isEmpty
+                ? const Color(AppColors.border)
+                : const Color(AppColors.accent).withValues(alpha: 0.45),
           ),
-          // 标题
-          Expanded(
-            child: Center(
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.dashboard_outlined,
+              size: 17,
+              color: _boardId.isEmpty
+                  ? const Color(AppColors.textTertiary)
+                  : const Color(AppColors.accent),
+            ),
+            const SizedBox(width: AppSpace.x2),
+            Expanded(
               child: Text(
-                '发布内容',
-                style: const TextStyle(
-                    color: Color(AppTheme.textPrimary),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600),
+                _boardsLoaded ? name : '加载版块中…',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.body.copyWith(
+                  color: _boardId.isEmpty
+                      ? const Color(AppColors.textTertiary)
+                      : const Color(AppColors.textPrimary),
+                  fontWeight:
+                      _boardId.isEmpty ? FontWeight.w400 : FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          // 发布按钮（固定宽度保标题居中）
-          SizedBox(
-            width: 88,
-            child: Align(alignment: Alignment.centerRight, child: _publishButton()),
-          ),
-        ],
+            const Icon(Icons.chevron_right_rounded,
+                size: 18, color: Color(AppColors.textTertiary)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _roundIconBtn({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
+  /// 版块显示名（含图标）
+  String _boardName(String id) {
+    for (final b in _boards) {
+      if (b['id'] == id) return '${b['icon'] ?? '📌'} ${b['name']}';
+    }
+    return '选择版块';
+  }
+
+  Future<void> _openBoardSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bc) => SheetShell(
+        title: '选择版块',
+        subtitle: '发布后内容归入所选版块',
+        heightFactor: 0.62,
+        padding: EdgeInsets.zero,
+        child: !_boardsLoaded
+            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            : _boards.isEmpty
+                ? const Center(
+                    child: EmptyState(
+                      compact: true,
+                      icon: Icons.dashboard_outlined,
+                      title: '暂无版块',
+                      message: '稍后再试',
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.only(bottom: AppSpace.x4),
+                    itemCount: _boards.length,
+                    separatorBuilder: (_, _) =>
+                        const Hairline(indent: AppSpace.gutter),
+                    itemBuilder: (_, i) {
+                      final b = _boards[i];
+                      final sel = b['id'] == _boardId;
+                      final depth = ((b['_depth'] ?? 0) as num).toInt();
+                      return PressableScale(
+                        onTap: () {
+                          Navigator.of(bc).pop();
+                          setState(() => _boardId = b['id'] as String);
+    _scheduleDraftSave();
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            AppSpace.gutter + depth * AppSpace.x3,
+                            AppSpace.x3,
+                            AppSpace.gutter,
+                            AppSpace.x3,
+                          ),
+                          child: Row(
+                            children: [
+                              Text(b['icon'] ?? '📌', style: AppType.body),
+                              const SizedBox(width: AppSpace.x2),
+                              Expanded(
+                                child: Text(
+                                  '${b['name']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppType.body.copyWith(
+                                    color: sel
+                                        ? const Color(AppColors.accent)
+                                        : const Color(AppColors.textPrimary),
+                                    fontWeight: sel
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                              if (sel)
+                                const Icon(Icons.check_rounded,
+                                    size: 18, color: Color(AppColors.accent)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+      ),
+    );
+  }
+
+  // ---------- 正文：黑底无边框 ----------
+  Widget _contentField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _contentCtrl,
+          maxLines: 8,
+          minLines: 4,
+          maxLength: _maxContent,
+          onChanged: (_) => setState(() {}), // 驱动发布按钮状态与字数
+          cursorColor: const Color(AppColors.accent),
+          style: AppType.body.copyWith(height: 1.5),
+          decoration: InputDecoration(
+            hintText: isVideo
+                ? '写一句视频文案，带 #话题 可以上热门'
+                : '分享此刻… 支持 #话题 与 @好友',
+            hintStyle:
+                AppType.body.copyWith(color: const Color(AppColors.textTertiary)),
+            filled: false,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            counterText: '',
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const SizedBox(height: AppSpace.x2),
+        Row(
+          children: [
+            TagPill(
+              label: '@好友',
+              compact: true,
+              onTap: () => _insertAt(' @'),
+            ),
+            const Spacer(),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _contentCtrl,
+              builder: (_, v, _) => Text(
+                '${v.text.length}/$_maxContent',
+                style: AppType.micro.copyWith(
+                  color: v.text.length >= _maxContent
+                      ? const Color(AppColors.danger)
+                      : const Color(AppColors.textTertiary),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ---------- 投票摘要（编辑/清除） ----------
+  Widget _pollSummary() {
+    return PressableScale(
+      onTap: _editPoll,
       child: Container(
-        width: 34,
-        height: 34,
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.x3, vertical: AppSpace.x3),
         decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(AppTheme.border)),
+          color: const Color(AppColors.card),
+          borderRadius: AppRadius.rMd,
+          border: Border.all(color: const Color(AppColors.border)),
         ),
-        child: Icon(icon, size: 18, color: const Color(AppTheme.textPrimary)),
-      ),
-    );
-  }
-
-  Widget _publishButton() {
-    if (_publishing) {
-      return Container(
-        width: 76,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2, color: Color(AppTheme.accent)),
-        ),
-      );
-    }
-    final enabled = _canPublish;
-    return GestureDetector(
-      onTap: enabled ? _publish : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 76,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          gradient: enabled
-              ? const LinearGradient(colors: [Color(AppTheme.gradStart), Color(AppTheme.gradEnd)])
-              : null,
-          color: enabled ? null : const Color(0xFF2A2A2E),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                      color: const Color(AppTheme.accent).withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3)),
-                ]
-              : null,
-        ),
-        child: Text(
-          '发布',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: enabled ? Colors.white : const Color(AppTheme.textTertiary),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---------- 模式切换（图文 / 短视频，抖音式发布页） ----------
-  Widget _modeTab() {
-    Widget item(String id, String label, IconData icon) {
-      final sel = _mode == id;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() {
-            _mode = id;
-            if (_music != null) {
-              // 切模式保留配乐
-            }
-          }),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: sel ? const Color(AppTheme.accentSoft) : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
+        child: Row(
+          children: [
+            const Icon(Icons.how_to_vote_rounded,
+                size: 16, color: Color(AppColors.accent)),
+            const SizedBox(width: AppSpace.x2),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (_poll!['question'] ?? '') as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.bodySm
+                        .copyWith(color: const Color(AppColors.textPrimary)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    (((_poll!['options'] ?? []) as List)
+                        .map((e) => e.toString())
+                        .join(' / ')),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.micro,
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon,
-                    size: 17,
-                    color: sel
-                        ? const Color(AppTheme.accent)
-                        : const Color(AppTheme.textTertiary)),
-                const SizedBox(width: 6),
-                Text(label,
-                    style: TextStyle(
-                      color: sel
-                          ? const Color(AppTheme.accent)
-                          : const Color(AppTheme.textTertiary),
-                      fontSize: 13.5,
-                      fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-                    )),
-              ],
+            PressableScale(
+              onTap: () => setState(() => _poll = null),
+              scale: 0.9,
+              child: const Padding(
+                padding: EdgeInsets.all(AppSpace.x1),
+                child: Icon(Icons.close_rounded,
+                    size: 16, color: Color(AppColors.textTertiary)),
+              ),
             ),
-          ),
+          ],
         ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C20),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(AppTheme.border)),
-      ),
-      child: Row(
-        children: [
-          item('text', '发图文', Icons.article_outlined),
-          item('video', '发短视频', Icons.video_library_outlined),
-        ],
       ),
     );
   }
 
-  // ---------- 配乐选择条 ----------
+  // ---------- 配乐条 ----------
   Widget _musicBar() {
     final m = _music;
-    return GestureDetector(
+    return PressableScale(
       onTap: _pickMusic,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.x3, vertical: AppSpace.x3),
         decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(AppTheme.border)),
+          color: const Color(AppColors.card),
+          borderRadius: AppRadius.rMd,
+          border: Border.all(color: const Color(AppColors.border)),
         ),
         child: Row(
           children: [
@@ -484,16 +774,18 @@ class _PostEditorPageState extends State<PostEditorPage> {
               width: 30,
               height: 30,
               decoration: const BoxDecoration(
-                  color: Color(AppTheme.accentSoft), shape: BoxShape.circle),
+                color: Color(AppColors.accentSoft),
+                shape: BoxShape.circle,
+              ),
               child: const Icon(Icons.music_note_rounded,
-                  size: 17, color: Color(AppTheme.accent)),
+                  size: 17, color: Color(AppColors.accent)),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.x3),
             Expanded(
               child: m == null
-                  ? const Text('添加配乐',
-                      style: TextStyle(
-                          color: Color(AppTheme.textSecondary), fontSize: 13))
+                  ? Text('添加配乐',
+                      style: AppType.bodySm
+                          .copyWith(color: const Color(AppColors.textSecondary)))
                   : Row(
                       children: [
                         Expanded(
@@ -501,25 +793,26 @@ class _PostEditorPageState extends State<PostEditorPage> {
                             m['name'] as String,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Color(AppTheme.textPrimary),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600),
+                            style: AppType.bodySm.copyWith(
+                              color: const Color(AppColors.textPrimary),
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: AppSpace.x2),
                         const Icon(Icons.graphic_eq_rounded,
-                            size: 14, color: Color(AppTheme.accent)),
+                            size: 14, color: Color(AppColors.accent)),
                       ],
                     ),
             ),
             if (m != null)
-              GestureDetector(
+              PressableScale(
                 onTap: () => setState(() => _music = null),
+                scale: 0.9,
                 child: const Padding(
-                  padding: EdgeInsets.all(4),
+                  padding: EdgeInsets.all(AppSpace.x1),
                   child: Icon(Icons.close_rounded,
-                      size: 16, color: Color(AppTheme.textTertiary)),
+                      size: 16, color: Color(AppColors.textTertiary)),
                 ),
               ),
           ],
@@ -531,213 +824,6 @@ class _PostEditorPageState extends State<PostEditorPage> {
   Future<void> _pickMusic() async {
     final picked = await showMusicPicker(context);
     if (picked != null && mounted) setState(() => _music = picked);
-  }
-
-  // ---------- 版块选择：带图标胶囊 ----------
-  Widget _boardBar() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('选择版块',
-            style: TextStyle(color: Color(AppTheme.textSecondary), fontSize: 13)),
-        const SizedBox(height: 8),
-        if (!_boardsLoaded)
-          const Text('加载版块中…',
-              style: TextStyle(color: Color(AppTheme.textTertiary), fontSize: 12))
-        else
-          SizedBox(
-            height: 36,
-            child: _boards.isEmpty
-                ? const Text('暂无版块',
-                    style: TextStyle(color: Color(AppTheme.textTertiary), fontSize: 12))
-                : ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _boards.length,
-                    itemBuilder: (_, i) {
-                      final b = _boards[i];
-                      final sel = b['id'] == _boardId;
-                      final depth = ((b['_depth'] ?? 0) as num).toInt();
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () => setState(() => _boardId = b['id'] as String),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(horizontal: 13),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? const Color(AppTheme.accentSoft)
-                                  : const Color(AppTheme.card),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                  color: sel
-                                      ? const Color(AppTheme.accent)
-                                      : const Color(AppTheme.border)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(b['icon'] ?? '📌',
-                                    style: const TextStyle(fontSize: 12)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${depth > 0 ? '·' * depth : ''}${b['name']}',
-                                  style: TextStyle(
-                                    color: sel
-                                        ? const Color(AppTheme.accent)
-                                        : const Color(AppTheme.textSecondary),
-                                    fontSize: 13,
-                                    fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-      ],
-    );
-  }
-
-  // ---------- 内容输入：卡片 + 快捷插入 + 字数 ----------
-  Widget _contentCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(AppTheme.card),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(AppTheme.border)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-            child: TextField(
-              controller: _contentCtrl,
-              maxLines: 6,
-              minLines: 3,
-              maxLength: _maxContent,
-              onChanged: (_) => setState(() {}), // 驱动发布按钮状态与字数
-              style: const TextStyle(
-                  color: Color(AppTheme.textPrimary), fontSize: 15, height: 1.5),
-              decoration: InputDecoration(
-                hintText: isVideo
-                    ? '写一句视频文案，带 #话题 可以上热门'
-                    : '分享此刻…支持 #话题 与 @好友',
-                hintStyle: const TextStyle(color: Color(AppTheme.textTertiary)),
-                border: InputBorder.none,
-                counterText: '',
-              ),
-            ),
-          ),
-          Container(
-            height: 1,
-            color: const Color(AppTheme.border),
-            margin: const EdgeInsets.symmetric(horizontal: 14),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              children: [
-                _toolChip('#话题', _pickTopic),
-                const SizedBox(width: 6),
-                _toolChip('@好友', () => _insertAt(' @')),
-                if (!isVideo) ...[
-                  const SizedBox(width: 6),
-                  _toolChip(_poll == null ? '投票' : '✎ 投票', _editPoll),
-                ],
-                const Spacer(),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _contentCtrl,
-                  builder: (_, v, _) => Text(
-                    '${v.text.length}/$_maxContent',
-                    style: TextStyle(
-                      color: v.text.length >= _maxContent
-                          ? const Color(0xFFFF6B6B)
-                          : const Color(AppTheme.textTertiary),
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_poll != null) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(AppTheme.bg),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(AppTheme.border)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.how_to_vote_rounded,
-                        size: 16, color: Color(AppTheme.lilac)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            (_poll!['question'] ?? '') as String,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 13),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            (((_poll!['options'] ?? []) as List)
-                                .map((e) => e.toString())
-                                .join(' / ')),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Color(AppTheme.textTertiary),
-                                fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => setState(() => _poll = null),
-                      child: const Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(Icons.close_rounded,
-                            size: 16,
-                            color: Color(AppTheme.textTertiary)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _toolChip(String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.bg),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(AppTheme.border)),
-        ),
-        child: Text(label,
-            style: const TextStyle(color: Color(AppTheme.lilac), fontSize: 12)),
-      ),
-    );
   }
 
   void _insertAt(String s) {
@@ -764,64 +850,40 @@ class _PostEditorPageState extends State<PostEditorPage> {
     if (!mounted) return;
     final picked = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(AppTheme.card),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
-      builder: (bc) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
-              child: Text('选择话题',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600)),
-            ),
-            const Divider(height: 1, color: Color(AppTheme.border)),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxHeight:
-                      MediaQuery.of(bc).size.height * 0.45),
-              child: topics.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('暂无话题，可手动输入 #话题#',
-                          style: TextStyle(
-                              color: Color(AppTheme.textSecondary),
-                              fontSize: 12.5)),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: topics.length,
-                      itemBuilder: (_, i) {
-                        final t = topics[i];
-                        final name = (t['name'] ?? '') as String;
-                        return ListTile(
-                          dense: true,
-                          leading: const Text('#',
-                              style: TextStyle(
-                                  color: Color(AppTheme.accent),
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold)),
-                          title: Text(name,
-                              style: const TextStyle(
-                                  color: Color(AppTheme.textPrimary),
-                                  fontSize: 13.5)),
-                          subtitle: Text(
-                              '${(t['count'] ?? 0)} 帖参与',
-                              style: const TextStyle(
-                                  color: Color(AppTheme.textTertiary),
-                                  fontSize: 10.5)),
-                          onTap: () => Navigator.pop(bc, name),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bc) => SheetShell(
+        title: '选择话题',
+        subtitle: '热门话题 · 选中即插入正文',
+        heightFactor: 0.5,
+        padding: EdgeInsets.zero,
+        child: topics.isEmpty
+            ? const Center(
+                child: EmptyState(
+                  compact: true,
+                  icon: Icons.tag_rounded,
+                  title: '暂无话题',
+                  message: '可手动输入 #话题#',
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.only(bottom: AppSpace.x4),
+                itemCount: topics.length,
+                separatorBuilder: (_, _) =>
+                    const Hairline(indent: AppSpace.gutter),
+                itemBuilder: (_, i) {
+                  final t = topics[i];
+                  final name = (t['name'] ?? '') as String;
+                  return ListRow(
+                    leading: const Icon(Icons.tag_rounded,
+                        size: 18, color: Color(AppColors.accent)),
+                    title: '#$name',
+                    subtitle: '${(t['count'] ?? 0)} 帖参与',
+                    showChevron: false,
+                    onTap: () => Navigator.pop(bc, name),
+                  );
+                },
+              ),
       ),
     );
     if (picked != null && picked.isNotEmpty) {
@@ -842,161 +904,120 @@ class _PostEditorPageState extends State<PostEditorPage> {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(AppTheme.card),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
-      builder: (bc) => StatefulBuilder(
-        builder: (bc, setB) {
-          Widget btn() {
-            final q = qCtrl.text.trim();
-            final os = optCtrls.map((c) => c.text.trim()).where((x) => x.isNotEmpty).toList();
-            final valid = q.isNotEmpty && os.length >= 2;
-            return GestureDetector(
-              onTap: !valid
-                  ? null
-                  : () {
-                      setState(() {
-                        _poll = {
-                          'question': q,
-                          'options': os,
-                        };
-                      });
-                      Navigator.pop(bc, true);
-                    },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: valid
-                      ? const Color(AppTheme.accent)
-                      : const Color(AppTheme.textTertiary),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(valid ? '完成' : '问题与至少 2 个选项',
-                    style: TextStyle(
-                        color: valid
-                            ? Colors.black
-                            : const Color(AppTheme.bg),
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600)),
-              ),
-            );
-          }
+      backgroundColor: Colors.transparent,
+      builder: (bc) => SheetShell(
+        title: '发起投票',
+        subtitle: '问题 + 2~4 个选项',
+        child: StatefulBuilder(
+          builder: (bc, setB) {
+            Widget btn() {
+              final q = qCtrl.text.trim();
+              final os = optCtrls
+                  .map((c) => c.text.trim())
+                  .where((x) => x.isNotEmpty)
+                  .toList();
+              final valid = q.isNotEmpty && os.length >= 2;
+              return PillButton(
+                label: valid ? '完成' : '问题与至少 2 个选项',
+                expand: true,
+                enabled: valid,
+                onTap: () {
+                  setState(() {
+                    _poll = {
+                      'question': q,
+                      'options': os,
+                    };
+                  });
+                  Navigator.pop(bc, true);
+                },
+              );
+            }
 
-          Widget optField(int i) {
-            return Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: optCtrls[i],
-                    maxLength: 40,
-                    style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                    decoration: InputDecoration(
-                      counterText: '',
-                      hintText: '选项 ${i + 1}',
-                      hintStyle: const TextStyle(
-                          color: Color(AppTheme.textTertiary)),
-                      filled: true,
-                      fillColor: const Color(AppTheme.bg),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                            color: Color(AppTheme.border)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                            color: Color(AppTheme.border)),
-                      ),
-                    ),
-                  ),
-                ),
-                if (optCtrls.length > 2)
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        size: 16, color: Color(AppTheme.textTertiary)),
-                    onPressed: () => setB(() {
-                      optCtrls.removeAt(i).dispose();
-                    }),
-                  ),
-              ],
-            );
-          }
-
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(bc).viewInsets.bottom,
-            ),
-            child: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('发起投票',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: qCtrl,
-                      maxLength: 60,
-                      style: const TextStyle(color: Colors.white, fontSize: 13.5),
+            Widget optField(int i) {
+              return Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: optCtrls[i],
+                      maxLength: 40,
+                      onChanged: (_) => setB(() {}),
+                      style: AppType.bodySm
+                          .copyWith(color: const Color(AppColors.textPrimary)),
+                      cursorColor: const Color(AppColors.accent),
                       decoration: InputDecoration(
                         counterText: '',
-                        hintText: '投票问题',
-                        hintStyle: const TextStyle(
-                            color: Color(AppTheme.textTertiary)),
-                        filled: true,
-                        fillColor: const Color(AppTheme.bg),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide:
-                              const BorderSide(color: Color(AppTheme.border)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide:
-                              const BorderSide(color: Color(AppTheme.border)),
-                        ),
+                        hintText: '选项 ${i + 1}',
+                        isDense: true,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    for (var i = 0; i < optCtrls.length; i++) ...[
-                      optField(i),
-                      const SizedBox(height: 8),
-                    ],
-                    if (optCtrls.length < 4)
-                      GestureDetector(
-                        onTap: () => setB(() {
-                          optCtrls.add(TextEditingController());
-                        }),
-                        child: const Row(
+                  ),
+                  if (optCtrls.length > 2)
+                    PressableScale(
+                      onTap: () => setB(() {
+                        optCtrls.removeAt(i).dispose();
+                      }),
+                      scale: 0.9,
+                      child: const Padding(
+                        padding: EdgeInsets.all(AppSpace.x2),
+                        child: Icon(Icons.close_rounded,
+                            size: 16, color: Color(AppColors.textTertiary)),
+                      ),
+                    ),
+                ],
+              );
+            }
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: AppSpace.x2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: qCtrl,
+                    maxLength: 60,
+                    onChanged: (_) => setB(() {}),
+                    style: AppType.body
+                        .copyWith(color: const Color(AppColors.textPrimary)),
+                    cursorColor: const Color(AppColors.accent),
+                    decoration: const InputDecoration(
+                      counterText: '',
+                      hintText: '投票问题',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.x3),
+                  for (var i = 0; i < optCtrls.length; i++) ...[
+                    optField(i),
+                    const SizedBox(height: AppSpace.x2),
+                  ],
+                  if (optCtrls.length < 4)
+                    PressableScale(
+                      onTap: () => setB(() {
+                        optCtrls.add(TextEditingController());
+                      }),
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.symmetric(vertical: AppSpace.x1),
+                        child: Row(
                           children: [
-                            Icon(Icons.add_circle_outline,
-                                size: 16, color: Color(AppTheme.lilac)),
-                            SizedBox(width: 6),
+                            const Icon(Icons.add_circle_outline,
+                                size: 16, color: Color(AppColors.accent)),
+                            const SizedBox(width: AppSpace.x2),
                             Text('添加选项',
-                                style: TextStyle(
-                                    color: Color(AppTheme.lilac),
-                                    fontSize: 12.5)),
+                                style: AppType.caption.copyWith(
+                                    color: const Color(AppColors.accent))),
                           ],
                         ),
                       ),
-                    const SizedBox(height: 16),
-                    btn(),
-                  ],
-                ),
+                    ),
+                  const SizedBox(height: AppSpace.x4),
+                  btn(),
+                ],
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
     // 清理控制器（本轮局部创建，直接释放）
@@ -1007,73 +1028,91 @@ class _PostEditorPageState extends State<PostEditorPage> {
     if (saved == true && mounted) setState(() {});
   }
 
-  // ---------- 图文图片区 ----------
+  // ---------- 图文图片区：3 列圆角网格 ----------
   Widget _imageGrid() {
-    final cells = <Widget>[];
-    for (final f in _images) {
-      cells.add(Stack(children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Image.file(f, width: 96, height: 96, fit: BoxFit.cover),
-        ),
-        Positioned(
-          top: 2,
-          right: 2,
-          child: GestureDetector(
-            onTap: () => setState(() => _images.remove(f)),
+    final showAdd = _images.length < _maxImages;
+    final total = _images.length + (showAdd ? 1 : 0);
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: AppSpace.x2,
+        crossAxisSpacing: AppSpace.x2,
+      ),
+      itemCount: total,
+      itemBuilder: (_, i) {
+        if (showAdd && i == _images.length) {
+          return PressableScale(
+            onTap: _pickImages,
             child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-              child: const Icon(Icons.close, size: 14, color: Colors.white),
+              decoration: BoxDecoration(
+                color: const Color(AppColors.card),
+                borderRadius: AppRadius.rMd,
+                border: Border.all(color: const Color(AppColors.border)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.add_photo_alternate_outlined,
+                      color: Color(AppColors.textSecondary), size: 26),
+                  const SizedBox(height: AppSpace.x1),
+                  Text('${_maxImages - _images.length} 图',
+                      style: AppType.micro),
+                ],
+              ),
             ),
-          ),
-        ),
-      ]));
-    }
-    if (cells.length < _maxImages) {
-      cells.add(GestureDetector(
-        onTap: _pickImages,
-        child: Container(
-          width: 96,
-          height: 96,
-          decoration: BoxDecoration(
-            color: const Color(AppTheme.card),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(AppTheme.border)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_photo_alternate_outlined,
-                  color: Color(AppTheme.textSecondary), size: 26),
-              const SizedBox(height: 4),
-              Text('${_maxImages - _images.length} 图',
-                  style: TextStyle(color: Color(AppTheme.textTertiary), fontSize: 11)),
-            ],
-          ),
-        ),
-      ));
-    }
-    return Wrap(spacing: 8, runSpacing: 8, children: cells);
+          );
+        }
+        final f = _images[i];
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: AppRadius.rMd,
+                child: Image.file(f, fit: BoxFit.cover),
+              ),
+            ),
+            Positioned(
+              right: AppSpace.x1,
+              top: AppSpace.x1,
+              child: PressableScale(
+                onTap: () => setState(() => _images.remove(f)),
+                scale: 0.9,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpace.x1),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // ---------- 视频选择区 ----------
   Widget _videoSection() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpace.x3),
       decoration: BoxDecoration(
-        color: const Color(AppTheme.card),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(AppTheme.border)),
+        color: const Color(AppColors.card),
+        borderRadius: AppRadius.rLg,
+        border: Border.all(color: const Color(AppColors.border)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_videoFile == null) _videoPlaceholder() else _videoPreview(),
-          const SizedBox(height: 12),
-          const Text('封面',
-              style: TextStyle(color: Color(AppTheme.textSecondary), fontSize: 13)),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.x4),
+          const Text('封面', style: AppType.label),
+          const SizedBox(height: AppSpace.x2),
           Row(
             children: [
               _coverChip('auto', '自动首帧', _coverFromFrame, () {
@@ -1082,15 +1121,16 @@ class _PostEditorPageState extends State<PostEditorPage> {
                   _coverFile = null;
                 });
               }),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.x2),
               _coverChip('custom', '自定义上传', !_coverFromFrame, _pickCover),
             ],
           ),
           if (_coverFile != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.x3),
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(_coverFile!, width: 80, height: 80, fit: BoxFit.cover),
+              borderRadius: AppRadius.rSm,
+              child: Image.file(_coverFile!,
+                  width: 80, height: 80, fit: BoxFit.cover),
             ),
           ],
         ],
@@ -1098,17 +1138,17 @@ class _PostEditorPageState extends State<PostEditorPage> {
     );
   }
 
-  /// 未选视频：竖版虚线占位卡
+  /// 未选视频：竖版占位卡
   Widget _videoPlaceholder() {
-    return GestureDetector(
+    return PressableScale(
       onTap: _pickVideo,
       child: Container(
         height: rw(context, 220),
         width: double.infinity,
         decoration: BoxDecoration(
-          color: const Color(AppTheme.bg),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(AppTheme.border), width: 1),
+          color: const Color(AppColors.elevated),
+          borderRadius: AppRadius.rMd,
+          border: Border.all(color: const Color(AppColors.border)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1116,19 +1156,18 @@ class _PostEditorPageState extends State<PostEditorPage> {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.accentSoft),
+              decoration: const BoxDecoration(
+                color: Color(AppColors.accentSoft),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.video_library_outlined,
-                  color: Color(AppTheme.accent), size: 28),
+                  color: Color(AppColors.accent), size: 28),
             ),
-            const SizedBox(height: 12),
-            const Text('选择本地视频',
-                style: TextStyle(color: Color(AppTheme.textPrimary), fontSize: 14, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            const Text('≤ 60 秒 · ≤ 50MB · 竖版更佳',
-                style: TextStyle(color: Color(AppTheme.textTertiary), fontSize: 12)),
+            const SizedBox(height: AppSpace.x3),
+            Text('选择本地视频',
+                style: AppType.body.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: AppSpace.x1),
+            Text('≤ 60 秒 · ≤ 50MB · 竖版更佳', style: AppType.caption),
           ],
         ),
       ),
@@ -1143,7 +1182,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
       children: [
         // 预览（取文件作为封面帧展示；非视频首帧时为图标兜底）
         ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppRadius.rMd,
           child: Image.file(
             f,
             width: 96,
@@ -1152,12 +1191,13 @@ class _PostEditorPageState extends State<PostEditorPage> {
             errorBuilder: (_, _, _) => Container(
               width: 96,
               height: 128,
-              color: const Color(AppTheme.bg),
-              child: const Icon(Icons.movie, color: Color(AppTheme.textSecondary)),
+              color: const Color(AppColors.elevated),
+              child: const Icon(Icons.movie_outlined,
+                  color: Color(AppColors.textSecondary)),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.x3),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1166,27 +1206,27 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 f.path.split('/').last,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(AppTheme.textPrimary), fontSize: 13),
+                style: AppType.bodySm
+                    .copyWith(color: const Color(AppColors.textPrimary)),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: AppSpace.x2),
               // 时长/大小徽标
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.x2, vertical: AppSpace.x1),
                 decoration: BoxDecoration(
-                  color: const Color(AppTheme.bg),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(AppColors.elevated),
+                  borderRadius: AppRadius.rXs,
                 ),
-                child: Text(
-                  '$_maxVideoSeconds 秒 · $sizeMb MB',
-                  style: const TextStyle(color: Color(AppTheme.textSecondary), fontSize: 11),
-                ),
+                child: Text('$_maxVideoSeconds 秒 · $sizeMb MB',
+                    style: AppType.micro),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpace.x3),
               Row(
                 children: [
-                  _miniAction(Icons.refresh, '重新选择', _pickVideo),
-                  const SizedBox(width: 8),
-                  _miniAction(Icons.delete_outline, '删除', () {
+                  _miniAction(Icons.refresh_rounded, '重新选择', _pickVideo),
+                  const SizedBox(width: AppSpace.x2),
+                  _miniAction(Icons.delete_outline_rounded, '删除', () {
                     setState(() => _videoFile = null);
                   }),
                 ],
@@ -1199,22 +1239,24 @@ class _PostEditorPageState extends State<PostEditorPage> {
   }
 
   Widget _miniAction(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.x3, vertical: AppSpace.x1),
         decoration: BoxDecoration(
-          color: const Color(AppTheme.bg),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(AppTheme.border)),
+          color: Colors.white.withValues(alpha: 0.07),
+          borderRadius: AppRadius.rPill,
+          border: Border.all(color: const Color(AppColors.border)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: const Color(AppTheme.accent)),
-            const SizedBox(width: 3),
+            Icon(icon, size: 13, color: const Color(AppColors.accent)),
+            const SizedBox(width: AppSpace.x1),
             Text(label,
-                style: const TextStyle(color: Color(AppTheme.accent), fontSize: 11)),
+                style: AppType.caption
+                    .copyWith(color: const Color(AppColors.accent))),
           ],
         ),
       ),
@@ -1222,23 +1264,33 @@ class _PostEditorPageState extends State<PostEditorPage> {
   }
 
   Widget _coverChip(String id, String label, bool sel, VoidCallback onTap) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        duration: AppMotion.base,
+        curve: AppMotion.standard,
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.x4, vertical: AppSpace.x2),
         decoration: BoxDecoration(
-          color: sel ? const Color(AppTheme.accentSoft) : const Color(AppTheme.bg),
-          borderRadius: BorderRadius.circular(16),
+          color: sel
+              ? const Color(AppColors.accent).withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: AppRadius.rPill,
           border: Border.all(
-              color: sel ? const Color(AppTheme.accent) : const Color(AppTheme.border)),
+            color: sel
+                ? const Color(AppColors.accent).withValues(alpha: 0.55)
+                : const Color(AppColors.border),
+          ),
         ),
-        child: Text(label,
-            style: TextStyle(
-              color: sel ? const Color(AppTheme.accent) : const Color(AppTheme.textSecondary),
-              fontSize: 12,
-              fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-            )),
+        child: Text(
+          label,
+          style: AppType.caption.copyWith(
+            color: sel
+                ? const Color(AppColors.accent)
+                : const Color(AppColors.textSecondary),
+            fontWeight: sel ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
@@ -1246,31 +1298,32 @@ class _PostEditorPageState extends State<PostEditorPage> {
   // ---------- 发布进度面板 ----------
   Widget _progressPanel() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.x4, AppSpace.x3, AppSpace.x4, AppSpace.x2),
       decoration: const BoxDecoration(
-        color: Color(AppTheme.card),
-        border: Border(top: BorderSide(color: Color(AppTheme.border))),
+        color: Color(AppColors.canvas),
+        border: Border(top: BorderSide(color: Color(AppColors.hairline), width: 0.5)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              Text(_stageLabel,
-                  style: const TextStyle(color: Color(AppTheme.textSecondary), fontSize: 12)),
+              Text(_stageLabel, style: AppType.caption),
               const Spacer(),
               Text('${(_uploadProgress * 100).round()}%',
-                  style: const TextStyle(color: Color(AppTheme.accent), fontSize: 12)),
+                  style: AppType.numeric
+                      .copyWith(color: const Color(AppColors.accent))),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.x2),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: AppRadius.rPill,
             child: LinearProgressIndicator(
               value: _uploadProgress.clamp(0.0, 1.0),
-              minHeight: 5,
-              backgroundColor: const Color(AppTheme.border),
-              color: const Color(AppTheme.accent),
+              minHeight: 4,
+              backgroundColor: const Color(AppColors.hairline),
+              color: const Color(AppColors.accent),
             ),
           ),
         ],

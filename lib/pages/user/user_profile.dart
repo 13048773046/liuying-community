@@ -1,14 +1,18 @@
-/// 用户主页（P0）：认证头衔/头像框/等级 + 关注关系 + 帖子与短视频列表
+/// 用户主页（P0）：头像/昵称/签名/统计 + 关注关系 + 三列作品网格
+///
+/// 沉浸黑：顶部身份区（[AppAvatar] + [StatTile] + [PillButton]）→ 分段（帖子/短视频）
+/// → 作品网格（[PostGridTile]）。请求、分页与关注逻辑保持原样。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../design/components.dart';
 import '../../models/feed_item.dart';
-import '../post/post_detail.dart';
-import '../../widgets/image_box.dart';
+import '../../widgets/post_card.dart';
 import '../message/dm_chat_page.dart';
+import '../post/post_detail.dart';
 
 class UserProfilePage extends StatefulWidget {
   final String uid;
@@ -102,79 +106,72 @@ class _UserProfilePageState extends State<UserProfilePage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('操作失败：$e'),
-          backgroundColor: const Color(AppTheme.card)));
+      showAppToast(context, '操作失败：$e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(AppTheme.textPrimary)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('个人主页',
-            style: TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                fontWeight: FontWeight.w600)),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          const GlassTopBar(title: '个人主页', solid: true),
+          Expanded(child: _body()),
+        ],
       ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2.5))
-          : _user == null
-              ? const Center(
-                  child: Text('用户不存在',
-                      style: TextStyle(color: Color(AppTheme.textSecondary))))
-              : RefreshIndicator(
-                  color: const Color(AppTheme.accent),
-                  backgroundColor: const Color(AppTheme.card),
-                  onRefresh: () => _load(),
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 20+ MediaQuery.paddingOf(context).bottom),
-                    children: [
-                      _header(),
-                      const SizedBox(height: 18),
-                      _tabBar(),
-                      const SizedBox(height: 6),
-                      if (_items.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: Text(_listLoading ? '加载中…' : '还没有内容',
-                                style: const TextStyle(
-                                    color: Color(AppTheme.textTertiary),
-                                    fontSize: 13)),
-                          ),
-                        )
-                      else
-                        ..._items.map(_postTile),
-                      if (_hasMore)
-                        GestureDetector(
-                          onTap: () => _loadPosts(),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(
-                              child: Text('加载更多',
-                                  style: TextStyle(
-                                      color: Color(AppTheme.textSecondary),
-                                      fontSize: 13)),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
     );
   }
 
+  Widget _body() {
+    if (_loading) return const _ProfileSkeleton();
+    if (_user == null) {
+      return const Center(
+        child: EmptyState(
+          icon: Icons.person_off_outlined,
+          title: '用户不存在',
+          message: '该用户可能已注销或主页不可见',
+        ),
+      );
+    }
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics()),
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom + 28),
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
+            child: _header(),
+          ),
+          const SizedBox(height: AppSpace.x2),
+          FeedTabs(
+            labels: const ['帖子', '短视频'],
+            index: _tab == 'text' ? 0 : 1,
+            onChanged: _switchTab,
+          ),
+          const SizedBox(height: AppSpace.x2),
+          _grid(),
+        ],
+      ),
+    );
+  }
+
+  void _switchTab(int i) {
+    final t = i == 0 ? 'text' : 'video';
+    if (_tab == t) return;
+    setState(() {
+      _tab = t;
+      _items = [];
+      _hasMore = false;
+    });
+    _loadPosts(refresh: true);
+  }
+
+  // ------------------------------------------------------------------ 头部
   Widget _header() {
     final u = _user!;
     final name = (u['name'] ?? '用户') as String;
@@ -194,277 +191,175 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (age > 0) parts.add('$age岁');
     if (city.isNotEmpty) parts.add(city);
     final metaLine = parts.join(' · ');
+
     return Column(
       children: [
-        // 头像（带头像框）
-        Container(
-          padding: const EdgeInsets.all(2.5),
-          decoration: BoxDecoration(
-            border: frameId.isNotEmpty
-                ? Border.all(color: const Color(AppTheme.accent), width: 2.5)
-                : null,
-            shape: BoxShape.circle,
-          ),
-          child: CircleAvatar(
-            radius: 40,
-            backgroundColor: const Color(AppTheme.card),
-            backgroundImage:
-                avatar.isNotEmpty ? NetworkImage(avatarUrl(avatar)) : null,
-            child: avatar.isEmpty
-                ? const Icon(Icons.person, size: 42, color: Color(AppTheme.textSecondary))
-                : null,
-          ),
+        const SizedBox(height: AppSpace.x5),
+        AppAvatar(
+          url: avatar.isEmpty ? null : avatarUrl(avatar),
+          size: 84,
+          name: name,
+          ring: frameId.isNotEmpty,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.x3),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(name,
-                style: const TextStyle(
-                    color: Color(AppTheme.textPrimary),
-                    fontSize: 19,
-                    fontWeight: FontWeight.w600)),
-            if (title.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(AppTheme.accentSoft),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: const Color(AppTheme.accent), width: 0.8),
-                ),
-                child: Text(title,
-                    style: const TextStyle(
-                        color: Color(AppTheme.accent), fontSize: 11)),
+            Flexible(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.h2,
               ),
+            ),
+            if (title.isNotEmpty) ...[
+              const SizedBox(width: AppSpace.x2),
+              TagPill(label: title, compact: true),
             ],
           ],
         ),
-        const SizedBox(height: 6),
-        Text('Lv.$level · 流萤社区',
-            style: const TextStyle(
-                color: Color(AppTheme.textTertiary), fontSize: 13)),
+        const SizedBox(height: AppSpace.x2),
+        Text('Lv.$level · 流萤社区', style: AppType.caption),
         if (metaLine.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(metaLine,
-              style: const TextStyle(
-                  color: Color(AppTheme.textTertiary), fontSize: 12)),
+          const SizedBox(height: 3),
+          Text(metaLine, style: AppType.micro),
         ],
         if (signature.isNotEmpty) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.x2),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(signature,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Color(AppTheme.textSecondary),
-                    fontSize: 12.5,
-                    height: 1.4)),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.x5),
+            child: Text(
+              signature,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.bodySm,
+            ),
           ),
         ],
-        const SizedBox(height: 14),
+        const SizedBox(height: AppSpace.x5),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _stat('关注', followings),
-            _stat('粉丝', followers),
+            StatTile(value: '$followings', label: '关注'),
+            const SizedBox(width: AppSpace.x8),
+            StatTile(value: '$followers', label: '粉丝', highlight: true),
           ],
         ),
-        const SizedBox(height: 16),
-        // 关注 / 私信 按钮行
+        const SizedBox(height: AppSpace.x5),
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            GestureDetector(
-              onTap: _toggleFollow,
-              child: Container(
-                width: 100,
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: following
-                      ? const Color(AppTheme.card)
-                      : const Color(AppTheme.accent),
-                  borderRadius: BorderRadius.circular(20),
-                  border: following
-                      ? Border.all(color: const Color(AppTheme.border))
-                      : null,
-                ),
-                child: Center(
-                  child: Text(following ? '已关注' : '+ 关注',
-                      style: TextStyle(
-                        color: following
-                            ? const Color(AppTheme.textSecondary)
-                            : Colors.black,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      )),
-                ),
+            Expanded(
+              child: PillButton(
+                label: following ? '已关注' : '关注',
+                variant: following ? PillVariant.tonal : PillVariant.primary,
+                expand: true,
+                glow: !following,
+                onTap: _toggleFollow,
               ),
             ),
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: _openDm,
-              child: Container(
-                width: 100,
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: const Color(AppTheme.card),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(AppTheme.border)),
-                ),
-                child: const Center(
-                  child: Text('私信',
-                      style: TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold)),
-                ),
+            const SizedBox(width: AppSpace.x2),
+            Expanded(
+              child: PillButton(
+                label: '私信',
+                variant: PillVariant.ghost,
+                icon: Icons.chat_bubble_outline_rounded,
+                expand: true,
+                onTap: _openDm,
               ),
             ),
           ],
         ),
+        const SizedBox(height: AppSpace.x4),
       ],
     );
   }
 
-  Widget _stat(String label, int n) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Column(
-        children: [
-          Text('$n',
-              style: const TextStyle(
-                  color: Color(AppTheme.textPrimary),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(
-                  color: Color(AppTheme.textTertiary), fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  Widget _tabBar() {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: const Color(AppTheme.card),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          _tabItem('text', '帖子'),
-          _tabItem('video', '短视频'),
-        ],
-      ),
-    );
-  }
-
-  Widget _tabItem(String t, String label) {
-    final sel = _tab == t;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          if (sel) return;
-          setState(() {
-            _tab = t;
-            _items = [];
-            _hasMore = false;
-          });
-          _loadPosts(refresh: true);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          decoration: BoxDecoration(
-            color: sel ? const Color(AppTheme.accent) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(label,
-                style: TextStyle(
-                  color: sel ? Colors.black : const Color(AppTheme.textSecondary),
-                  fontSize: 13,
-                  fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                )),
-          ),
+  // ------------------------------------------------------------------ 网格
+  Widget _grid() {
+    if (_items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
+        child: EmptyState(
+          icon: Icons.photo_library_outlined,
+          title: _listLoading ? '加载中…' : '还没有内容',
+          message: _tab == 'text' ? 'TA 还没有发布帖子' : 'TA 还没有发布短视频',
+          compact: true,
         ),
-      ),
-    );
-  }
-
-  Widget _postTile(FeedItem item) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => PostDetailPage(postId: item.id))),
-      child: Container(
-        margin: const EdgeInsets.only(top: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.content,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 14,
-                          height: 1.4)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      if (item.topic.isNotEmpty)
-                        Text('#${item.topic.first}  ',
-                            style: const TextStyle(
-                                color: Color(AppTheme.accent), fontSize: 12)),
-                      Text('${item.likeCount} 赞 · ${item.commentCount} 评 · ${timeAgo(item.created)}',
-                          style: const TextStyle(
-                              color: Color(AppTheme.textTertiary), fontSize: 11)),
-                    ],
-                  ),
-                ],
-              ),
+      );
+    }
+    return Column(
+      children: [
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: AppSpace.x2,
+            crossAxisSpacing: AppSpace.x2,
+            childAspectRatio: 0.78,
+          ),
+          itemCount: _items.length,
+          itemBuilder: (context, i) => PostGridTile(
+            item: _items[i],
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => PostDetailPage(postId: _items[i].id)),
             ),
-            if (item.images.isNotEmpty) ...[
-              const SizedBox(width: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CachedNetworkImageCompat(
-                    url: mediaUrl(item.images.first),
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.cover),
-              ),
-            ] else if (item.isVideo) ...[
-              const SizedBox(width: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CachedNetworkImageCompat(
-                    url: mediaUrl(item.cover == 'auto'
-                        ? '${item.video}.jpg'
-                        : item.cover),
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.cover),
-              ),
-            ],
-          ],
+            onAuthorTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) =>
+                      UserProfilePage(uid: _items[i].author.id)),
+            ),
+          ),
         ),
-      ),
+        LoadMoreFooter(
+          loading: _listLoading,
+          hasMore: _hasMore,
+          onTap: () => _loadPosts(),
+          endLabel: '— 只有这些啦 —',
+        ),
+      ],
+    );
+  }
+}
+
+/// 首屏骨架：头像 + 文本行 + 网格占位。
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x6, AppSpace.gutter, 0),
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        const Center(
+          child: SkeletonBox(width: 84, height: 84, radius: 42),
+        ),
+        const SizedBox(height: AppSpace.x3),
+        const Center(child: SkeletonBox(width: 120, height: 18)),
+        const SizedBox(height: AppSpace.x2),
+        const Center(child: SkeletonBox(width: 80, height: 11)),
+        const SizedBox(height: AppSpace.x5),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: AppSpace.x2,
+            crossAxisSpacing: AppSpace.x2,
+            childAspectRatio: 0.78,
+          ),
+          itemCount: 6,
+          itemBuilder: (_, _) => const SkeletonBox(radius: AppRadius.sm),
+        ),
+      ],
     );
   }
 }

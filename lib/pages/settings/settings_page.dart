@@ -2,18 +2,17 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
-import '../../widgets/user_avatar.dart';
+import '../../design/components.dart';
 import '../../services/auth_session.dart';
 import '../favorites/favorites_page.dart';
 import '../feedback/feedback_page.dart';
-import '../user/user_profile.dart';
+import '../mine/frames_page.dart';
 import '../mine/login_page.dart';
 import '../mine/task_center_page.dart';
-import '../mine/frames_page.dart';
+import '../user/user_profile.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -54,244 +53,60 @@ class _SettingsPageState extends State<SettingsPage> {
     var accs = accounts;
     final currentUid = ApiClient.userId ?? '';
     var switched = false;
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(AppTheme.bg),
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom +
-                  MediaQuery.of(ctx).padding.bottom +
-                  20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 头部：标题 + 副标题 + 关闭
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('切换账号',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textPrimary),
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 3),
-                          const Text('选择本地保存的账号快速登录',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textSecondary),
-                                  fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: const BoxDecoration(
-                          color: Color(AppTheme.card),
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.close,
-                            color: Color(AppTheme.textPrimary), size: 16),
-                      ),
-                    ),
-                  ],
-                ),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SheetShell(
+        title: '切换账号',
+        subtitle: '选择本地保存的账号快速登录',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: AppSpace.x4),
+          child: _card([
+            for (var idx = 0; idx < accs.length; idx++) ...[
+              _accountRow(
+                ctx: ctx,
+                account: accs[idx],
+                currentUid: currentUid,
+                onSwitched: () {
+                  switched = true;
+                  _me = null;
+                },
               ),
-              const SizedBox(height: 12),
-              // 账号列表
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        color: const Color(AppTheme.card),
-                        child: Column(
-                          children: [
-                            ...List.generate(accs.length, (idx) {
-                              final u = accs[idx];
-                              final isCurrent = u.uid == currentUid;
-                              return Column(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () async {
-                                      if (u.uid == currentUid) {
-                                        Navigator.pop(ctx);
-                                        return;
-                                      }
-                                      // 切换：注入 token + 重连通知
-                                      await AuthSession.switchTo(u);
-                                      if (!ctx.mounted) return;
-                                      Navigator.pop(ctx, true);
-                                      if (!mounted) return;
-                                      setState(() {
-                                        switched = true;
-                                        _me = null;
-                                      });
-                                      await _loadMe();
-                                    },
-                                    behavior: HitTestBehavior.opaque,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 14),
-                                      child: Row(
-                                        children: [
-                                          UserAvatar(
-                                              url: u.avatarUrl,
-                                              name: u.name,
-                                              size: 48),
-                                          const SizedBox(width: 14),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                    u.name.isEmpty
-                                                        ? '用户'
-                                                        : u.name,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                        color: Color(
-                                                            AppTheme
-                                                                .textPrimary),
-                                                        fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.w600)),
-                                                const SizedBox(height: 2),
-                                                Text('账号 ${u.account}',
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                        color: Color(
-                                                            AppTheme
-                                                                .textSecondary),
-                                                        fontSize: 12)),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            width: 22,
-                                            height: 22,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: isCurrent
-                                                  ? const Color(
-                                                      AppTheme.accent)
-                                                  : Colors.transparent,
-                                              border: isCurrent
-                                                  ? null
-                                                  : Border.all(
-                                                      color: const Color(
-                                                              AppTheme
-                                                                  .textTertiary)
-                                                          .withValues(
-                                                              alpha: 0.5),
-                                                      width: 1.5),
-                                            ),
-                                            alignment: Alignment.center,
-                                            child: isCurrent
-                                                ? const Text('✓',
-                                                    style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold))
-                                                : null,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  if (idx < accs.length - 1)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(left: 78),
-                                      child: Container(
-                                          height: 0.5,
-                                          color: const Color(
-                                              AppTheme.border)),
-                                    ),
-                                ],
-                              );
-                            }),
-                            // 添加账号
-                            GestureDetector(
-                              onTap: () async {
-                                Navigator.pop(ctx);
-                                final ok = await Navigator.of(context)
-                                    .push<bool>(
-                                  MaterialPageRoute(
-                                      builder: (_) => const LoginPage()),
-                                );
-                                if (ok == true) {
-                                  if (!mounted) return;
-                                  setState(() => _me = null);
-                                  await _loadMe();
-                                }
-                              },
-                              behavior: HitTestBehavior.opaque,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
-                                child: Row(
-                                  children: [
-                                    // 虚线圆圈 + 加号
-                                    Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: const Color(
-                                                  AppTheme.textTertiary)
-                                              .withValues(alpha: 0.6),
-                                          width: 1.4,
-                                        ),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: const Icon(Icons.add,
-                                          color: Color(
-                                              AppTheme.textTertiary),
-                                          size: 22),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    const Text('添加账号',
-                                        style: TextStyle(
-                                            color: Color(
-                                                AppTheme.textPrimary),
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w500)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              if (idx < accs.length - 1) const Hairline(indent: 72),
             ],
-          ),
+            if (accs.isNotEmpty) const Hairline(indent: 72),
+            ListRow(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.x4,
+                vertical: AppSpace.x3,
+              ),
+              showChevron: false,
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.18)),
+                ),
+                child: const Icon(Icons.add_rounded,
+                    size: 20, color: Color(AppColors.textTertiary)),
+              ),
+              title: '添加账号',
+              onTap: () async {
+                Navigator.pop(ctx);
+                final ok = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                );
+                if (ok == true) {
+                  if (!mounted) return;
+                  setState(() => _me = null);
+                  await _loadMe();
+                }
+              },
+            ),
+          ]),
         ),
       ),
     );
@@ -300,15 +115,77 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  /// 历史账号行（弹窗内）
+  Widget _accountRow({
+    required BuildContext ctx,
+    required SavedAccount account,
+    required String currentUid,
+    required VoidCallback onSwitched,
+  }) {
+    final isCurrent = account.uid == currentUid;
+    return ListRow(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.x4,
+        vertical: AppSpace.x3,
+      ),
+      showChevron: false,
+      leading: AppAvatar(
+        url: account.avatarUrl,
+        name: account.name,
+        size: 44,
+      ),
+      title: account.name.isEmpty ? '用户' : account.name,
+      subtitle: '账号 ${account.account}',
+      trailing: Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isCurrent
+              ? const Color(AppColors.accent)
+              : Colors.transparent,
+          border: isCurrent
+              ? null
+              : Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        alignment: Alignment.center,
+        child: isCurrent
+            ? const Icon(Icons.check_rounded,
+                size: 12, color: Color(AppColors.onAccent))
+            : null,
+      ),
+      onTap: () async {
+        if (isCurrent) {
+          Navigator.pop(ctx);
+          return;
+        }
+        // 切换：注入 token + 重连通知
+        await AuthSession.switchTo(account);
+        if (!ctx.mounted) return;
+        Navigator.pop(ctx, true);
+        if (!mounted) return;
+        setState(onSwitched);
+        await _loadMe();
+      },
+    );
+  }
+
   Future<void> _clearCache() async {
+    if (_clearing) return;
     setState(() => _clearing = true);
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-    setState(() => _clearing = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('缓存已清理'),
-        backgroundColor: Color(AppTheme.card),
-        behavior: SnackBarBehavior.floating));
+    try {
+      // 真实清理：图片内存缓存（磁盘缓存位于 flutter_cache_manager，
+      // 该包仅为 cached_network_image 的传递依赖、未在 pubspec 声明，故不直接引用）
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      if (!mounted) return;
+      showAppToast(context, '图片缓存已清理');
+    } catch (_) {
+      if (!mounted) return;
+      showAppToast(context, '清理失败');
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
   }
 
   void _showAbout() {
@@ -321,19 +198,20 @@ class _SettingsPageState extends State<SettingsPage> {
         height: 44,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-              colors: [Color(AppTheme.accent), Color(AppTheme.sky)]),
-          borderRadius: BorderRadius.circular(12),
+            colors: [Color(AppColors.accent), Color(AppColors.accentPressed)],
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         alignment: Alignment.center,
-        child: const Icon(Icons.public, color: Colors.black, size: 26),
+        child: const Icon(Icons.public_rounded,
+            color: Color(AppColors.onAccent), size: 24),
       ),
       children: [
-        const Text('流萤社区 · 与流萤音乐同一账号体系\n'
-            '问题反馈请使用「意见反馈」入口，或发送邮件至 yosar027@163.com',
-            style: TextStyle(
-                color: Color(AppTheme.textSecondary),
-                fontSize: 12,
-                height: 1.6)),
+        Text(
+          '流萤社区 · 与流萤音乐同一账号体系\n'
+          '问题反馈请使用「意见反馈」入口，或发送邮件至 yosar027@163.com',
+          style: AppType.bodySm.copyWith(height: 1.6),
+        ),
       ],
     );
   }
@@ -347,164 +225,188 @@ class _SettingsPageState extends State<SettingsPage> {
         ? ''
         : avatarUrlOf((user?['id'] ?? '') as String);
     final email = (user?['email'] ?? '') as String;
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        foregroundColor: const Color(AppTheme.textPrimary),
-        elevation: 0,
-        title: const Text('设置'),
-        centerTitle: true,
-      ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16+ MediaQuery.paddingOf(context).bottom),
+    return ImmersivePage(
+      child: Column(
         children: [
-          if (ApiClient.token != null) ...[
-            // 账号卡
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.card),
-                borderRadius: BorderRadius.circular(14),
+          const GlassTopBar(title: '设置', solid: true),
+          Expanded(
+            child: ListView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                AppSpace.gutter,
+                AppSpace.x2,
+                AppSpace.gutter,
+                AppSpace.x6 + MediaQuery.paddingOf(context).bottom,
               ),
-              child: Row(
-                children: [
-                  UserAvatar(url: avatar, name: name, size: 46),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name.isEmpty ? '用户' : name,
-                            style: const TextStyle(
-                                color: Color(AppTheme.textPrimary),
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold)),
-                        if (email.isNotEmpty)
-                          Text(email,
-                              style: const TextStyle(
-                                  color: Color(AppTheme.textSecondary),
-                                  fontSize: 12)),
-                      ],
+              children: [
+                if (ApiClient.token != null) ...[
+                  _accountCard(name: name, avatar: avatar, email: email),
+                  _section('功能'),
+                  _card([
+                    _row(Icons.emoji_events_outlined, '每日签到', () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const TaskCenterPage()));
+                    }),
+                    const Hairline(indent: 48),
+                    _row(Icons.auto_awesome_outlined, '个性装扮', () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const FramesPage()));
+                    }),
+                    const Hairline(indent: 48),
+                    _row(Icons.bookmark_border_rounded, '我的收藏', () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const FavoritesPage()));
+                    }),
+                    const Hairline(indent: 48),
+                    _row(Icons.feedback_outlined, '意见反馈', () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const FeedbackPage()));
+                    }),
+                  ]),
+                  _section('通用'),
+                  _card([
+                    _row(
+                      Icons.cleaning_services_outlined,
+                      _clearing ? '清理中…' : '清除缓存',
+                      _clearing ? null : _clearCache,
+                      trailing: _clearing
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 1.8),
+                            )
+                          : null,
                     ),
+                    const Hairline(indent: 48),
+                    _row(Icons.info_outline_rounded, '关于社区', _showAbout),
+                  ]),
+                  _section('账号'),
+                  _card([
+                    _row(Icons.swap_horiz_rounded, '切换账号', _showSwitchDialog),
+                  ]),
+                  const SizedBox(height: AppSpace.x4),
+                  PillButton(
+                    label: '退出登录',
+                    icon: Icons.logout_rounded,
+                    variant: PillVariant.danger,
+                    expand: true,
+                    onTap: _logout,
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => UserProfilePage(
-                                uid: ApiClient.userId ?? ''))),
-                    child: const Icon(Icons.chevron_right,
-                        color: Color(AppTheme.textTertiary)),
-                  ),
+                ] else ...[
+                  _guestCard(),
                 ],
-              ),
+              ],
             ),
-            const SizedBox(height: 12),
-            _group('功能'),
-            _tile(Icons.emoji_events_outlined, '每日签到', () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const TaskCenterPage()))),
-            _tile(Icons.auto_awesome_outlined, '个性装扮', () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const FramesPage()))),
-            _tile(Icons.bookmark_border, '我的收藏', () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const FavoritesPage()))),
-            _tile(Icons.feedback_outlined, '意见反馈', () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const FeedbackPage()))),
-            const SizedBox(height: 12),
-            _group('通用'),
-            _tile(
-                Icons.cleaning_services_outlined,
-                _clearing ? '清理中…' : '清除缓存',
-                _clearing ? null : _clearCache),
-            _tile(Icons.info_outline, '关于社区', _showAbout),
-            const SizedBox(height: 12),
-            _group('账号'),
-            _tile(Icons.swap_horiz, '切换账号', _showSwitchDialog),
-            _tile(Icons.logout, '退出登录', _logout, danger: true),
-          ] else ...[
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.card),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Column(
-                children: [
-                  const Text('登录后查看收藏、反馈与更多功能',
-                      style: TextStyle(
-                          color: Color(AppTheme.textSecondary), fontSize: 13)),
-                  const SizedBox(height: 14),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(AppTheme.accent),
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22)),
-                    ),
-                    onPressed: () async {
-                      final ok = await Navigator.of(context).push<bool>(
-                        MaterialPageRoute(
-                            builder: (_) => const LoginPage()),
-                      );
-                      if (ok == true) _loadMe();
-                    },
-                    child: const Text('登录 / 注册',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _group(String s) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(s,
-          style: const TextStyle(
-              color: Color(AppTheme.textSecondary), fontSize: 12)),
+  Widget _accountCard({
+    required String name,
+    required String avatar,
+    required String email,
+  }) {
+    return _card([
+      ListRow(
+        padding: const EdgeInsets.all(AppSpace.x4),
+        leading: AppAvatar(url: avatar, name: name, size: 48),
+        title: name.isEmpty ? '用户' : name,
+        subtitle: email.isEmpty ? null : email,
+        onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) =>
+                    UserProfilePage(uid: ApiClient.userId ?? ''))),
+      ),
+    ]);
+  }
+
+  Widget _guestCard() {
+    return _card([
+      const EmptyState(
+        icon: Icons.lock_outline_rounded,
+        title: '登录后解锁全部功能',
+        message: '收藏、意见反馈与更多设置需要登录',
+        compact: true,
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.x4,
+          0,
+          AppSpace.x4,
+          AppSpace.x4,
+        ),
+        child: PillButton(
+          label: '登录 / 注册',
+          size: PillSize.lg,
+          expand: true,
+          glow: true,
+          onTap: () async {
+            final ok = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+            );
+            if (ok == true) _loadMe();
+          },
+        ),
+      ),
+    ]);
+  }
+
+  Widget _card(List<Widget> children) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(AppColors.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: const Color(AppColors.border)),
+      ),
+      child: Column(children: children),
     );
   }
 
-  Widget _tile(IconData icon, String label, VoidCallback? onTap,
-      {bool danger = false}) {
-    final c = danger ? const Color(0xFFFF4D6D) : const Color(AppTheme.textPrimary);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(AppTheme.card),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(icon,
-                  size: 21,
-                  color: danger
-                      ? const Color(0xFFFF4D6D)
-                      : const Color(AppTheme.accent)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(label,
-                    style: TextStyle(color: c, fontSize: 14.5)),
-              ),
-              const Icon(Icons.chevron_right,
-                  color: Color(AppTheme.textTertiary), size: 18),
-            ],
-          ),
-        ),
+  Widget _section(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.x1,
+        AppSpace.x5,
+        AppSpace.x1,
+        AppSpace.x2,
       ),
+      child: Text(
+        label,
+        style:
+            AppType.caption.copyWith(color: const Color(AppColors.textTertiary)),
+      ),
+    );
+  }
+
+  Widget _row(
+    IconData icon,
+    String label,
+    VoidCallback? onTap, {
+    Widget? trailing,
+  }) {
+    return ListRow(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.x4,
+        vertical: AppSpace.x4,
+      ),
+      leading: Icon(icon,
+          size: 20, color: const Color(AppColors.textSecondary)),
+      title: label,
+      trailing: trailing,
+      onTap: onTap,
     );
   }
 }

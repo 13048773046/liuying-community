@@ -1,10 +1,10 @@
-/// 意见反馈页：类型选择 + 内容 + 联系方式，提交至 /feedback
+/// 意见反馈页：黑底表单卡片 + 类型胶囊 + PillButton 提交
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
-import '../../config.dart';
+import '../../design/components.dart';
 import '../mine/login_page.dart';
 
 class FeedbackPage extends StatefulWidget {
@@ -34,10 +34,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
   Future<void> _submit() async {
     final text = _content.text.trim();
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('请填写反馈内容'),
-          backgroundColor: Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating));
+      showAppToast(context, '请填写反馈内容');
       return;
     }
     if (ApiClient.token == null) {
@@ -55,157 +52,131 @@ class _FeedbackPageState extends State<FeedbackPage> {
       );
       if (!mounted) return;
       setState(() => _submitting = false);
+      showAppToast(context, '反馈已提交，感谢你的建议');
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('反馈已提交，感谢你的建议'),
-          backgroundColor: Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating));
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('提交失败：$e'),
-          backgroundColor: const Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating));
+      showAppToast(context, '提交失败：$e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        foregroundColor: const Color(AppTheme.textPrimary),
-        elevation: 0,
-        title: const Text('意见反馈'),
-        centerTitle: true,
-      ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16+ MediaQuery.paddingOf(context).bottom),
+    return ImmersivePage(
+      child: Column(
         children: [
-          // 类型选择
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
-            child: Text('反馈类型',
-                style: TextStyle(
-                    color: Color(AppTheme.textSecondary), fontSize: 12)),
-          ),
-          Row(
-            children: [
-              _typeSeg('bug', '问题反馈'),
-              const SizedBox(width: 8),
-              _typeSeg('suggestion', '建议'),
-              const SizedBox(width: 8),
-              _typeSeg('other', '其他'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // 内容
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
-            child: Text('反馈内容',
-                style: TextStyle(
-                    color: Color(AppTheme.textSecondary), fontSize: 12)),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(AppTheme.card),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TextField(
-              controller: _content,
-              maxLines: 6,
-              maxLength: 2000,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: const InputDecoration(
-                hintText: '遇到什么问题、有什么建议，都可以告诉我们…',
-                hintStyle: TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 13.5),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
+          const GlassTopBar(title: '意见反馈', solid: true),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                AppSpace.gutter,
+                AppSpace.x4,
+                AppSpace.gutter,
+                AppSpace.x6 + MediaQuery.paddingOf(context).bottom,
               ),
+              children: [
+                _label('反馈类型'),
+                const SizedBox(height: AppSpace.x2),
+                Wrap(
+                  spacing: AppSpace.x2,
+                  runSpacing: AppSpace.x2,
+                  children: [
+                    for (final (v, label) in const [
+                      ('bug', '问题反馈'),
+                      ('suggestion', '建议'),
+                      ('other', '其他'),
+                    ])
+                      TagPill(
+                        label: label,
+                        active: _type == v,
+                        onTap: () => setState(() => _type = v),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.x5),
+                _label('反馈内容'),
+                const SizedBox(height: AppSpace.x2),
+                _card(
+                  child: TextField(
+                    controller: _content,
+                    maxLines: 6,
+                    maxLength: 2000,
+                    style: AppType.body,
+                    cursorColor: const Color(AppColors.accent),
+                    decoration: _inputStyle(
+                      '遇到什么问题、有什么建议，都可以告诉我们…',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpace.x5),
+                _label('联系方式（选填）'),
+                const SizedBox(height: AppSpace.x2),
+                _card(
+                  child: TextField(
+                    controller: _contact,
+                    maxLength: 100,
+                    style: AppType.body,
+                    cursorColor: const Color(AppColors.accent),
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: _inputStyle('邮箱 / 联系方式，便于我们回复你'),
+                  ),
+                ),
+                const SizedBox(height: AppSpace.x6),
+                PillButton(
+                  label: '提交反馈',
+                  size: PillSize.lg,
+                  expand: true,
+                  loading: _submitting,
+                  enabled: !_submitting,
+                  glow: true,
+                  onTap: _submit,
+                ),
+                const SizedBox(height: AppSpace.x3),
+                const Center(
+                  child: Text('我们会在 1-3 个工作日内处理',
+                      style: AppType.micro),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          // 联系方式
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
-            child: Text('联系方式（选填）',
-                style: TextStyle(
-                    color: Color(AppTheme.textSecondary), fontSize: 12)),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(AppTheme.card),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TextField(
-              controller: _contact,
-              maxLength: 100,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                hintText: '邮箱 / 联系方式，便于我们回复你',
-                hintStyle: TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 13.5),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // 提交
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(AppTheme.accent),
-              foregroundColor: Colors.black,
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-            ),
-            onPressed: _submitting ? null : _submit,
-            child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.black))
-                : const Text('提交反馈',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(height: 12),
-          const Center(
-            child: Text('我们会在 1-3 个工作日内处理',
-                style: TextStyle(
-                    color: Color(AppTheme.textTertiary), fontSize: 11.5)),
           ),
         ],
       ),
     );
   }
 
-  Widget _typeSeg(String v, String label) {
-    final sel = _type == v;
-    return GestureDetector(
-      onTap: () => setState(() => _type = v),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: sel ? const Color(AppTheme.accent) : const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: sel ? Colors.black : const Color(AppTheme.textSecondary),
-            fontSize: 13,
-            fontWeight: sel ? FontWeight.bold : FontWeight.w500,
-          ),
-        ),
+  Widget _label(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: AppSpace.x1),
+      child: Text(
+        text,
+        style: AppType.caption.copyWith(color: const Color(AppColors.textSecondary)),
       ),
+    );
+  }
+
+  Widget _card({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.x4, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(AppColors.card),
+        borderRadius: AppRadius.rLg,
+        border: Border.all(color: const Color(AppColors.border)),
+      ),
+      child: child,
+    );
+  }
+
+  InputDecoration _inputStyle(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: AppType.bodySm.copyWith(color: const Color(AppColors.textTertiary)),
+      filled: false,
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      contentPadding: const EdgeInsets.symmetric(vertical: AppSpace.x3),
+      counterStyle: AppType.micro,
     );
   }
 }

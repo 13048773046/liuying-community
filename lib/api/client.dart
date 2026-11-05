@@ -419,7 +419,12 @@ class ApiClient {
       get('/notifications/unread');
 
   static Future<void> markNotificationsRead({String? id}) async {
-    await post('/notifications/read', body: {if (id != null) 'id': id});
+    await post('/notifications/read', body: {'id': ?id});
+  }
+
+  /// 删除单条互动通知（后端软删除，列表里即可左滑删除）
+  static Future<void> deleteNotification(String id) async {
+    await delete('/notifications/$id');
   }
 
   static Future<Map<String, dynamic>> officialMessages({double after = 0}) =>
@@ -475,9 +480,11 @@ class ApiClient {
 
   // ---------- 互动（路由与后端一致：POST /post/{id}/like 等） ----------
 
-  /// 点赞/取消赞（帖子与视频共用）
-  static Future<Map<String, dynamic>> toggleLike(String postId) =>
-      post('/post/$postId/like');
+  /// 点赞状态设置：liked=true → POST（点赞）/ false → DELETE（取消赞）。
+  /// 注意：后端 POST 是「幂等添加」而不是切换，必须显式传目标状态。
+  static Future<Map<String, dynamic>> setPostLike(String postId,
+          {required bool liked}) =>
+      liked ? post('/post/$postId/like') : delete('/post/$postId/like');
 
   /// 收藏/取消收藏（kind=fav 收藏 | later 稍后看）
   static Future<Map<String, dynamic>> toggleFav(String postId,
@@ -490,9 +497,12 @@ class ApiClient {
   static Future<Map<String, dynamic>> reportShare(String postId) =>
       post('/post/$postId/share');
 
-  /// 评论点赞/取消
-  static Future<Map<String, dynamic>> commentLike(String commentId) =>
-      post('/comment/$commentId/like');
+  /// 评论点赞状态设置（同 setPostLike：后端 POST=添加、DELETE=取消）
+  static Future<Map<String, dynamic>> setCommentLike(String commentId,
+          {required bool liked}) =>
+      liked
+          ? post('/comment/$commentId/like')
+          : delete('/comment/$commentId/like');
 
   /// 关注/取关（互通：写音乐 follows 表）
   static Future<Map<String, dynamic>> toggleFollow(String uid) =>
@@ -525,10 +535,10 @@ class ApiClient {
   }) =>
       post('/user/me', body: {
         if (name != null && name.isNotEmpty) 'name': name,
-        if (signature != null) 'signature': signature,
-        if (gender != null) 'gender': gender,
-        if (age != null) 'age': age,
-        if (city != null) 'city': city,
+        'signature': ?signature,
+        'gender': ?gender,
+        'age': ?age,
+        'city': ?city,
         if (email != null && email.isNotEmpty) 'email': email,
         if (code != null && code.isNotEmpty) 'code': code,
       });
@@ -634,7 +644,7 @@ class ApiClient {
     return post('/post/$postId/comment', body: {
       'content': content,
       'images': images,
-      if (sticker != null) 'sticker': sticker,
+      'sticker': ?sticker,
     });
   }
 }

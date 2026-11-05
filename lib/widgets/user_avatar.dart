@@ -1,12 +1,16 @@
-/// 通用用户头像组件
-/// - 有 URL → CachedNetworkImage（失败回退默认头像）
-/// - 无 URL（未设置头像/解析失败）→ 渐变底 + 名字首字默认头像
+/// 通用用户头像组件（沉浸黑：统一走 [AppAvatar] 语义）
+///
+/// - 有 URL → 网络头像（失败自动回退「名字首字」占位）
+/// - 无 URL（未设置头像/解析失败）→ 占位字
+/// - [borderColor] 非空时渲染一圈描边（管理员/头像框语义，沿用旧参数）
+///
+/// 注意：构造参数与旧版完全一致，外部页面（消息、榜单、设置、审核等）直接复用。
 library;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
+import '../design/components.dart';
 
 class UserAvatar extends StatelessWidget {
   const UserAvatar({
@@ -21,47 +25,19 @@ class UserAvatar extends StatelessWidget {
   final String url;
   final String name;
   final double size;
+
+  /// 描边颜色（管理员环 / 头像框）：非空即渲染描边
   final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
     final resolved = avatarUrl(url);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: borderColor != null
-            ? Border.all(color: borderColor!, width: 1.5)
-            : null,
-      ),
-      child: ClipOval(
-        child: resolved.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: resolved,
-                fit: BoxFit.cover,
-                errorWidget: (_, _, _) => _default(),
-              )
-            : _default(),
-      ),
-    );
-  }
-
-  /// 默认头像：薄荷绿渐变 + 名字首字（无名字时用占位图标）
-  Widget _default() {
-    final char = name.trim().isNotEmpty ? name.trim().characters.first : '?';
-    return Container(
-      color: const Color(AppTheme.accentSoft),
-      alignment: Alignment.center,
-      child: Text(
-        char,
-        style: TextStyle(
-          color: const Color(AppTheme.accent),
-          fontSize: size * 0.42,
-          fontWeight: FontWeight.bold,
-          height: 1,
-        ),
-      ),
+    return AppAvatar(
+      url: resolved.isEmpty ? null : resolved,
+      size: size,
+      name: name,
+      ring: borderColor != null,
+      ringColor: borderColor,
     );
   }
 }

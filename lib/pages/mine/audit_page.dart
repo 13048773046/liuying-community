@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../design/components.dart';
 import '../../models/feed_item.dart';
-import '../../widgets/user_avatar.dart';
 
 /// 内容审核页（App 内入口，仅管理员可见）
 /// 待审 / 已拒绝 列表，支持 通过 / 拒绝(填原因) / 下架
@@ -56,9 +56,7 @@ class _AuditPageState extends State<AuditPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('加载失败：$e'),
-          backgroundColor: const Color(AppTheme.card)));
+      showAppToast(context, '加载失败：$e');
     }
   }
 
@@ -71,61 +69,92 @@ class _AuditPageState extends State<AuditPage> {
         _busy = false;
         _items.removeWhere((x) => x.id == it.id);
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(action == 'audit' && reason == null
-              ? '已通过'
-              : action == 'audit'
-                  ? '已拒绝'
-                  : '已下架'),
-          backgroundColor: const Color(AppTheme.card)));
+      showAppToast(
+        context,
+        action == 'audit' && reason == null
+            ? '已通过'
+            : action == 'audit'
+                ? '已拒绝'
+                : '已下架',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('操作失败：$e'),
-          backgroundColor: const Color(AppTheme.card)));
+      showAppToast(context, '操作失败：$e');
     }
   }
 
   Future<void> _reject(FeedItem it) async {
     final ctrl = TextEditingController();
-    final reason = await showDialog<String>(
+    final reason = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(AppTheme.card),
-        title: const Text('拒绝理由',
-            style: TextStyle(
-                color: Color(AppTheme.textPrimary), fontSize: 15)),
-        content: TextField(
-          controller: ctrl,
-          maxLength: 60,
-          style: const TextStyle(color: Color(AppTheme.textPrimary)),
-          cursorColor: const Color(AppTheme.accent),
-          decoration: InputDecoration(
-            hintText: '填写拒绝原因（作者可见）',
-            hintStyle:
-                const TextStyle(color: Color(AppTheme.textTertiary)),
-            filled: true,
-            fillColor: const Color(AppTheme.elevated),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SheetShell(
+        title: '拒绝理由',
+        subtitle: '原因会展示给作者',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: AppSpace.x2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: ctrl,
+                maxLength: 60,
+                autofocus: true,
+                style: AppType.body,
+                cursorColor: const Color(AppColors.accent),
+                decoration: InputDecoration(
+                  hintText: '填写拒绝原因（作者可见）',
+                  hintStyle: AppType.bodySm
+                      .copyWith(color: const Color(AppColors.textTertiary)),
+                  counterText: '',
+                  filled: true,
+                  fillColor: const Color(AppColors.elevated),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.x4,
+                    vertical: AppSpace.x3,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: AppRadius.rSm,
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: AppRadius.rSm,
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: AppRadius.rSm,
+                    borderSide: const BorderSide(
+                        color: Color(AppColors.accent), width: 1),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpace.x4),
+              Row(
+                children: [
+                  Expanded(
+                    child: PillButton(
+                      label: '取消',
+                      variant: PillVariant.ghost,
+                      onTap: () => Navigator.pop(ctx),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.x3),
+                  Expanded(
+                    child: PillButton(
+                      label: '确认拒绝',
+                      variant: PillVariant.danger,
+                      onTap: () => Navigator.pop(ctx, ctrl.text.trim()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpace.x3),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
-                style: TextStyle(color: Color(AppTheme.textSecondary))),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('确认拒绝',
-                style: TextStyle(
-                    color: Color(AppTheme.accent),
-                    fontWeight: FontWeight.w600)),
-          ),
-        ],
       ),
     );
     if (reason != null && reason.isNotEmpty) {
@@ -133,34 +162,32 @@ class _AuditPageState extends State<AuditPage> {
     }
   }
 
+  void _switchTab(int i) {
+    if (_tab == i) return;
+    setState(() => _tab = i);
+    _load(refresh: true);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        foregroundColor: const Color(AppTheme.textPrimary),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('内容审核',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-      ),
-      body: Column(
+    return ImmersivePage(
+      child: Column(
         children: [
-          // 顶部 Tab：待审 / 已拒绝
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Row(
-              children: [
-                _seg(0, '待审核'),
-                const SizedBox(width: 20),
-                _seg(1, '已拒绝'),
-              ],
-            ),
+          const GlassTopBar(
+            title: '内容审核',
+            subtitle: '通过 / 拒绝待审内容',
+            solid: true,
           ),
+          TagRail(
+            labels: const ['待审核', '已拒绝'],
+            index: _tab,
+            onChanged: _switchTab,
+          ),
+          const SizedBox(height: AppSpace.x1),
           Expanded(
             child: RefreshIndicator(
-              color: const Color(AppTheme.accent),
+              color: const Color(AppColors.accent),
+              backgroundColor: const Color(AppColors.elevated),
               onRefresh: () => _load(refresh: true),
               child: _body(),
             ),
@@ -170,200 +197,170 @@ class _AuditPageState extends State<AuditPage> {
     );
   }
 
-  Widget _seg(int i, String label) {
-    final sel = _tab == i;
-    return GestureDetector(
-      onTap: () {
-        if (_tab == i) return;
-        setState(() => _tab = i);
-        _load(refresh: true);
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: sel ? const Color(AppTheme.accent) : const Color(AppTheme.elevated),
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                color: sel ? Colors.black : const Color(AppTheme.textSecondary),
-                fontSize: 13,
-                fontWeight: sel ? FontWeight.w600 : FontWeight.w400)),
-      ),
-    );
-  }
-
   Widget _body() {
     if (_loading && _items.isEmpty) {
-      return const Center(
-          child: CircularProgressIndicator(color: Color(AppTheme.accent)));
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
     }
     if (_loaded && _items.isEmpty) {
       return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(top: AppSpace.x8),
         children: [
-          const SizedBox(height: 160),
-          const Center(
-              child: Icon(Icons.inbox_outlined,
-                  size: 56, color: Color(AppTheme.textTertiary))),
-          const SizedBox(height: 12),
-          const Center(
-              child: Text('暂无内容',
-                  style: TextStyle(
-                      color: Color(AppTheme.textTertiary),
-                      fontSize: 14))),
+          EmptyState(
+            icon: _tab == 0
+                ? Icons.fact_check_outlined
+                : Icons.verified_outlined,
+            title: _tab == 0 ? '暂无待审核内容' : '暂无已拒绝内容',
+            message: _tab == 0 ? '新的投稿会出现在这里' : '被拒绝的内容会出现在这里',
+          ),
         ],
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        AppSpace.x2,
+        AppSpace.gutter,
+        AppSpace.x6 + MediaQuery.paddingOf(context).bottom,
+      ),
       itemCount: _items.length + 1,
       itemBuilder: (_, i) {
         if (i >= _items.length) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Center(
-              child: GestureDetector(
-                onTap: () => _load(refresh: false),
-                child: const Text('加载更多',
-                    style: TextStyle(
-                        color: Color(AppTheme.textTertiary),
-                        fontSize: 13)),
-              ),
-            ),
+          return LoadMoreFooter(
+            hasMore: true,
+            onTap: () => _load(refresh: false),
           );
         }
-        final it = _items[i];
-        final thumb = (it.type == 'video' && it.cover.isNotEmpty)
-            ? it.cover
-            : (it.images.isNotEmpty ? it.images.first : '');
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(AppTheme.card),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: thumb.isNotEmpty
-                    ? Image.network(
-                        thumb.startsWith('http') ? thumb : mediaUrl(thumb),
-                        width: 72,
-                        height: 72,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                            width: 72,
-                            height: 72,
-                            color: const Color(AppTheme.elevated)))
-                    : Container(
-                        width: 72,
-                        height: 72,
-                        color: const Color(AppTheme.elevated),
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.article_outlined,
-                            color: Color(AppTheme.textTertiary), size: 26),
-                      ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        UserAvatar(
-                            url: it.author?.avatar ?? '',
-                            name: it.author?.name ?? '?',
-                            size: 20),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(it.author?.name ?? '',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Color(AppTheme.textPrimary),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: it.auditStatus == 0
-                                ? const Color(0xFFFFB84D)
-                                    .withValues(alpha: 0.18)
-                                : const Color(0xFFE4574F)
-                                    .withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            it.auditStatus == 0 ? '待审核' : '已拒绝',
-                            style: TextStyle(
-                                color: it.auditStatus == 0
-                                    ? const Color(0xFFB97A16)
-                                    : const Color(0xFFC43D35),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(it.content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Color(AppTheme.textSecondary),
-                            fontSize: 12.5,
-                            height: 1.4)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        if (_tab == 0) ...[
-                          _btn('通过', const Color(AppTheme.accent), () {
-                            _action(it, 'audit');
-                          }),
-                          const SizedBox(width: 8),
-                          _btn('拒绝', const Color(0xFFE4574F), () {
-                            _reject(it);
-                          }),
-                        ] else ...[
-                          _btn('恢复通过', const Color(AppTheme.accent), () {
-                            _action(it, 'audit');
-                          }),
-                          const SizedBox(width: 8),
-                          _btn('下架', const Color(0xFFE4574F), () {
-                            _action(it, 'takedown');
-                          }),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
+        return _auditCard(_items[i]);
       },
     );
   }
 
-  Widget _btn(String label, Color bg, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: _busy ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                color: bg, fontSize: 12, fontWeight: FontWeight.w600)),
+  Widget _auditCard(FeedItem it) {
+    final thumb = (it.type == 'video' && it.cover.isNotEmpty)
+        ? it.cover
+        : (it.images.isNotEmpty ? it.images.first : '');
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpace.x3),
+      padding: const EdgeInsets.all(AppSpace.x3),
+      decoration: BoxDecoration(
+        color: const Color(AppColors.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: const Color(AppColors.border)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 76,
+            height: 76,
+            child: ClipRRect(
+              borderRadius: AppRadius.rSm,
+              child: thumb.isNotEmpty
+                  ? Image.network(
+                      thumb.startsWith('http') ? thumb : mediaUrl(thumb),
+                      width: 76,
+                      height: 76,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const ImagePlaceholder(radius: 0),
+                    )
+                  : const ImagePlaceholder(
+                      icon: Icons.article_outlined, radius: 0),
+            ),
+          ),
+          const SizedBox(width: AppSpace.x3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    AppAvatar(
+                      url: avatarUrl(it.author.avatar),
+                      name: it.author.name,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        it.author.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.label,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.x2),
+                    _statusChip(it),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  it.content,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.bodySm.copyWith(height: 1.4),
+                ),
+                const SizedBox(height: AppSpace.x3),
+                Row(
+                  children: [
+                    if (_tab == 0) ...[
+                      PillButton(
+                        label: '通过',
+                        size: PillSize.sm,
+                        enabled: !_busy,
+                        onTap: () => _action(it, 'audit'),
+                      ),
+                      const SizedBox(width: AppSpace.x2),
+                      PillButton(
+                        label: '拒绝',
+                        size: PillSize.sm,
+                        variant: PillVariant.danger,
+                        enabled: !_busy,
+                        onTap: () => _reject(it),
+                      ),
+                    ] else ...[
+                      PillButton(
+                        label: '恢复通过',
+                        size: PillSize.sm,
+                        enabled: !_busy,
+                        onTap: () => _action(it, 'audit'),
+                      ),
+                      const SizedBox(width: AppSpace.x2),
+                      PillButton(
+                        label: '下架',
+                        size: PillSize.sm,
+                        variant: PillVariant.danger,
+                        enabled: !_busy,
+                        onTap: () => _action(it, 'takedown'),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip(FeedItem it) {
+    final pending = it.auditStatus == 0;
+    final color =
+        pending ? const Color(AppColors.warning) : const Color(AppColors.danger);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
+      ),
+      child: Text(
+        pending ? '待审核' : '已拒绝',
+        style: AppType.micro.copyWith(color: color, fontWeight: FontWeight.w600),
       ),
     );
   }

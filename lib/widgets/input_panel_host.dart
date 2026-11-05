@@ -12,6 +12,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../design/components.dart';
+
 class InputPanelHost extends StatefulWidget {
   const InputPanelHost({
     super.key,
@@ -75,10 +77,10 @@ class _InputPanelHostState extends State<InputPanelHost> {
         : (widget.absorbInsets ? insets : 0.0);
     final reserve = insets > base ? insets : base;
     final gap = widget.panel != null ? reserve - panelH : (widget.absorbInsets ? insets : 0.0);
-    final surface = widget.surfaceColor ?? const Color(0xFF161622);
-    // 面板高度与内容的过渡动画：能看到过程、不拖沓（约 300ms 柔和缓动）
-    const anim = Duration(milliseconds: 300);
-    const curve = Curves.easeOutCubic;
+    final surface = widget.surfaceColor ?? const Color(AppColors.canvas);
+    // 面板高度与内容的过渡动画：能看到过程、不拖沓（柔和缓动）
+    const anim = AppMotion.slow;
+    const curve = AppMotion.standard;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -93,9 +95,9 @@ class _InputPanelHostState extends State<InputPanelHost> {
               : SizedBox(
                   height: panelH,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
+                    duration: AppMotion.base,
                     switchInCurve: curve,
-                    switchOutCurve: Curves.easeInOut,
+                    switchOutCurve: AppMotion.exit,
                     child: KeyedSubtree(
                       key: ValueKey(_panelKey()),
                       child: widget.panel!,

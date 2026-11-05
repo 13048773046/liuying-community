@@ -1,4 +1,7 @@
-/// 搜索页（概念稿对齐）：搜索框 + 历史/热门 + 实时联想 + 帖子/用户/话题结果
+/// 搜索页：悬浮搜索框 + 历史/热门 + 实时联想 + 帖子/用户/话题结果
+///
+/// 沉浸黑：黑底圆角输入框（280ms 防抖与联想逻辑原样保留）、热词用 [TagPill]、
+/// 历史用紧凑胶囊、结果用 [ListRow]/[PostCard] 风格行。
 library;
 
 import 'dart:async';
@@ -8,7 +11,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
+import '../../design/components.dart';
 import '../../models/feed_item.dart';
+import '../../widgets/image_box.dart';
 import '../../widgets/user_avatar.dart';
 import '../post/post_detail.dart';
 import '../user/user_profile.dart';
@@ -138,86 +143,119 @@ class _SearchPageState extends State<SearchPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _searching = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('搜索失败：$e'),
-        backgroundColor: const Color(AppTheme.card),
-        behavior: SnackBarBehavior.floating,
-      ));
+      showAppToast(context, '搜索失败：$e');
     }
+  }
+
+  /// 清空输入并回到默认（历史/热门）视图
+  void _clearInput() {
+    _ctrl.clear();
+    _debounce?.cancel();
+    setState(() {
+      _suggesting = false;
+      _searched = false;
+    });
+    _focus.requestFocus();
+  }
+
+  Future<void> _clearHistory() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_historyKey);
+    if (mounted) setState(() => _history = []);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        leadingWidth: 48,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back,
-              color: Color(AppTheme.textPrimary)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        titleSpacing: 0,
-        title: Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: const Color(AppTheme.card),
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          _searchBar(),
+          Expanded(child: _body()),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------- 顶部输入
+  Widget _searchBar() {
+    final top = MediaQuery.paddingOf(context).top;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          AppSpace.x3, top + AppSpace.x2, AppSpace.x3, AppSpace.x2),
+      child: Row(
+        children: [
+          IconCircleButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            size: 36,
+            iconSize: 16,
+            background: Colors.white.withValues(alpha: 0.06),
+            onTap: () => Navigator.pop(context),
           ),
-          child: Row(
-            children: [
-              const Icon(Icons.search,
-                  color: Color(AppTheme.textSecondary), size: 19),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _ctrl,
-                  focusNode: _focus,
-                  style: const TextStyle(
-                      color: Color(AppTheme.textPrimary), fontSize: 14.5),
-                  cursorColor: const Color(AppTheme.accent),
-                  textInputAction: TextInputAction.search,
-                  onChanged: _onChanged,
-                  onSubmitted: _submit,
-                  decoration: const InputDecoration(
-                    isCollapsed: true,
-                    border: InputBorder.none,
-                    hintText: '搜索帖子、用户、话题…',
-                    hintStyle: TextStyle(
-                        color: Color(AppTheme.textTertiary), fontSize: 14),
-                  ),
-                ),
+          const SizedBox(width: AppSpace.x2),
+          Expanded(
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
+              decoration: BoxDecoration(
+                color: const Color(AppColors.elevated),
+                borderRadius: AppRadius.rPill,
+                border: Border.all(color: const Color(AppColors.border)),
               ),
-              if (_ctrl.text.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    _ctrl.clear();
-                    _debounce?.cancel();
-                    setState(() {
-                      _suggesting = false;
-                      _searched = false;
-                    });
-                    _focus.requestFocus();
-                  },
-                  child: const Icon(Icons.cancel,
-                      color: Color(AppTheme.textTertiary), size: 16),
-                ),
-            ],
+              child: Row(
+                children: [
+                  const Icon(Icons.search_rounded,
+                      size: 18, color: Color(AppColors.textTertiary)),
+                  const SizedBox(width: AppSpace.x2),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      focusNode: _focus,
+                      style: AppType.body,
+                      cursorColor: const Color(AppColors.accent),
+                      textInputAction: TextInputAction.search,
+                      onChanged: _onChanged,
+                      onSubmitted: _submit,
+                      decoration: const InputDecoration(
+                        isCollapsed: true,
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        hintText: '搜索帖子、用户、话题…',
+                        hintStyle: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.3,
+                          color: Color(AppColors.textTertiary),
+                        ),
+                      ),
+                    ),
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _ctrl,
+                    builder: (_, value, _) => value.text.isEmpty
+                        ? const SizedBox(width: 2)
+                        : IconCircleButton(
+                            icon: Icons.cancel_rounded,
+                            size: 20,
+                            iconSize: 15,
+                            background: Colors.transparent,
+                            color: const Color(AppColors.textTertiary),
+                            onTap: _clearInput,
+                          ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消',
-                style: TextStyle(
-                    color: Color(AppTheme.textSecondary), fontSize: 14)),
+          const SizedBox(width: AppSpace.x2),
+          PillButton(
+            label: '取消',
+            variant: PillVariant.ghost,
+            size: PillSize.sm,
+            onTap: () => Navigator.pop(context),
           ),
         ],
       ),
-      body: _body(),
     );
   }
 
@@ -229,136 +267,69 @@ class _SearchPageState extends State<SearchPage> {
 
   // ---------- 默认：历史 + 热门 ----------
   Widget _defaultView() {
+    if (_history.isEmpty && _hot.isEmpty) {
+      return const SingleChildScrollView(
+        child: EmptyState(
+          icon: Icons.search_rounded,
+          title: '搜索感兴趣的内容',
+          message: '帖子、视频、用户、话题都能搜',
+        ),
+      );
+    }
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 24+ MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        AppSpace.x2,
+        AppSpace.gutter,
+        MediaQuery.paddingOf(context).bottom + 24,
+      ),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         if (_history.isNotEmpty) ...[
-          const Text('搜索历史',
-              style: TextStyle(
-                  color: Color(AppTheme.textPrimary),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
+          SectionHeader(
+            title: '搜索历史',
+            padding: const EdgeInsets.only(bottom: AppSpace.x3),
+            actionLabel: '清空',
+            onAction: _clearHistory,
+          ),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.x2,
+            runSpacing: AppSpace.x2,
             children: [
               for (final h in _history)
-                GestureDetector(
+                TagPill(
+                  label: h,
+                  compact: true,
                   onTap: () {
                     _ctrl.text = h;
                     _submit(h);
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 13, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(AppTheme.card),
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.radiusPill),
-                    ),
-                    child: Text(h,
-                        style: const TextStyle(
-                            color: Color(AppTheme.textPrimary),
-                            fontSize: 12.5)),
-                  ),
                 ),
-              GestureDetector(
-                onTap: () async {
-                  final sp = await SharedPreferences.getInstance();
-                  await sp.remove(_historyKey);
-                  if (mounted) setState(() => _history = []);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 13, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius:
-                        BorderRadius.circular(AppTheme.radiusPill),
-                    border:
-                        Border.all(color: const Color(AppTheme.border)),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.delete_outline,
-                          size: 13, color: Color(AppTheme.textTertiary)),
-                      SizedBox(width: 4),
-                      Text('清空',
-                          style: TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
         ],
         if (_hot.isNotEmpty) ...[
-          const SizedBox(height: 28),
-          const Text('热门搜索',
-              style: TextStyle(
-                  color: Color(AppTheme.textPrimary),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.x5),
+          const SectionHeader(
+            title: '热门搜索',
+            padding: EdgeInsets.only(bottom: AppSpace.x3),
+          ),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.x2,
+            runSpacing: AppSpace.x2,
             children: [
               for (var i = 0; i < _hot.length; i++)
-                GestureDetector(
+                TagPill(
+                  label: _hot[i],
+                  icon: i < 3 ? Icons.local_fire_department_rounded : null,
                   onTap: () {
                     _ctrl.text = _hot[i];
                     _submit(_hot[i]);
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 13, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(AppTheme.card),
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.radiusPill),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('${i + 1}',
-                            style: TextStyle(
-                                color: i < 3
-                                    ? const Color(AppTheme.accent)
-                                    : const Color(AppTheme.textTertiary),
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 6),
-                        Text(_hot[i],
-                            style: const TextStyle(
-                                color: Color(AppTheme.textPrimary),
-                                fontSize: 12.5)),
-                      ],
-                    ),
-                  ),
                 ),
             ],
           ),
         ],
-        if (_history.isEmpty && _hot.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 120),
-            child: Column(
-              children: [
-                const Icon(Icons.search,
-                    size: 52, color: Color(AppTheme.textTertiary)),
-                const SizedBox(height: 10),
-                const Text('搜索感兴趣的内容',
-                    style: TextStyle(
-                        color: Color(AppTheme.textSecondary),
-                        fontSize: 13.5)),
-              ],
-            ),
-          ),
       ],
     );
   }
@@ -366,255 +337,196 @@ class _SearchPageState extends State<SearchPage> {
   // ---------- 联想 ----------
   Widget _suggestView() {
     return ListView(
-      padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.only(
+          top: AppSpace.x1, bottom: MediaQuery.paddingOf(context).bottom + 24),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         for (final t in _sugTopics)
-          _suggestTile(Icons.tag, '#$t', () => _submit(t)),
+          ListRow(
+            leading: const Icon(Icons.tag_rounded,
+                size: 18, color: Color(AppColors.textTertiary)),
+            title: '#$t',
+            trailing: const Icon(Icons.north_west_rounded,
+                size: 15, color: Color(AppColors.textTertiary)),
+            showChevron: false,
+            onTap: () => _submit(t),
+          ),
         for (final u in _sugUsers)
-          _suggestTile(
-              Icons.person_outline,
-              (u['name'] ?? '') as String,
-              () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => UserProfilePage(
-                          uid: (u['id'] ?? '') as String)))),
-      ],
-    );
-  }
-
-  Widget _suggestTile(IconData icon, String text, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(AppTheme.textTertiary), size: 18),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: Color(AppTheme.textPrimary), fontSize: 14)),
+          ListRow(
+            leading: const Icon(Icons.person_outline_rounded,
+                size: 18, color: Color(AppColors.textTertiary)),
+            title: (u['name'] ?? '') as String,
+            trailing: const Icon(Icons.north_west_rounded,
+                size: 15, color: Color(AppColors.textTertiary)),
+            showChevron: false,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    UserProfilePage(uid: (u['id'] ?? '') as String),
+              ),
             ),
-            const Icon(Icons.north_west,
-                color: Color(AppTheme.textTertiary), size: 15),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 
   // ---------- 搜索结果 ----------
   Widget _resultView() {
-    if (_searching) {
-      return const Center(
-          child: CircularProgressIndicator(
-              color: Color(AppTheme.accent), strokeWidth: 2.5));
-    }
-    final empty = _postResults.isEmpty &&
-        _userResults.isEmpty &&
-        _topicResults.isEmpty;
+    if (_searching) return const _SearchSkeleton();
+
+    final empty =
+        _postResults.isEmpty && _userResults.isEmpty && _topicResults.isEmpty;
     if (empty) {
-      return ListView(
-        padding: EdgeInsets.only(bottom: 24+ MediaQuery.paddingOf(context).bottom),
-        children: [
-          const SizedBox(height: 120),
-          const Icon(Icons.search_off,
-              size: 52, color: Color(AppTheme.textTertiary)),
-          const SizedBox(height: 10),
-          const Center(
-            child: Text('没有找到相关内容\n换个关键词试试吧',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Color(AppTheme.textSecondary),
-                    fontSize: 13.5,
-                    height: 1.6)),
-          ),
-        ],
+      return const SingleChildScrollView(
+        child: EmptyState(
+          icon: Icons.search_off_rounded,
+          title: '没有找到相关内容',
+          message: '换个关键词试试吧',
+        ),
       );
     }
+
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 24+ MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        0,
+        AppSpace.gutter,
+        MediaQuery.paddingOf(context).bottom + 24,
+      ),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         if (_userResults.isNotEmpty) ...[
-          _sectionTitle('用户'),
-          for (final u in _userResults) _userTile(u),
+          const SectionHeader(
+            title: '用户',
+            padding: EdgeInsets.only(top: AppSpace.x4, bottom: AppSpace.x1),
+          ),
+          for (final u in _userResults) _userRow(u),
         ],
         if (_topicResults.isNotEmpty) ...[
-          _sectionTitle('话题'),
+          const SectionHeader(
+            title: '话题',
+            padding: EdgeInsets.only(top: AppSpace.x4, bottom: AppSpace.x3),
+          ),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.x2,
+            runSpacing: AppSpace.x2,
             children: [
               for (final t in _topicResults)
-                GestureDetector(
+                TagPill(
+                  label: '#${t['name'] ?? ''}',
                   onTap: () => _submit((t['name'] ?? '') as String),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(AppTheme.accent)
-                          .withValues(alpha: 0.12),
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.radiusPill),
-                    ),
-                    child: Text('#${t['name'] ?? ''}',
-                        style: const TextStyle(
-                            color: Color(AppTheme.accent), fontSize: 12.5)),
-                  ),
                 ),
             ],
           ),
         ],
         if (_postResults.isNotEmpty) ...[
-          _sectionTitle('帖子'),
-          for (final it in _postResults) _postTile(it),
+          const SectionHeader(
+            title: '帖子',
+            padding: EdgeInsets.only(top: AppSpace.x5, bottom: AppSpace.x3),
+          ),
+          for (final it in _postResults) _postRow(it),
         ],
       ],
     );
   }
 
-  Widget _sectionTitle(String t) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 14, bottom: 8),
-      child: Text(t,
-          style: const TextStyle(
-              color: Color(AppTheme.textPrimary),
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _userTile(Map<String, dynamic> u) {
+  Widget _userRow(Map<String, dynamic> u) {
     final name = (u['name'] ?? '用户') as String;
     final avatar = (u['avatar'] ?? '') as String;
     final bio = (u['bio'] ?? '') as String;
     final followers = ((u['followers'] ?? 0) as num).toInt();
-    return GestureDetector(
+    return ListRow(
+      leading: UserAvatar(url: avatar, name: name, size: 44),
+      title: name,
+      subtitle: bio.isEmpty ? null : bio,
+      trailing: followers > 0
+          ? Text('${formatCount(followers)} 粉丝', style: AppType.micro)
+          : null,
+      showChevron: false,
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.x2),
       onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => UserProfilePage(uid: (u['id'] ?? '') as String))),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            ClipOval(
-              child: UserAvatar(url: avatar, size: 46),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w500)),
-                  if (bio.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(bio,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 12)),
-                    ),
-                ],
-              ),
-            ),
-            if (followers > 0)
-              Text('${_cnt(followers)} 粉丝',
-                  style: const TextStyle(
-                      color: Color(AppTheme.textTertiary), fontSize: 12)),
-          ],
-        ),
+        context,
+        MaterialPageRoute(
+            builder: (_) => UserProfilePage(uid: (u['id'] ?? '') as String)),
       ),
     );
   }
 
-  Widget _postTile(FeedItem it) {
+  Widget _postRow(FeedItem it) {
     final thumb = (it.type == 'video' && it.cover.isNotEmpty)
         ? it.cover
         : (it.images.isNotEmpty ? it.images.first : '');
-    return GestureDetector(
+    return PressableScale(
       onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => PostDetailPage(postId: it.id))),
+        context,
+        MaterialPageRoute(builder: (_) => PostDetailPage(postId: it.id)),
+      ),
+      scale: 0.98,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: AppSpace.x3),
+        padding: const EdgeInsets.all(AppSpace.x2),
         decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+          color: const Color(AppColors.card),
+          borderRadius: AppRadius.rMd,
+          border: Border.all(color: const Color(AppColors.border)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (thumb.isNotEmpty)
+            if (thumb.isNotEmpty) ...[
               ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: AppRadius.rSm,
                 child: SizedBox(
-                  width: 82,
-                  height: 82,
+                  width: 80,
+                  height: 80,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Image.network(
-                        thumb.startsWith('http')
-                            ? thumb
-                            : avatarUrl(thumb),
+                      CachedNetworkImageCompat(
+                        url: thumb.startsWith('http') ? thumb : mediaUrl(thumb),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                            color: const Color(AppTheme.elevated)),
+                        borderRadius: AppRadius.sm,
                       ),
                       if (it.type == 'video')
                         const Center(
-                          child: Icon(Icons.play_circle_fill,
+                          child: Icon(Icons.play_circle_fill_rounded,
                               color: Colors.white, size: 26),
                         ),
                     ],
                   ),
                 ),
               ),
-            if (thumb.isNotEmpty) const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.x3),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(it.content,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Color(AppTheme.textPrimary),
-                          fontSize: 13.5,
-                          height: 1.4)),
-                  const SizedBox(height: 8),
+                  Text(
+                    it.content,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.bodySm.copyWith(
+                        color: const Color(AppColors.textPrimary)),
+                  ),
+                  const SizedBox(height: AppSpace.x2),
                   Row(
                     children: [
-                      ClipOval(child: UserAvatar(url: it.author.avatar, size: 18)),
-                      const SizedBox(width: 5),
+                      UserAvatar(url: it.author.avatar, size: 18),
+                      const SizedBox(width: AppSpace.x1),
                       Expanded(
-                        child: Text(it.author.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Color(AppTheme.textSecondary),
-                                fontSize: 11.5)),
+                        child: Text(
+                          it.author.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.micro,
+                        ),
                       ),
-                      const Icon(Icons.favorite,
-                          size: 12, color: Color(AppTheme.heart)),
+                      const Icon(Icons.favorite_rounded,
+                          size: 12, color: Color(AppColors.heart)),
                       const SizedBox(width: 3),
-                      Text(_cnt(it.likeCount),
-                          style: const TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 11.5)),
+                      Text(formatCount(it.likeCount), style: AppType.micro),
                     ],
                   ),
                 ],
@@ -625,12 +537,40 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
+}
 
-  String _cnt(int n) {
-    if (n >= 10000) {
-      final w = n / 10000;
-      return w >= 100 ? '${w.toStringAsFixed(0)}万' : '${w.toStringAsFixed(1)}万';
-    }
-    return '$n';
+/// 搜索中骨架：头像 + 文本行占位。
+class _SearchSkeleton extends StatelessWidget {
+  const _SearchSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 0),
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        for (var i = 0; i < 6; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.x4),
+            child: Row(
+              children: const [
+                SkeletonBox(width: 44, height: 44, radius: 22),
+                SizedBox(width: AppSpace.x3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonBox(width: 120, height: 12),
+                      SizedBox(height: AppSpace.x2),
+                      SkeletonBox(height: 10),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 }

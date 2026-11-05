@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../config.dart';
+import '../../design/components.dart';
 import '../../widgets/board_feed_grid.dart';
 
 class BoardFeedPage extends StatefulWidget {
@@ -18,18 +18,13 @@ class BoardFeedPage extends StatefulWidget {
 class _BoardFeedPageState extends State<BoardFeedPage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        foregroundColor: const Color(AppTheme.textPrimary),
-        elevation: 0,
-        title: Text(widget.title,
-            style: const TextStyle(
-                fontSize: 17, fontWeight: FontWeight.w600)),
-        centerTitle: false,
+    return ImmersivePage(
+      child: Column(
+        children: [
+          GlassTopBar(title: widget.title, solid: true),
+          Expanded(child: BoardFeedGrid(boardId: widget.boardId)),
+        ],
       ),
-      body: BoardFeedGrid(boardId: widget.boardId),
     );
   }
 }
