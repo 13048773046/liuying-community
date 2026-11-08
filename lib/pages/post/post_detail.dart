@@ -15,6 +15,7 @@ import '../../api/client.dart';
 import '../../config.dart';
 import '../../design/components.dart';
 import '../../models/feed_item.dart';
+import '../../services/app_route_observer.dart';
 import '../../utils/music_bgm.dart';
 import '../../utils/share_util.dart';
 import '../../widgets/image_box.dart';
@@ -1359,16 +1360,31 @@ class _InlineVideo extends StatefulWidget {
   State<_InlineVideo> createState() => _InlineVideoState();
 }
 
-class _InlineVideoState extends State<_InlineVideo> {
+class _InlineVideoState extends State<_InlineVideo>
+    with RouteAware, WidgetsBindingObserver {
   VideoPlayerController? _vc;
   bool _failed = false;
   bool _controls = false;
+  bool _userPaused = false; // 用户通过控制条主动暂停
+  bool _routeVisible = true; // 本路由是否在最顶层
+  bool _appResumed = true; // App 是否在前台
   Timer? _hideTimer;
+
+  /// 期望播放：路由可见 + App 前台 + 用户没主动暂停
+  bool get _wantPlay => _routeVisible && _appResumed && !_userPaused;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) appRouteObserver.subscribe(this, route);
   }
 
   Future<void> _init() async {
@@ -1382,14 +1398,56 @@ class _InlineVideoState extends State<_InlineVideo> {
         c.dispose();
         return;
       }
-      // 详情页视频：初始化成功即自动播放 + 循环（原来漏了 play，导致加载完静止）
-      c.setLooping(true);
-      c.play();
+      c.addListener(_onValue);
       setState(() => _vc = c);
+      _apply(); // 挂载后统一走播放控制：自动播放 + 循环
     } catch (_) {
       if (!mounted) return;
       setState(() => _failed = true);
     }
+  }
+
+  /// 同步用户在控制条里的手动播放/暂停（仅路由可见、App 前台时才归因于用户，
+  /// 避免把路由/生命周期触发的暂停误判成用户暂停）
+  void _onValue() {
+    final v = _vc;
+    if (v == null || !v.value.isInitialized) return;
+    if (_routeVisible && _appResumed) {
+      _userPaused = !v.value.isPlaying;
+    }
+  }
+
+  /// 统一入口：按当前状态决定播/停。详情页有声、循环
+  void _apply() {
+    final v = _vc;
+    if (v == null || !v.value.isInitialized) return;
+    v.setVolume(1);
+    if (_wantPlay) {
+      v.setLooping(true);
+      v.play();
+    } else {
+      v.pause();
+    }
+  }
+
+  // ---------------- RouteAware：被盖住 / 回到本页 ----------------
+  @override
+  void didPushNext() {
+    _routeVisible = false;
+    _apply();
+  }
+
+  @override
+  void didPopNext() {
+    _routeVisible = true;
+    _apply();
+  }
+
+  // ---------------- 前后台 ----------------
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appResumed = state == AppLifecycleState.resumed;
+    _apply();
   }
 
   void _restartHideTimer() {
@@ -1403,6 +1461,9 @@ class _InlineVideoState extends State<_InlineVideo> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    appRouteObserver.unsubscribe(this);
+    WidgetsBinding.instance.removeObserver(this);
+    _vc?.removeListener(_onValue);
     _vc?.dispose();
     super.dispose();
   }

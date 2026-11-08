@@ -36,7 +36,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('多图图集自动轮播：3秒切下一张，最后停住不回滚', (tester) async {
+  testWidgets('多图图集自动轮播：3秒切下一张，最后无缝回第一张无限连续', (tester) async {
     tester.view.physicalSize = const Size(1170, 2532);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
@@ -55,11 +55,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(hasImg(tester, 'c.jpg'), isTrue, reason: '应自动切到第3张');
 
-    // 再 3 秒：停在最后不回滚
+    // 再 3 秒：无缝回到第一张，无限连续
     await tester.pump(const Duration(seconds: 3));
     await tester.pump(const Duration(milliseconds: 350));
-    expect(hasImg(tester, 'c.jpg'), isTrue, reason: '最后一张应停住，不回滚');
-    expect(hasImg(tester, 'a.jpg'), isFalse, reason: '不应回到第1张');
+    expect(hasImg(tester, 'a.jpg'), isTrue, reason: '最后一张后应无缝回到第1张');
+    expect(hasImg(tester, 'c.jpg'), isFalse, reason: '不应停在最后一张');
   });
 
   testWidgets('抖音式分段进度条存在 + 手动滑动切页', (tester) async {

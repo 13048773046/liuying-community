@@ -656,7 +656,16 @@ class _ImageMediaState extends State<_ImageMedia>
   void _advance() {
     if (!mounted) return;
     final n = widget.images.length;
-    if (_idx >= n - 1) return;
+    if (_idx >= n - 1) {
+      // 无限连续：最后一张后无缝回绕到第一张（jump 瞬间切换，不播回滚动画）
+      _program = true;
+      _pc.jumpToPage(0);
+      setState(() => _idx = 0);
+      _ac!
+        ..reset()
+        ..forward();
+      return;
+    }
     final next = _idx + 1;
     _program = true;
     _pc.animateToPage(next,
@@ -677,7 +686,7 @@ class _ImageMediaState extends State<_ImageMedia>
     final ac = _ac;
     if (ac == null) return;
     ac.reset();
-    if (widget.isActive && i < widget.images.length - 1) ac.forward();
+    if (widget.isActive) ac.forward(); // 无限循环：手动到任意页都继续
   }
 
   @override
@@ -687,7 +696,7 @@ class _ImageMediaState extends State<_ImageMedia>
       final ac = _ac;
       if (ac == null) return;
       if (widget.isActive) {
-        if (_idx < widget.images.length - 1) ac.forward();
+        ac.forward(); // 回到屏幕：无限循环，任意页都继续
       } else {
         ac.stop(); // 离屏暂停自动轮播
       }
@@ -756,7 +765,26 @@ class _ImageMediaState extends State<_ImageMedia>
           onPageChanged: _onManual,
           itemBuilder: (_, i) => _image(imgs[i]),
         ),
-        // 抖音式顶部分段进度条（状态栏下方，替代原右下角 1/3 数字）
+        // 顶部轻微暗化：保证白色分段条在任何颜色图片上都清晰（抖音式）
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: MediaQuery.viewPaddingOf(context).top + 26,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.45),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+        // 抖音式顶部分段进度条（状态栏下方，已看段数即当前位置）
         Positioned(
           left: 12,
           right: 12,
