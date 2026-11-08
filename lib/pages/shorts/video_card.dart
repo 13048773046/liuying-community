@@ -386,7 +386,8 @@ class _VideoCardState extends State<VideoCard>
     final v = _video;
     if (v != null && v.value.isInitialized && !_failed) {
       return FittedBox(
-        fit: BoxFit.cover,
+        // contain：按真实比例完整显示、居中，不充满全屏、不裁切，留黑边
+        fit: BoxFit.contain,
         child: SizedBox(
           width: v.value.size.width,
           height: v.value.size.height,
@@ -402,7 +403,7 @@ class _VideoCardState extends State<VideoCard>
           : widget.item.cover;
       return CachedNetworkImage(
         imageUrl: mediaUrl(cover),
-        fit: BoxFit.cover,
+        fit: BoxFit.contain, // 与视频一致：完整居中，不 cover 裁切
         placeholder: (_, _) => const _MediaLoading(),
         errorWidget: (_, _, _) => const _MediaLoading(),
       );
