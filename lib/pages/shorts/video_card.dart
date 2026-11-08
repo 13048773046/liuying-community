@@ -378,7 +378,10 @@ class _VideoCardState extends State<VideoCard>
     if (!widget.item.isVideo) {
       final imgs = widget.item.images;
       if (imgs.isEmpty) return _TextMedia(item: widget.item);
-      return _ImageMedia(images: imgs, onDoubleTap: _toggleLike);
+      return _ImageMedia(
+          images: imgs,
+          onDoubleTap: _toggleLike,
+          isActive: widget.isActive);
     }
     final v = _video;
     if (v != null && v.value.isInitialized && !_failed) {
@@ -616,15 +619,80 @@ class _VideoCardState extends State<VideoCard>
 class _ImageMedia extends StatefulWidget {
   final List<String> images;
   final VoidCallback onDoubleTap;
+  final bool isActive;
 
-  const _ImageMedia({required this.images, required this.onDoubleTap});
+  const _ImageMedia(
+      {required this.images,
+      required this.onDoubleTap,
+      required this.isActive});
 
   @override
   State<_ImageMedia> createState() => _ImageMediaState();
 }
 
-class _ImageMediaState extends State<_ImageMedia> {
+class _ImageMediaState extends State<_ImageMedia>
+    with SingleTickerProviderStateMixin {
+  /// 每张图停留时长（抖音图集节奏，进度条走完即切下一张）
+  static const _perImage = Duration(seconds: 3);
+
+  final PageController _pc = PageController();
+  AnimationController? _ac;
   int _idx = 0;
+  bool _program = false; // 区分程序化翻页与手动滑动
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.images.length > 1) {
+      _ac = AnimationController(vsync: this, duration: _perImage)
+        ..addStatusListener((s) {
+          if (s == AnimationStatus.completed) _advance();
+        });
+      if (widget.isActive) _ac!.forward();
+    }
+  }
+
+  /// 自动翻到下一页；到最后一页停住（抖音图集播完停在最后，不回滚）
+  void _advance() {
+    if (!mounted) return;
+    final n = widget.images.length;
+    if (_idx >= n - 1) return;
+    final next = _idx + 1;
+    _program = true;
+    _pc.animateToPage(next,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    setState(() => _idx = next);
+    _ac!
+      ..reset()
+      ..forward();
+  }
+
+  /// 手动滑动：重置当前段进度，从新位置继续自动轮播
+  void _onManual(int i) {
+    if (_program) {
+      _program = false; // 程序化翻页触发的回调，忽略
+      return;
+    }
+    setState(() => _idx = i);
+    final ac = _ac;
+    if (ac == null) return;
+    ac.reset();
+    if (widget.isActive && i < widget.images.length - 1) ac.forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImageMedia old) {
+    super.didUpdateWidget(old);
+    if (old.isActive != widget.isActive) {
+      final ac = _ac;
+      if (ac == null) return;
+      if (widget.isActive) {
+        if (_idx < widget.images.length - 1) ac.forward();
+      } else {
+        ac.stop(); // 离屏暂停自动轮播
+      }
+    }
+  }
 
   /// 单张图：宽撑满屏幕、高按原比例自适应、垂直居中（不裁切，抖音图集式）
   Widget _image(String url) => GestureDetector(
@@ -640,6 +708,39 @@ class _ImageMediaState extends State<_ImageMedia> {
         ),
       );
 
+  /// 抖音式分段进度条：已看=全白，当前=进度动画，未到=半透明
+  Widget _segment(int i) {
+    const h = 3.0;
+    if (i < _idx) {
+      return Container(height: h, color: Colors.white);
+    }
+    if (i > _idx) {
+      return Container(
+          height: h, color: Colors.white.withValues(alpha: 0.35));
+    }
+    return Container(
+      height: h,
+      color: Colors.white.withValues(alpha: 0.35),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: AnimatedBuilder(
+          animation: _ac!,
+          builder: (_, _) => FractionallySizedBox(
+            widthFactor: _ac!.value.clamp(0.0, 1.0),
+            child: Container(height: h, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    _ac?.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final imgs = widget.images;
@@ -650,25 +751,29 @@ class _ImageMediaState extends State<_ImageMedia> {
       fit: StackFit.expand,
       children: [
         PageView.builder(
+          controller: _pc,
           itemCount: imgs.length,
-          onPageChanged: (i) => setState(() => _idx = i),
+          onPageChanged: _onManual,
           itemBuilder: (_, i) => _image(imgs[i]),
         ),
-        // 页码指示（右下角，抖音图集式）
+        // 抖音式顶部分段进度条（状态栏下方，替代原右下角 1/3 数字）
         Positioned(
-          right: AppSpace.x3,
-          bottom: AppSpace.x4 + _navBarHeight(context),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpace.x3, vertical: AppSpace.x1),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.45),
-              borderRadius: AppRadius.rSm,
-            ),
-            child: Text(
-              '${_idx + 1}/${imgs.length}',
-              style: AppType.numeric.copyWith(color: Colors.white),
-            ),
+          left: 12,
+          right: 12,
+          top: MediaQuery.viewPaddingOf(context).top + 8,
+          child: Row(
+            children: List.generate(imgs.length, (i) {
+              return Expanded(
+                child: Padding(
+                  padding:
+                      EdgeInsets.only(right: i == imgs.length - 1 ? 0 : 4),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: _segment(i),
+                  ),
+                ),
+              );
+            }),
           ),
         ),
       ],

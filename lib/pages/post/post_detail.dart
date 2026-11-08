@@ -1382,6 +1382,9 @@ class _InlineVideoState extends State<_InlineVideo> {
         c.dispose();
         return;
       }
+      // 详情页视频：初始化成功即自动播放 + 循环（原来漏了 play，导致加载完静止）
+      c.setLooping(true);
+      c.play();
       setState(() => _vc = c);
     } catch (_) {
       if (!mounted) return;
