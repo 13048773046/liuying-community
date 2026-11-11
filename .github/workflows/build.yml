@@ -116,6 +116,8 @@ jobs:
 
   # ---------- iOS 未签名 IPA（无开发者证书，可 sideload / 自签） ----------
   ios-unsigned-ipa:
+    needs: splash-assets
+    if: always()
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
