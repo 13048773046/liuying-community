@@ -4,6 +4,9 @@ on:
     branches: [main, ui/immersive-black]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   # ---------- 启动图：CI 用 tool/make_splash.py 渲染（与本地同一脚本/同一字体） ----------
   splash-assets:
@@ -11,22 +14,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Noto CJK fonts
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra
-          ls -la /usr/share/fonts/opentype/noto/ | head -20
-
-      - name: Install python deps
-        run: python3 -m pip install --quiet pillow==10.4.0 fonttools
-
       - name: Render splash images
-        run: python3 tool/make_splash.py
+        run: |
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-splash.log"
+          {
+            echo "== apt =="
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra
+            echo "== fonts =="
+            ls -la /usr/share/fonts/opentype/noto/ || true
+            echo "== pip =="
+            python3 -m pip install --quiet pillow==10.4.0 fonttools
+            echo "== render =="
+            python3 tool/make_splash.py
+            echo "== files =="
+            ls -la ios/Runner/Assets.xcassets/LaunchImage.imageset/
+          } 2>&1 | tee -a "$LOG"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: splash-ios
           path: ios/Runner/Assets.xcassets/LaunchImage.imageset/*.png
+          if-no-files-found: warn
+
+      - name: Publish splash + log to dist-splash
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/pub && cd /tmp/pub
+          git init -q -b dist-splash
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/ci-splash.log" . 2>/dev/null || true
+          for f in LaunchImage.png LaunchImage@2x.png LaunchImage@3x.png; do
+            cp "$GITHUB_WORKSPACE/ios/Runner/Assets.xcassets/LaunchImage.imageset/$f" . 2>/dev/null || true
+          done
+          git add -A
+          git commit -q -m "publish splash" || true
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-splash
 
   # ---------- Android APK ----------
   android-apk:
@@ -34,16 +62,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Noto CJK fonts
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra
-
-      - name: Install python deps
-        run: python3 -m pip install --quiet pillow==10.4.0 fonttools
-
       - name: Render splash images
-        run: python3 tool/make_splash.py
+        run: |
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-apk.log"
+          {
+            echo "== apt =="
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra
+            echo "== pip =="
+            python3 -m pip install --quiet pillow==10.4.0 fonttools
+            echo "== render =="
+            python3 tool/make_splash.py
+          } 2>&1 | tee -a "$LOG"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -51,32 +82,53 @@ jobs:
           flutter-version: '3.47.7'
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Static analysis
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
-      - name: Build APK (release)
-        run: flutter build apk --release
+      - name: Build APK
+        run: |
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-apk.log"
+          {
+            flutter pub get
+            flutter analyze --no-fatal-infos --no-fatal-warnings
+            flutter build apk --release
+          } 2>&1 | tee -a "$LOG"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: community-android-apk
           path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: warn
+
+      - name: Publish apk + log to dist-apk
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/pubapk && cd /tmp/pubapk
+          git init -q -b dist-apk
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/ci-apk.log" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE"/build/app/outputs/flutter-apk/*.apk . 2>/dev/null || true
+          git add -A
+          git commit -q -m "publish apk" || true
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-apk
 
   # ---------- iOS 未签名 IPA（无开发者证书，可 sideload / 自签） ----------
   ios-unsigned-ipa:
-    needs: splash-assets
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
+      # LaunchImage 由 ubuntu job 渲染后发布到 dist-splash 分支，这里直接取（公开 raw，无需鉴权）
       - name: Fetch rendered LaunchImage
-        uses: actions/download-artifact@v4
-        with:
-          name: splash-ios
-          path: ios/Runner/Assets.xcassets/LaunchImage.imageset
+        run: |
+          DEST="ios/Runner/Assets.xcassets/LaunchImage.imageset"
+          BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/dist-splash"
+          for f in LaunchImage.png LaunchImage@2x.png LaunchImage@3x.png; do
+            curl -fsSL "$BASE/$f" -o "$DEST/$f" && echo "got $f" || echo "MISSING $f"
+          done
+          ls -la "$DEST"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -84,32 +136,49 @@ jobs:
           flutter-version: '3.47.7'
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      # 镜像自带最新 Xcode（video_player_avfoundation 需 Swift 6 并发语法支持）
-      - name: Select latest Xcode
+      - name: Build iOS
         run: |
-          ls /Applications | grep -i xcode
-          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
-          echo "Using $XCODE"
-          sudo xcode-select -s "$XCODE"
-          xcodebuild -version
-
-      - name: Build iOS (unsigned)
-        run: flutter build ios --release --no-codesign
-
-      - name: Package unsigned ipa
-        run: |
-          APP=$(find build/ios/iphoneos -name "*.app" | head -1)
-          echo "App: $APP"
-          mkdir -p build/ios/ipa/Payload
-          cp -R "$APP" build/ios/ipa/Payload/
-          cd build/ios/ipa
-          zip -r community-unsigned.ipa Payload
-          ls -la
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-ios.log"
+          {
+            flutter pub get
+            echo "== xcode =="
+            ls /Applications | grep -i xcode || true
+            XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+            echo "Using $XCODE"
+            sudo xcode-select -s "$XCODE"
+            xcodebuild -version
+            echo "== build ios =="
+            flutter build ios --release --no-codesign
+            echo "== package =="
+            APP=$(find build/ios/iphoneos -name "*.app" | head -1)
+            echo "App: $APP"
+            mkdir -p build/ios/ipa/Payload
+            cp -R "$APP" build/ios/ipa/Payload/
+            cd build/ios/ipa
+            zip -r community-unsigned.ipa Payload
+            ls -la community-unsigned.ipa
+          } 2>&1 | tee -a "$LOG"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: community-ios-unsigned-ipa
           path: build/ios/ipa/community-unsigned.ipa
+          if-no-files-found: warn
+
+      - name: Publish ipa + log to dist-ios
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/pubios && cd /tmp/pubios
+          git init -q -b dist-ios
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/ci-ios.log" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned.ipa" . 2>/dev/null || true
+          ls -la
+          git add -A
+          git commit -q -m "publish ios" || true
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios
