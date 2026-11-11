@@ -21,15 +21,22 @@ jobs:
           {
             echo "== apt =="
             sudo apt-get update -qq
-            sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra
+            sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra python3-pil python3-fonttools
             echo "== fonts =="
-            ls -la /usr/share/fonts/opentype/noto/ || true
-            echo "== pip =="
-            python3 -m pip install --quiet pillow==10.4.0 fonttools
+            ls /usr/share/fonts/opentype/noto/ | grep NotoSansCJK || true
+            echo "== python =="
+            PY=/usr/bin/python3
+            $PY -c "import PIL, fontTools; print('PIL', PIL.__version__)" || {
+              python3 -m pip install --quiet --upgrade pillow fonttools
+              PY=$(command -v python3)
+              $PY -c "import PIL, fontTools; print('PIL', PIL.__version__)"
+            }
+            echo "python=$PY"
             echo "== render =="
-            python3 tool/make_splash.py
+            $PY tool/make_splash.py
             echo "== files =="
             ls -la ios/Runner/Assets.xcassets/LaunchImage.imageset/
+            ls -la android/app/src/main/res/drawable-xxxhdpi/
           } 2>&1 | tee -a "$LOG"
 
       - uses: actions/upload-artifact@v4
@@ -69,11 +76,17 @@ jobs:
           {
             echo "== apt =="
             sudo apt-get update -qq
-            sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra
-            echo "== pip =="
-            python3 -m pip install --quiet pillow==10.4.0 fonttools
+            sudo apt-get install -y -qq fonts-noto-cjk fonts-noto-cjk-extra python3-pil python3-fonttools
+            echo "== python =="
+            PY=/usr/bin/python3
+            $PY -c "import PIL, fontTools; print('PIL', PIL.__version__)" || {
+              python3 -m pip install --quiet --upgrade pillow fonttools
+              PY=$(command -v python3)
+              $PY -c "import PIL, fontTools; print('PIL', PIL.__version__)"
+            }
+            echo "python=$PY"
             echo "== render =="
-            python3 tool/make_splash.py
+            $PY tool/make_splash.py
           } 2>&1 | tee -a "$LOG"
 
       - name: Setup Flutter
@@ -125,10 +138,15 @@ jobs:
       # LaunchImage 由 ubuntu job 渲染后发布到 dist-splash 分支，这里直接取（公开 raw，无需鉴权）
       - name: Fetch rendered LaunchImage
         run: |
+          set -e
           DEST="ios/Runner/Assets.xcassets/LaunchImage.imageset"
           BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/dist-splash"
           for f in LaunchImage.png LaunchImage@2x.png LaunchImage@3x.png; do
-            curl -fsSL "$BASE/$f" -o "$DEST/$f" && echo "got $f" || echo "MISSING $f"
+            curl -fsSL "$BASE/$f" -o "$DEST/$f"
+            echo "got $f $(wc -c < "$DEST/$f") bytes"
+          done
+          for f in LaunchImage.png LaunchImage@2x.png LaunchImage@3x.png; do
+            test -s "$DEST/$f" || { echo "ERROR: $f missing/empty"; exit 1; }
           done
           ls -la "$DEST"
 
@@ -152,14 +170,18 @@ jobs:
             xcodebuild -version
             echo "== build ios =="
             flutter build ios --release --no-codesign
-            echo "== package =="
+            echo "== verify assets =="
             APP=$(find build/ios/iphoneos -name "*.app" | head -1)
             echo "App: $APP"
+            test -n "$APP" || { echo "ERROR: no .app produced"; exit 1; }
+            ls -la "$APP" | head -20
+            echo "== package =="
             mkdir -p build/ios/ipa/Payload
             cp -R "$APP" build/ios/ipa/Payload/
             cd build/ios/ipa
             zip -r community-unsigned.ipa Payload
             ls -la community-unsigned.ipa
+            unzip -l community-unsigned.ipa | head -30
           } 2>&1 | tee -a "$LOG"
 
       - uses: actions/upload-artifact@v4
