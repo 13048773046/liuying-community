@@ -23,6 +23,7 @@ import '../user/user_profile.dart';
 import '../post/post_detail.dart';
 import '../../widgets/comment_sheet.dart';
 import '../../widgets/video_controls_bar.dart';
+
 import 'dart:async';
 
 class VideoCard extends StatefulWidget {
@@ -61,7 +62,7 @@ class _VideoCardState extends State<VideoCard>
   bool get _shouldPlay =>
       widget.isActive && _routeVisible && _tickerEnabled && _appResumed;
 
-  /// 是否带配乐（有配乐时视频静音、BGM 作为声音，抖音式）
+  /// 是否带配乐（有配乐时原声照常播放，两路混音，音量取自发布者设定）
   bool get _useBgm {
     final m = widget.item.music;
     if (m == null) return false;
@@ -69,7 +70,23 @@ class _VideoCardState extends State<VideoCard>
     return u is String && u.isNotEmpty;
   }
 
+  /// 是否视频内容（视频内容的配乐要与视频时间轴对齐）
+  bool get _isVideoItem => widget.item.video.isNotEmpty;
+
+  /// 原声音量（发布者设定 0-100 → 0-1）
+  double get _audioVol => widget.item.audioVolume / 100.0;
+
+  /// 配乐音量（发布者设定 0-100 → 0-1）
+  double get _bgmVol => widget.item.musicVolume / 100.0;
+
   bool _controls = false;
+
+  /// 上一次视频播放位置（秒）：用于识别视频「循环回 0」并把配乐同步归零
+  double? _lastVideoPos;
+  bool _lastVideoPlaying = false;
+
+  /// 是否是本卡片启动了当前这路配乐（避免相邻卡片同一首配乐互相误停）
+  bool _bgmOwner = false;
   Timer? _hideTimer;
 
   @override
@@ -149,6 +166,7 @@ class _VideoCardState extends State<VideoCard>
       setState(() {
         _video = c;
       });
+      c.addListener(_onVideoTick);
       _applyPlayback();
     } catch (_) {
       if (!mounted) return;
@@ -156,19 +174,69 @@ class _VideoCardState extends State<VideoCard>
     }
   }
 
-  /// 配乐同步：只有允许出声且本条带配乐时才播；否则只在「当前播的就是这条」时停，
-  /// 避免误停别的页面正在播放的配乐。
+  /// 配乐同步：
+  /// - 有配乐时原声不静音，两路按发布者设定的音量混播；
+  /// - 视频内容：配乐与视频同起点，视频循环回 0 时配乐也从 0 重来（见 `_onVideoTick`）；
+  /// - 图集/图文：整首无限循环，轮播换图不重置进度。
   void _syncBgm() {
     final m = widget.item.music;
     final u = m?['url'];
-    final hasBgm = u is String && u.isNotEmpty;
-    if (_shouldPlay && hasBgm) {
-      MusicBgm.I.play(u);
-      MusicBgm.I.setMuted(_muted);
+    if (u is! String || u.isEmpty) return;
+    final vol = _muted ? 0.0 : _bgmVol;
+
+    if (!_shouldPlay) {
+      // 只停「自己启动的那一路」，避免相邻卡片共用同一首配乐时互相误停
+      if (_bgmOwner && MusicBgm.I.url == u) {
+        MusicBgm.I.pause();
+        _bgmOwner = false;
+      }
       return;
     }
-    if (hasBgm && MusicBgm.I.url == u) {
-      MusicBgm.I.stop();
+
+    if (_isVideoItem) {
+      final v = _video;
+      final playing = v != null && v.value.isInitialized && v.value.isPlaying;
+      if (!playing) {
+        if (_bgmOwner && MusicBgm.I.url == u) {
+          MusicBgm.I.pause();
+          _bgmOwner = false;
+        }
+        return;
+      }
+      if (MusicBgm.I.url != u) {
+        // 新曲：与视频起点对齐
+        MusicBgm.I.playFrom(u, loop: true, volume: vol);
+      } else {
+        // 已在播/已暂停过的同一首：只调音量，不动进度
+        MusicBgm.I.setVolume(vol);
+        MusicBgm.I.resume();
+      }
+      _bgmOwner = true;
+      return;
+    }
+
+    // 图集/图文：整首循环
+    MusicBgm.I.play(u, loop: true, volume: vol);
+    _bgmOwner = true;
+  }
+
+  /// 视频逐帧回调：识别「起播/暂停」与「循环回 0」，让配乐与视频时间轴对齐
+  void _onVideoTick() {
+    final v = _video;
+    if (v == null || !v.value.isInitialized) return;
+    final pos = v.value.position.inMilliseconds / 1000.0;
+    final prev = _lastVideoPos;
+    _lastVideoPos = pos;
+    final playing = v.value.isPlaying;
+    if (playing != _lastVideoPlaying) {
+      _lastVideoPlaying = playing;
+      // 视频真正开始播了（play() 是异步生效的，_applyPlayback 那一刻可能还没播起来）
+      if (playing) _syncBgm();
+    }
+    if (!_useBgm || !_bgmOwner || prev == null) return;
+    // 位置回跳且上一刻在视频前段之后 → 视频完成了一次循环，配乐也回 0
+    if (pos < prev - 0.3 && prev > 1.0) {
+      MusicBgm.I.restart();
     }
   }
 
@@ -181,13 +249,14 @@ class _VideoCardState extends State<VideoCard>
   }
 
   /// 统一入口：按可见性决定「播还是停」，视频与配乐一起处理。
+  /// 有配乐不再是「视频静音」，而是原声按发布者音量 + 配乐按发布者音量混播。
   void _applyPlayback() {
     final v = _video;
     if (v != null && v.value.isInitialized) {
       if (_shouldPlay) {
         v.setLooping(true);
         v.play();
-        v.setVolume((_useBgm || _muted) ? 0 : 1);
+        v.setVolume(_muted ? 0 : _audioVol);
       } else {
         v.pause();
         v.setVolume(0);
@@ -216,12 +285,14 @@ class _VideoCardState extends State<VideoCard>
     WidgetsBinding.instance.removeObserver(this);
     PlaybackPrefs.muted.removeListener(_onMuteChanged);
     appRouteObserver.unsubscribe(this);
+    _video?.removeListener(_onVideoTick);
     _video?.dispose();
-    // 只停「自己正在播的」配乐，避免影响别的页面
+    // 只停「自己启动的那一路」配乐，避免影响别的卡片/页面
     final u = widget.item.music?['url'];
-    if (u is String && u.isNotEmpty && MusicBgm.I.url == u) {
+    if (_bgmOwner && u is String && u.isNotEmpty && MusicBgm.I.url == u) {
       MusicBgm.I.stop();
     }
+    _bgmOwner = false;
     super.dispose();
   }
 
@@ -288,8 +359,10 @@ class _VideoCardState extends State<VideoCard>
       final r = await ApiClient.reportShare(widget.item.id);
       if (!mounted) return;
       // 服务端返回 shareCount（此前误读 count 导致分享计数永不更新）
-      setState(() => _shareCount =
-          ((r['shareCount'] ?? _shareCount + 1) as num).toInt());
+      setState(
+        () =>
+            _shareCount = ((r['shareCount'] ?? _shareCount + 1) as num).toInt(),
+      );
     } catch (_) {
       // 上报失败不影响系统分享
     }
@@ -328,9 +401,8 @@ class _VideoCardState extends State<VideoCard>
     );
     Future<void>.delayed(const Duration(milliseconds: 600), () {
       if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-      );
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const LoginPage()));
     });
   }
 
@@ -353,9 +425,7 @@ class _VideoCardState extends State<VideoCard>
           // 右侧互动列
           _buildActionRail(),
           // 隐藏式控制条：进度条 + 播放/暂停 + 时长（仅视频初始化后）
-          if (_controls &&
-              _video != null &&
-              _video!.value.isInitialized)
+          if (_controls && _video != null && _video!.value.isInitialized)
             Positioned(
               left: 0,
               right: 0,
@@ -379,9 +449,10 @@ class _VideoCardState extends State<VideoCard>
       final imgs = widget.item.images;
       if (imgs.isEmpty) return _TextMedia(item: widget.item);
       return _ImageMedia(
-          images: imgs,
-          onDoubleTap: _toggleLike,
-          isActive: widget.isActive);
+        images: imgs,
+        onDoubleTap: _toggleLike,
+        isActive: widget.isActive,
+      );
     }
     final v = _video;
     if (v != null && v.value.isInitialized && !_failed) {
@@ -419,8 +490,11 @@ class _VideoCardState extends State<VideoCard>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.refresh_rounded,
-                    color: Color(AppColors.textSecondary), size: 34),
+                const Icon(
+                  Icons.refresh_rounded,
+                  color: Color(AppColors.textSecondary),
+                  size: 34,
+                ),
                 const SizedBox(height: AppSpace.x2),
                 Text('视频加载失败，点击重试', style: AppType.caption),
               ],
@@ -443,7 +517,11 @@ class _VideoCardState extends State<VideoCard>
         child: Padding(
           // 底部避让透明导航栏：导航栏本体 + 底部安全区 + 间距
           padding: EdgeInsets.fromLTRB(
-              AppSpace.x3, 0, AppSpace.x2, AppSpace.x3 + _navBarHeight(context)),
+            AppSpace.x3,
+            0,
+            AppSpace.x2,
+            AppSpace.x3 + _navBarHeight(context),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -482,14 +560,16 @@ class _VideoCardState extends State<VideoCard>
                 const SizedBox(height: AppSpace.x1),
                 PressableScale(
                   onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              PostDetailPage(postId: widget.item.id),
-                        ),
-                      ),
-                  child: Text('展开',
-                      style: AppType.label
-                          .copyWith(color: const Color(AppColors.accent))),
+                    MaterialPageRoute(
+                      builder: (_) => PostDetailPage(postId: widget.item.id),
+                    ),
+                  ),
+                  child: Text(
+                    '展开',
+                    style: AppType.label.copyWith(
+                      color: const Color(AppColors.accent),
+                    ),
+                  ),
                 ),
               ],
               const SizedBox(height: AppSpace.x2),
@@ -501,8 +581,9 @@ class _VideoCardState extends State<VideoCard>
                     for (final t in f.topic)
                       Text(
                         '#$t',
-                        style: AppType.label
-                            .copyWith(color: const Color(AppColors.lilac)),
+                        style: AppType.label.copyWith(
+                          color: const Color(AppColors.lilac),
+                        ),
                       ),
                   ],
                 ),
@@ -532,9 +613,10 @@ class _VideoCardState extends State<VideoCard>
                   onTap: a.id.isEmpty
                       ? null
                       : () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => UserProfilePage(uid: a.id)),
+                          MaterialPageRoute(
+                            builder: (_) => UserProfilePage(uid: a.id),
                           ),
+                        ),
                 ),
                 if (!_followed && a.id.isNotEmpty)
                   Positioned(
@@ -551,11 +633,13 @@ class _VideoCardState extends State<VideoCard>
                           decoration: BoxDecoration(
                             color: const Color(AppColors.heart),
                             shape: BoxShape.circle,
-                            border:
-                                Border.all(color: Colors.white, width: 1.5),
+                            border: Border.all(color: Colors.white, width: 1.5),
                           ),
-                          child: const Icon(Icons.add,
-                              size: 14, color: Colors.white),
+                          child: const Icon(
+                            Icons.add,
+                            size: 14,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -596,7 +680,9 @@ class _VideoCardState extends State<VideoCard>
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.35),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.35),
+                  ),
                 ),
                 child: Icon(
                   _muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
@@ -612,7 +698,6 @@ class _VideoCardState extends State<VideoCard>
   }
 }
 
-
 /// 图片/图文帖的全屏媒体区：复用视频卡同一布局壳
 /// - 单图：全屏铺满（cover）
 /// - 多图：左右滑动切换（与抖音图集一致），右下角页码指示
@@ -622,10 +707,11 @@ class _ImageMedia extends StatefulWidget {
   final VoidCallback onDoubleTap;
   final bool isActive;
 
-  const _ImageMedia(
-      {required this.images,
-      required this.onDoubleTap,
-      required this.isActive});
+  const _ImageMedia({
+    required this.images,
+    required this.onDoubleTap,
+    required this.isActive,
+  });
 
   @override
   State<_ImageMedia> createState() => _ImageMediaState();
@@ -669,8 +755,11 @@ class _ImageMediaState extends State<_ImageMedia>
     }
     final next = _idx + 1;
     _program = true;
-    _pc.animateToPage(next,
-        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    _pc.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
     setState(() => _idx = next);
     _ac!
       ..reset()
@@ -706,17 +795,17 @@ class _ImageMediaState extends State<_ImageMedia>
 
   /// 单张图：宽撑满屏幕、高按原比例自适应、垂直居中（不裁切，抖音图集式）
   Widget _image(String url) => GestureDetector(
-        onDoubleTap: widget.onDoubleTap,
-        child: Center(
-          child: CachedNetworkImage(
-            imageUrl: mediaUrl(url),
-            fit: BoxFit.fitWidth,
-            width: double.infinity,
-            placeholder: (_, _) => const _MediaLoading(),
-            errorWidget: (_, _, _) => const _MediaLoading(),
-          ),
-        ),
-      );
+    onDoubleTap: widget.onDoubleTap,
+    child: Center(
+      child: CachedNetworkImage(
+        imageUrl: mediaUrl(url),
+        fit: BoxFit.fitWidth,
+        width: double.infinity,
+        placeholder: (_, _) => const _MediaLoading(),
+        errorWidget: (_, _, _) => const _MediaLoading(),
+      ),
+    ),
+  );
 
   /// 抖音式分段进度条：已看=全白，当前=进度动画，未到=半透明
   Widget _segment(int i) {
@@ -725,8 +814,7 @@ class _ImageMediaState extends State<_ImageMedia>
       return Container(height: h, color: Colors.white);
     }
     if (i > _idx) {
-      return Container(
-          height: h, color: Colors.white.withValues(alpha: 0.35));
+      return Container(height: h, color: Colors.white.withValues(alpha: 0.35));
     }
     return Container(
       height: h,
@@ -794,8 +882,7 @@ class _ImageMediaState extends State<_ImageMedia>
             children: List.generate(imgs.length, (i) {
               return Expanded(
                 child: Padding(
-                  padding:
-                      EdgeInsets.only(right: i == imgs.length - 1 ? 0 : 4),
+                  padding: EdgeInsets.only(right: i == imgs.length - 1 ? 0 : 4),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(2),
                     child: _segment(i),
@@ -814,8 +901,7 @@ class _ImageMediaState extends State<_ImageMedia>
 
 /// 短视频 tab 透明导航栏高度（本体 54 = 6+22+2+14+6+4 与 _AppTabBar 布局同步）
 /// 内容需整体避让，背景（视频画面）可延伸到导航栏区域
-double _navBarHeight(BuildContext c) =>
-    54 + MediaQuery.viewPaddingOf(c).bottom;
+double _navBarHeight(BuildContext c) => 54 + MediaQuery.viewPaddingOf(c).bottom;
 
 class _BottomGradient extends StatelessWidget {
   const _BottomGradient();
@@ -877,8 +963,10 @@ class _Avatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border:
-            Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.35),
+          width: 1,
+        ),
       ),
       child: ClipOval(
         child: url != null && url.toString().isNotEmpty
@@ -898,8 +986,7 @@ class _RailAvatar extends StatelessWidget {
   final String? avatar;
   final double size;
   final VoidCallback? onTap;
-  const _RailAvatar(
-      {required this.avatar, required this.size, this.onTap});
+  const _RailAvatar({required this.avatar, required this.size, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -908,8 +995,10 @@ class _RailAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border:
-            Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.6),
+          width: 1.5,
+        ),
       ),
       child: ClipOval(
         child: avatar != null && avatar!.isNotEmpty
@@ -932,8 +1021,11 @@ class _AvatarFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(AppColors.elevated),
-      child: const Icon(Icons.person,
-          color: Color(AppColors.textSecondary), size: 18),
+      child: const Icon(
+        Icons.person,
+        color: Color(AppColors.textSecondary),
+        size: 18,
+      ),
     );
   }
 }
@@ -945,8 +1037,7 @@ class _VerifiedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.x1, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.x1, vertical: 2),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(AppColors.accent), Color(AppColors.sky)],
@@ -966,8 +1057,11 @@ class _FollowButton extends StatelessWidget {
   final bool followed;
   final bool self;
   final VoidCallback onTap;
-  const _FollowButton(
-      {required this.followed, required this.self, required this.onTap});
+  const _FollowButton({
+    required this.followed,
+    required this.self,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -977,7 +1071,9 @@ class _FollowButton extends StatelessWidget {
       scale: 0.94,
       child: Container(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.x3, vertical: AppSpace.x1),
+          horizontal: AppSpace.x3,
+          vertical: AppSpace.x1,
+        ),
         decoration: BoxDecoration(
           color: followed
               ? Colors.white.withValues(alpha: 0.16)
@@ -1004,18 +1100,20 @@ class _ContentText extends StatelessWidget {
   final List<String> topics;
   final List<String> mentions;
   final int? maxLines;
-  const _ContentText(
-      {required this.text,
-      required this.topics,
-      required this.mentions,
-      this.maxLines});
+  const _ContentText({
+    required this.text,
+    required this.topics,
+    required this.mentions,
+    this.maxLines,
+  });
 
   @override
   Widget build(BuildContext context) {
     final spans = <TextSpan>[];
     // 简化：按话题/提及切分高亮
     final RegExp kw = RegExp(
-        '(#(?:${topics.map(RegExp.escape).join('|')}))|(@(?:${mentions.map(RegExp.escape).join('|')}))');
+      '(#(?:${topics.map(RegExp.escape).join('|')}))|(@(?:${mentions.map(RegExp.escape).join('|')}))',
+    );
     if (topics.isEmpty && mentions.isEmpty) {
       spans.add(TextSpan(text: text));
     } else {
@@ -1025,15 +1123,17 @@ class _ContentText extends StatelessWidget {
           spans.add(TextSpan(text: text.substring(last, m.start)));
         }
         final isTopic = m.group(1) != null;
-        spans.add(TextSpan(
-          text: m.group(0),
-          style: TextStyle(
-            color: isTopic
-                ? const Color(AppColors.lilac)
-                : const Color(AppColors.sky),
-            fontWeight: FontWeight.w600,
+        spans.add(
+          TextSpan(
+            text: m.group(0),
+            style: TextStyle(
+              color: isTopic
+                  ? const Color(AppColors.lilac)
+                  : const Color(AppColors.sky),
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ));
+        );
         last = m.end;
       }
       if (last < text.length) {
@@ -1111,7 +1211,11 @@ class _TextMedia extends StatelessWidget {
       ),
       alignment: Alignment.center,
       padding: const EdgeInsets.fromLTRB(
-          AppSpace.x6, AppSpace.x8, AppSpace.x6, 120),
+        AppSpace.x6,
+        AppSpace.x8,
+        AppSpace.x6,
+        120,
+      ),
       child: Text(
         item.content,
         textAlign: TextAlign.center,

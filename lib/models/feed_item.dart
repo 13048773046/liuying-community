@@ -27,13 +27,13 @@ class Author {
   final String adminName;
 
   Author.fromJson(Map<String, dynamic> j)
-      : id = (j['id'] ?? '') as String,
-        name = (j['name'] ?? '') as String,
-        avatar = (j['avatar'] ?? '') as String,
-        level = ((j['level'] ?? 0) as num).toInt(),
-        frameId = (j['frameId'] ?? '') as String,
-        adminLevel = ((j['adminLevel'] ?? 0) as num).toInt(),
-        adminName = (j['adminName'] ?? '') as String;
+    : id = (j['id'] ?? '') as String,
+      name = (j['name'] ?? '') as String,
+      avatar = (j['avatar'] ?? '') as String,
+      level = ((j['level'] ?? 0) as num).toInt(),
+      frameId = (j['frameId'] ?? '') as String,
+      adminLevel = ((j['adminLevel'] ?? 0) as num).toInt(),
+      adminName = (j['adminName'] ?? '') as String;
 
   bool get isAdmin => adminLevel > 0;
 }
@@ -62,41 +62,45 @@ class FeedItem {
   final bool takenDown;
   final Map<String, dynamic>? poll; // 投票帖：question/options/votes/voted/closed
   final Map<String, dynamic>? music; // 配乐 {url,name,cover,trackId}
+  final int audioVolume; // 原声音量 0-100（发布者设定，默认 100）
+  final int musicVolume; // 配乐音量 0-100（发布者设定，默认 50）
   final int created;
   final Author author;
 
   FeedItem.fromJson(Map<String, dynamic> j)
-      : id = (j['id'] ?? '') as String,
-        type = (j['type'] ?? 'text') as String,
-        content = (j['content'] ?? '') as String,
-        images = ((j['images'] ?? []) as List).map((e) => e.toString()).toList(),
-        video = (j['video'] ?? '') as String,
-        cover = (j['cover'] ?? '') as String,
-        duration = ((j['duration'] ?? 0) as num).toInt(),
-        boardId = (j['boardId'] ?? '') as String,
-        tag = (j['tag'] ?? '') as String,
-        topic = ((j['topic'] ?? []) as List).map((e) => e.toString()).toList(),
-        mentions = ((j['mentions'] ?? []) as List)
-            .map((e) => e.toString())
-            .toList(),
-        likeCount = ((j['likeCount'] ?? 0) as num).toInt(),
-        commentCount = ((j['commentCount'] ?? 0) as num).toInt(),
-        shareCount = ((j['shareCount'] ?? 0) as num).toInt(),
-        liked = boolOf(j['liked']),
-        faved = boolOf(j['faved']),
-        sticky = boolOf(j['sticky']),
-        featured = boolOf(j['featured']),
-        auditStatus = ((j['auditStatus'] ?? 0) as num).toInt(),
-        auditReason = (j['auditReason'] ?? '') as String,
-        takenDown = boolOf(j['takenDown']),
-        poll = (j['poll'] is Map<String, dynamic>)
-            ? (j['poll'] as Map<String, dynamic>)
-            : null,
-        music = ((j['music'] ?? '') as String).isNotEmpty
-            ? (jsonDecode(j['music'] as String) as Map<String, dynamic>)
-            : null,
-        created = ((j['created'] ?? 0) as num).toInt(),
-        author = Author.fromJson((j['author'] ?? {}) as Map<String, dynamic>);
+    : id = (j['id'] ?? '') as String,
+      type = (j['type'] ?? 'text') as String,
+      content = (j['content'] ?? '') as String,
+      images = ((j['images'] ?? []) as List).map((e) => e.toString()).toList(),
+      video = (j['video'] ?? '') as String,
+      cover = (j['cover'] ?? '') as String,
+      duration = ((j['duration'] ?? 0) as num).toInt(),
+      boardId = (j['boardId'] ?? '') as String,
+      tag = (j['tag'] ?? '') as String,
+      topic = ((j['topic'] ?? []) as List).map((e) => e.toString()).toList(),
+      mentions = ((j['mentions'] ?? []) as List)
+          .map((e) => e.toString())
+          .toList(),
+      likeCount = ((j['likeCount'] ?? 0) as num).toInt(),
+      commentCount = ((j['commentCount'] ?? 0) as num).toInt(),
+      shareCount = ((j['shareCount'] ?? 0) as num).toInt(),
+      liked = boolOf(j['liked']),
+      faved = boolOf(j['faved']),
+      sticky = boolOf(j['sticky']),
+      featured = boolOf(j['featured']),
+      auditStatus = ((j['auditStatus'] ?? 0) as num).toInt(),
+      auditReason = (j['auditReason'] ?? '') as String,
+      takenDown = boolOf(j['takenDown']),
+      poll = (j['poll'] is Map<String, dynamic>)
+          ? (j['poll'] as Map<String, dynamic>)
+          : null,
+      music = ((j['music'] ?? '') as String).isNotEmpty
+          ? (jsonDecode(j['music'] as String) as Map<String, dynamic>)
+          : null,
+      audioVolume = ((j['audioVolume'] ?? 100) as num).toInt().clamp(0, 100),
+      musicVolume = ((j['musicVolume'] ?? 50) as num).toInt().clamp(0, 100),
+      created = ((j['created'] ?? 0) as num).toInt(),
+      author = Author.fromJson((j['author'] ?? {}) as Map<String, dynamic>);
 
   bool get isVideo => type == 'video';
 }
@@ -110,13 +114,13 @@ class FeedPage {
   FeedPage({required this.list, required this.page, required this.hasMore});
 
   factory FeedPage.fromJson(Map<String, dynamic> j) => FeedPage(
-        list: ((j['list'] ?? []) as List)
-            .whereType<Map<String, dynamic>>()
-            .map(FeedItem.fromJson)
-            .toList(),
-        page: ((j['page'] ?? 1) as num).toInt(),
-        hasMore: boolOf(j['hasMore']),
-      );
+    list: ((j['list'] ?? []) as List)
+        .whereType<Map<String, dynamic>>()
+        .map(FeedItem.fromJson)
+        .toList(),
+    page: ((j['page'] ?? 1) as num).toInt(),
+    hasMore: boolOf(j['hasMore']),
+  );
 }
 
 /// 相对时间展示

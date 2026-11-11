@@ -51,6 +51,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
 
   String _mode = 'text'; // 'text' 图文 | 'video' 短视频（页内切换）
   Map<String, dynamic>? _music; // 配乐 {url,name,cover,durText}
+  /// 原声音量（0-100，发布者自定：视频原声与人声的响度）
+  int _audioVolume = 100;
+
+  /// 配乐音量（0-100，发布者自定：与视频原声同时播放时的混音比例）
+  int _musicVolume = 50;
 
   bool get isVideo => _mode == 'video';
 
@@ -58,7 +63,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
   bool get _canPublish =>
       !_publishing &&
       _boardId.isNotEmpty &&
-      (_contentCtrl.text.trim().isNotEmpty || _images.isNotEmpty || _videoFile != null);
+      (_contentCtrl.text.trim().isNotEmpty ||
+          _images.isNotEmpty ||
+          _videoFile != null);
 
   // ---------------- 本地草稿（未发布内容自动暂存） ----------------
   Map<String, dynamic>? _draft;
@@ -136,17 +143,25 @@ class _PostEditorPageState extends State<PostEditorPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpace.x3),
       padding: const EdgeInsets.fromLTRB(
-          AppSpace.x3, AppSpace.x3, AppSpace.x2, AppSpace.x3),
+        AppSpace.x3,
+        AppSpace.x3,
+        AppSpace.x2,
+        AppSpace.x3,
+      ),
       decoration: BoxDecoration(
         color: const Color(AppColors.accent).withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(
-            color: const Color(AppColors.accent).withValues(alpha: 0.45)),
+          color: const Color(AppColors.accent).withValues(alpha: 0.45),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.history_rounded,
-              size: 18, color: Color(AppColors.accent)),
+          const Icon(
+            Icons.history_rounded,
+            size: 18,
+            color: Color(AppColors.accent),
+          ),
           const SizedBox(width: AppSpace.x2),
           Expanded(
             child: Column(
@@ -162,18 +177,17 @@ class _PostEditorPageState extends State<PostEditorPage> {
               ],
             ),
           ),
-          PillButton(
-            label: '恢复',
-            size: PillSize.sm,
-            onTap: _restoreDraft,
-          ),
+          PillButton(label: '恢复', size: PillSize.sm, onTap: _restoreDraft),
           const SizedBox(width: AppSpace.x1),
           PressableScale(
             onTap: _discardDraft,
             child: const Padding(
               padding: EdgeInsets.all(AppSpace.x2),
-              child: Icon(Icons.close_rounded,
-                  size: 16, color: Color(AppColors.textTertiary)),
+              child: Icon(
+                Icons.close_rounded,
+                size: 16,
+                color: Color(AppColors.textTertiary),
+              ),
             ),
           ),
         ],
@@ -214,7 +228,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
       _toast('最多 $_maxImages 张图片');
       return;
     }
-    final picked = await _picker.pickMultiImage(limit: _maxImages - _images.length);
+    final picked = await _picker.pickMultiImage(
+      limit: _maxImages - _images.length,
+    );
     if (picked.isEmpty) return;
     setState(() {
       _images.addAll(picked.map((e) => File(e.path)));
@@ -223,7 +239,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
 
   Future<void> _pickVideo() async {
     final v = await _picker.pickVideo(
-        source: ImageSource.gallery, maxDuration: const Duration(seconds: _maxVideoSeconds));
+      source: ImageSource.gallery,
+      maxDuration: const Duration(seconds: _maxVideoSeconds),
+    );
     if (v == null) return;
     final f = File(v.path);
     if (!f.existsSync()) {
@@ -283,17 +301,22 @@ class _PostEditorPageState extends State<PostEditorPage> {
           final j = await ApiClient.uploadImage(_images[i].path);
           names.add(j['name'] as String);
         }
-        await ApiClient.post('/post', body: {
-          'content': content,
-          'images': names,
-          'boardId': _boardId,
-          if (_poll != null) 'poll': _poll,
-          if (_music != null) 'music': _music,
-        });
+        await ApiClient.post(
+          '/post',
+          body: {
+            'content': content,
+            'images': names,
+            'boardId': _boardId,
+            if (_poll != null) 'poll': _poll,
+            if (_music != null) 'music': _music,
+            'audioVolume': _audioVolume,
+            'musicVolume': _musicVolume,
+          },
+        );
         if (!mounted) return;
         await DraftStore.clear();
-    if (!mounted) return;
-    Navigator.pop(context, true);
+        if (!mounted) return;
+        Navigator.pop(context, true);
         _toast('发布成功，等待审核');
       } else {
         // 短视频：上传 → 转码 → 发帖
@@ -328,18 +351,25 @@ class _PostEditorPageState extends State<PostEditorPage> {
           return;
         }
         setState(() => _uploadProgress = 0.85);
-        await ApiClient.post('/video/post', body: {
-          'video': vid,
-          'cover': cover,
-          'duration': (up['duration'] ?? 0) is num ? (up['duration'] as num).toInt() : 0,
-          'content': content,
-          'boardId': _boardId,
-          if (_music != null) 'music': _music,
-        });
+        await ApiClient.post(
+          '/video/post',
+          body: {
+            'video': vid,
+            'cover': cover,
+            'duration': (up['duration'] ?? 0) is num
+                ? (up['duration'] as num).toInt()
+                : 0,
+            'content': content,
+            'boardId': _boardId,
+            if (_music != null) 'music': _music,
+            'audioVolume': _audioVolume,
+            'musicVolume': _musicVolume,
+          },
+        );
         if (!mounted) return;
         await DraftStore.clear();
-    if (!mounted) return;
-    Navigator.pop(context, true);
+        if (!mounted) return;
+        Navigator.pop(context, true);
         _toast('发布成功，等待审核');
       }
     } catch (e) {
@@ -401,7 +431,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpace.gutter, AppSpace.x2, AppSpace.gutter, AppSpace.x6),
+                  AppSpace.gutter,
+                  AppSpace.x2,
+                  AppSpace.gutter,
+                  AppSpace.x6,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -417,6 +451,10 @@ class _PostEditorPageState extends State<PostEditorPage> {
                     if (!isVideo) _imageGrid() else _videoSection(),
                     const SizedBox(height: AppSpace.x4),
                     _musicBar(),
+                    if (_music != null || isVideo) ...[
+                      const SizedBox(height: AppSpace.x2),
+                      _volumePanel(),
+                    ],
                     const SizedBox(height: AppSpace.x4),
                     Text(
                       isVideo
@@ -441,10 +479,14 @@ class _PostEditorPageState extends State<PostEditorPage> {
     return Container(
       decoration: const BoxDecoration(
         color: Color(AppColors.canvas),
-        border: Border(top: BorderSide(color: Color(AppColors.hairline), width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Color(AppColors.hairline), width: 0.5),
+        ),
       ),
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.x3, vertical: AppSpace.x2),
+        horizontal: AppSpace.x3,
+        vertical: AppSpace.x2,
+      ),
       child: SafeArea(
         top: false,
         child: Row(
@@ -455,10 +497,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
               badge: isVideo ? (_videoFile != null ? 1 : 0) : _images.length,
               onTap: isVideo ? _pickVideo : _pickImages,
             ),
-            _barIcon(
-              icon: Icons.tag_rounded,
-              onTap: _pickTopic,
-            ),
+            _barIcon(icon: Icons.tag_rounded, onTap: _pickTopic),
             _barIcon(
               icon: Icons.music_note_rounded,
               active: _music != null,
@@ -521,7 +560,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
       onTap: _openBoardSheet,
       child: Container(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.x4, vertical: AppSpace.x3),
+          horizontal: AppSpace.x4,
+          vertical: AppSpace.x3,
+        ),
         decoration: BoxDecoration(
           color: const Color(AppColors.card),
           borderRadius: AppRadius.rMd,
@@ -550,13 +591,17 @@ class _PostEditorPageState extends State<PostEditorPage> {
                   color: _boardId.isEmpty
                       ? const Color(AppColors.textTertiary)
                       : const Color(AppColors.textPrimary),
-                  fontWeight:
-                      _boardId.isEmpty ? FontWeight.w400 : FontWeight.w600,
+                  fontWeight: _boardId.isEmpty
+                      ? FontWeight.w400
+                      : FontWeight.w600,
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                size: 18, color: Color(AppColors.textTertiary)),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: Color(AppColors.textTertiary),
+            ),
           ],
         ),
       ),
@@ -584,64 +629,67 @@ class _PostEditorPageState extends State<PostEditorPage> {
         child: !_boardsLoaded
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
             : _boards.isEmpty
-                ? const Center(
-                    child: EmptyState(
-                      compact: true,
-                      icon: Icons.dashboard_outlined,
-                      title: '暂无版块',
-                      message: '稍后再试',
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.only(bottom: AppSpace.x4),
-                    itemCount: _boards.length,
-                    separatorBuilder: (_, _) =>
-                        const Hairline(indent: AppSpace.gutter),
-                    itemBuilder: (_, i) {
-                      final b = _boards[i];
-                      final sel = b['id'] == _boardId;
-                      final depth = ((b['_depth'] ?? 0) as num).toInt();
-                      return PressableScale(
-                        onTap: () {
-                          Navigator.of(bc).pop();
-                          setState(() => _boardId = b['id'] as String);
-    _scheduleDraftSave();
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            AppSpace.gutter + depth * AppSpace.x3,
-                            AppSpace.x3,
-                            AppSpace.gutter,
-                            AppSpace.x3,
-                          ),
-                          child: Row(
-                            children: [
-                              Text(b['icon'] ?? '📌', style: AppType.body),
-                              const SizedBox(width: AppSpace.x2),
-                              Expanded(
-                                child: Text(
-                                  '${b['name']}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppType.body.copyWith(
-                                    color: sel
-                                        ? const Color(AppColors.accent)
-                                        : const Color(AppColors.textPrimary),
-                                    fontWeight: sel
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  ),
-                                ),
-                              ),
-                              if (sel)
-                                const Icon(Icons.check_rounded,
-                                    size: 18, color: Color(AppColors.accent)),
-                            ],
-                          ),
-                        ),
-                      );
+            ? const Center(
+                child: EmptyState(
+                  compact: true,
+                  icon: Icons.dashboard_outlined,
+                  title: '暂无版块',
+                  message: '稍后再试',
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.only(bottom: AppSpace.x4),
+                itemCount: _boards.length,
+                separatorBuilder: (_, _) =>
+                    const Hairline(indent: AppSpace.gutter),
+                itemBuilder: (_, i) {
+                  final b = _boards[i];
+                  final sel = b['id'] == _boardId;
+                  final depth = ((b['_depth'] ?? 0) as num).toInt();
+                  return PressableScale(
+                    onTap: () {
+                      Navigator.of(bc).pop();
+                      setState(() => _boardId = b['id'] as String);
+                      _scheduleDraftSave();
                     },
-                  ),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        AppSpace.gutter + depth * AppSpace.x3,
+                        AppSpace.x3,
+                        AppSpace.gutter,
+                        AppSpace.x3,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(b['icon'] ?? '📌', style: AppType.body),
+                          const SizedBox(width: AppSpace.x2),
+                          Expanded(
+                            child: Text(
+                              '${b['name']}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppType.body.copyWith(
+                                color: sel
+                                    ? const Color(AppColors.accent)
+                                    : const Color(AppColors.textPrimary),
+                                fontWeight: sel
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          if (sel)
+                            const Icon(
+                              Icons.check_rounded,
+                              size: 18,
+                              color: Color(AppColors.accent),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -660,11 +708,10 @@ class _PostEditorPageState extends State<PostEditorPage> {
           cursorColor: const Color(AppColors.accent),
           style: AppType.body.copyWith(height: 1.5),
           decoration: InputDecoration(
-            hintText: isVideo
-                ? '写一句视频文案，带 #话题 可以上热门'
-                : '分享此刻… 支持 #话题 与 @好友',
-            hintStyle:
-                AppType.body.copyWith(color: const Color(AppColors.textTertiary)),
+            hintText: isVideo ? '写一句视频文案，带 #话题 可以上热门' : '分享此刻… 支持 #话题 与 @好友',
+            hintStyle: AppType.body.copyWith(
+              color: const Color(AppColors.textTertiary),
+            ),
             filled: false,
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
@@ -677,11 +724,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
         const SizedBox(height: AppSpace.x2),
         Row(
           children: [
-            TagPill(
-              label: '@好友',
-              compact: true,
-              onTap: () => _insertAt(' @'),
-            ),
+            TagPill(label: '@好友', compact: true, onTap: () => _insertAt(' @')),
             const Spacer(),
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: _contentCtrl,
@@ -706,7 +749,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
       onTap: _editPoll,
       child: Container(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.x3, vertical: AppSpace.x3),
+          horizontal: AppSpace.x3,
+          vertical: AppSpace.x3,
+        ),
         decoration: BoxDecoration(
           color: const Color(AppColors.card),
           borderRadius: AppRadius.rMd,
@@ -714,8 +759,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.how_to_vote_rounded,
-                size: 16, color: Color(AppColors.accent)),
+            const Icon(
+              Icons.how_to_vote_rounded,
+              size: 16,
+              color: Color(AppColors.accent),
+            ),
             const SizedBox(width: AppSpace.x2),
             Expanded(
               child: Column(
@@ -725,8 +773,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
                     (_poll!['question'] ?? '') as String,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppType.bodySm
-                        .copyWith(color: const Color(AppColors.textPrimary)),
+                    style: AppType.bodySm.copyWith(
+                      color: const Color(AppColors.textPrimary),
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -745,8 +794,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
               scale: 0.9,
               child: const Padding(
                 padding: EdgeInsets.all(AppSpace.x1),
-                child: Icon(Icons.close_rounded,
-                    size: 16, color: Color(AppColors.textTertiary)),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 16,
+                  color: Color(AppColors.textTertiary),
+                ),
               ),
             ),
           ],
@@ -762,7 +814,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
       onTap: _pickMusic,
       child: Container(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.x3, vertical: AppSpace.x3),
+          horizontal: AppSpace.x3,
+          vertical: AppSpace.x3,
+        ),
         decoration: BoxDecoration(
           color: const Color(AppColors.card),
           borderRadius: AppRadius.rMd,
@@ -777,15 +831,21 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 color: Color(AppColors.accentSoft),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.music_note_rounded,
-                  size: 17, color: Color(AppColors.accent)),
+              child: const Icon(
+                Icons.music_note_rounded,
+                size: 17,
+                color: Color(AppColors.accent),
+              ),
             ),
             const SizedBox(width: AppSpace.x3),
             Expanded(
               child: m == null
-                  ? Text('添加配乐',
-                      style: AppType.bodySm
-                          .copyWith(color: const Color(AppColors.textSecondary)))
+                  ? Text(
+                      '添加配乐',
+                      style: AppType.bodySm.copyWith(
+                        color: const Color(AppColors.textSecondary),
+                      ),
+                    )
                   : Row(
                       children: [
                         Expanded(
@@ -800,8 +860,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
                           ),
                         ),
                         const SizedBox(width: AppSpace.x2),
-                        const Icon(Icons.graphic_eq_rounded,
-                            size: 14, color: Color(AppColors.accent)),
+                        const Icon(
+                          Icons.graphic_eq_rounded,
+                          size: 14,
+                          color: Color(AppColors.accent),
+                        ),
                       ],
                     ),
             ),
@@ -811,12 +874,107 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 scale: 0.9,
                 child: const Padding(
                   padding: EdgeInsets.all(AppSpace.x1),
-                  child: Icon(Icons.close_rounded,
-                      size: 16, color: Color(AppColors.textTertiary)),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 16,
+                    color: Color(AppColors.textTertiary),
+                  ),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ---------- 音量面板：原声 / 配乐（发布者自定，随作品存到后端） ----------
+  Widget _volumePanel() {
+    final showOrigin = isVideo;
+    final showMusic = _music != null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.x3,
+        AppSpace.x2,
+        AppSpace.x2,
+        AppSpace.x2,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(AppColors.card),
+        borderRadius: AppRadius.rMd,
+        border: Border.all(color: const Color(AppColors.border)),
+      ),
+      child: Column(
+        children: [
+          if (showOrigin)
+            _volumeRow(
+              '原声音量',
+              Icons.record_voice_over_rounded,
+              _audioVolume,
+              (v) => setState(() => _audioVolume = v),
+            ),
+          if (showMusic)
+            _volumeRow(
+              '配乐音量',
+              Icons.music_note_rounded,
+              _musicVolume,
+              (v) => setState(() => _musicVolume = v),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _volumeRow(
+    String label,
+    IconData icon,
+    int value,
+    ValueChanged<int> onChanged,
+  ) {
+    return SizedBox(
+      height: 38,
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: const Color(AppColors.textTertiary)),
+          const SizedBox(width: AppSpace.x2),
+          SizedBox(
+            width: 62,
+            child: Text(
+              label,
+              style: AppType.caption.copyWith(
+                color: const Color(AppColors.textSecondary),
+              ),
+            ),
+          ),
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 2,
+                activeTrackColor: const Color(AppColors.accent),
+                inactiveTrackColor: const Color(AppColors.border),
+                thumbColor: const Color(AppColors.accent),
+                overlayShape: SliderComponentShape.noOverlay,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              ),
+              child: Slider(
+                value: value.toDouble(),
+                min: 0,
+                max: 100,
+                divisions: 20,
+                onChanged: (v) => onChanged(v.round()),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 38,
+            child: Text(
+              '$value%',
+              textAlign: TextAlign.right,
+              style: AppType.numeric.copyWith(
+                color: const Color(AppColors.textSecondary),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -875,8 +1033,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
                   final t = topics[i];
                   final name = (t['name'] ?? '') as String;
                   return ListRow(
-                    leading: const Icon(Icons.tag_rounded,
-                        size: 18, color: Color(AppColors.accent)),
+                    leading: const Icon(
+                      Icons.tag_rounded,
+                      size: 18,
+                      color: Color(AppColors.accent),
+                    ),
                     title: '#$name',
                     subtitle: '${(t['count'] ?? 0)} 帖参与',
                     showChevron: false,
@@ -894,9 +1055,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
   /// 投票编辑器：问题 + 2~4 选项
   Future<void> _editPoll() async {
     final qCtrl = TextEditingController(
-        text: (_poll?['question'] ?? '') as String);
+      text: (_poll?['question'] ?? '') as String,
+    );
     final opts = List<String>.from(
-        ((_poll?['options'] ?? []) as List).map((e) => e.toString()));
+      ((_poll?['options'] ?? []) as List).map((e) => e.toString()),
+    );
     if (opts.isEmpty) {
       opts.addAll(['', '']);
     }
@@ -923,10 +1086,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 enabled: valid,
                 onTap: () {
                   setState(() {
-                    _poll = {
-                      'question': q,
-                      'options': os,
-                    };
+                    _poll = {'question': q, 'options': os};
                   });
                   Navigator.pop(bc, true);
                 },
@@ -941,8 +1101,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
                       controller: optCtrls[i],
                       maxLength: 40,
                       onChanged: (_) => setB(() {}),
-                      style: AppType.bodySm
-                          .copyWith(color: const Color(AppColors.textPrimary)),
+                      style: AppType.bodySm.copyWith(
+                        color: const Color(AppColors.textPrimary),
+                      ),
                       cursorColor: const Color(AppColors.accent),
                       decoration: InputDecoration(
                         counterText: '',
@@ -959,8 +1120,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
                       scale: 0.9,
                       child: const Padding(
                         padding: EdgeInsets.all(AppSpace.x2),
-                        child: Icon(Icons.close_rounded,
-                            size: 16, color: Color(AppColors.textTertiary)),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: Color(AppColors.textTertiary),
+                        ),
                       ),
                     ),
                 ],
@@ -977,8 +1141,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
                     controller: qCtrl,
                     maxLength: 60,
                     onChanged: (_) => setB(() {}),
-                    style: AppType.body
-                        .copyWith(color: const Color(AppColors.textPrimary)),
+                    style: AppType.body.copyWith(
+                      color: const Color(AppColors.textPrimary),
+                    ),
                     cursorColor: const Color(AppColors.accent),
                     decoration: const InputDecoration(
                       counterText: '',
@@ -997,16 +1162,23 @@ class _PostEditorPageState extends State<PostEditorPage> {
                         optCtrls.add(TextEditingController());
                       }),
                       child: Padding(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: AppSpace.x1),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpace.x1,
+                        ),
                         child: Row(
                           children: [
-                            const Icon(Icons.add_circle_outline,
-                                size: 16, color: Color(AppColors.accent)),
+                            const Icon(
+                              Icons.add_circle_outline,
+                              size: 16,
+                              color: Color(AppColors.accent),
+                            ),
                             const SizedBox(width: AppSpace.x2),
-                            Text('添加选项',
-                                style: AppType.caption.copyWith(
-                                    color: const Color(AppColors.accent))),
+                            Text(
+                              '添加选项',
+                              style: AppType.caption.copyWith(
+                                color: const Color(AppColors.accent),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1055,11 +1227,16 @@ class _PostEditorPageState extends State<PostEditorPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.add_photo_alternate_outlined,
-                      color: Color(AppColors.textSecondary), size: 26),
+                  const Icon(
+                    Icons.add_photo_alternate_outlined,
+                    color: Color(AppColors.textSecondary),
+                    size: 26,
+                  ),
                   const SizedBox(height: AppSpace.x1),
-                  Text('${_maxImages - _images.length} 图',
-                      style: AppType.micro),
+                  Text(
+                    '${_maxImages - _images.length} 图',
+                    style: AppType.micro,
+                  ),
                 ],
               ),
             ),
@@ -1086,8 +1263,11 @@ class _PostEditorPageState extends State<PostEditorPage> {
                     color: Colors.black.withValues(alpha: 0.55),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.close_rounded,
-                      size: 14, color: Colors.white),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -1129,8 +1309,12 @@ class _PostEditorPageState extends State<PostEditorPage> {
             const SizedBox(height: AppSpace.x3),
             ClipRRect(
               borderRadius: AppRadius.rSm,
-              child: Image.file(_coverFile!,
-                  width: 80, height: 80, fit: BoxFit.cover),
+              child: Image.file(
+                _coverFile!,
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+              ),
             ),
           ],
         ],
@@ -1160,12 +1344,17 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 color: Color(AppColors.accentSoft),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.video_library_outlined,
-                  color: Color(AppColors.accent), size: 28),
+              child: const Icon(
+                Icons.video_library_outlined,
+                color: Color(AppColors.accent),
+                size: 28,
+              ),
             ),
             const SizedBox(height: AppSpace.x3),
-            Text('选择本地视频',
-                style: AppType.body.copyWith(fontWeight: FontWeight.w600)),
+            Text(
+              '选择本地视频',
+              style: AppType.body.copyWith(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: AppSpace.x1),
             Text('≤ 60 秒 · ≤ 50MB · 竖版更佳', style: AppType.caption),
           ],
@@ -1192,8 +1381,10 @@ class _PostEditorPageState extends State<PostEditorPage> {
               width: 96,
               height: 128,
               color: const Color(AppColors.elevated),
-              child: const Icon(Icons.movie_outlined,
-                  color: Color(AppColors.textSecondary)),
+              child: const Icon(
+                Icons.movie_outlined,
+                color: Color(AppColors.textSecondary),
+              ),
             ),
           ),
         ),
@@ -1206,20 +1397,25 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 f.path.split('/').last,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppType.bodySm
-                    .copyWith(color: const Color(AppColors.textPrimary)),
+                style: AppType.bodySm.copyWith(
+                  color: const Color(AppColors.textPrimary),
+                ),
               ),
               const SizedBox(height: AppSpace.x2),
               // 时长/大小徽标
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.x2, vertical: AppSpace.x1),
+                  horizontal: AppSpace.x2,
+                  vertical: AppSpace.x1,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(AppColors.elevated),
                   borderRadius: AppRadius.rXs,
                 ),
-                child: Text('$_maxVideoSeconds 秒 · $sizeMb MB',
-                    style: AppType.micro),
+                child: Text(
+                  '$_maxVideoSeconds 秒 · $sizeMb MB',
+                  style: AppType.micro,
+                ),
               ),
               const SizedBox(height: AppSpace.x3),
               Row(
@@ -1243,7 +1439,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.x3, vertical: AppSpace.x1),
+          horizontal: AppSpace.x3,
+          vertical: AppSpace.x1,
+        ),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.07),
           borderRadius: AppRadius.rPill,
@@ -1254,9 +1452,12 @@ class _PostEditorPageState extends State<PostEditorPage> {
           children: [
             Icon(icon, size: 13, color: const Color(AppColors.accent)),
             const SizedBox(width: AppSpace.x1),
-            Text(label,
-                style: AppType.caption
-                    .copyWith(color: const Color(AppColors.accent))),
+            Text(
+              label,
+              style: AppType.caption.copyWith(
+                color: const Color(AppColors.accent),
+              ),
+            ),
           ],
         ),
       ),
@@ -1270,7 +1471,9 @@ class _PostEditorPageState extends State<PostEditorPage> {
         duration: AppMotion.base,
         curve: AppMotion.standard,
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.x4, vertical: AppSpace.x2),
+          horizontal: AppSpace.x4,
+          vertical: AppSpace.x2,
+        ),
         decoration: BoxDecoration(
           color: sel
               ? const Color(AppColors.accent).withValues(alpha: 0.14)
@@ -1299,10 +1502,16 @@ class _PostEditorPageState extends State<PostEditorPage> {
   Widget _progressPanel() {
     return Container(
       padding: const EdgeInsets.fromLTRB(
-          AppSpace.x4, AppSpace.x3, AppSpace.x4, AppSpace.x2),
+        AppSpace.x4,
+        AppSpace.x3,
+        AppSpace.x4,
+        AppSpace.x2,
+      ),
       decoration: const BoxDecoration(
         color: Color(AppColors.canvas),
-        border: Border(top: BorderSide(color: Color(AppColors.hairline), width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Color(AppColors.hairline), width: 0.5),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1311,9 +1520,12 @@ class _PostEditorPageState extends State<PostEditorPage> {
             children: [
               Text(_stageLabel, style: AppType.caption),
               const Spacer(),
-              Text('${(_uploadProgress * 100).round()}%',
-                  style: AppType.numeric
-                      .copyWith(color: const Color(AppColors.accent))),
+              Text(
+                '${(_uploadProgress * 100).round()}%',
+                style: AppType.numeric.copyWith(
+                  color: const Color(AppColors.accent),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpace.x2),
