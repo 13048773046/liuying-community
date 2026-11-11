@@ -1,5 +1,5 @@
 name: sync-audio-code
-# 一次性同步器：把本地已验证的 4 个 dart 文件经公开 CDN 写回仓库（md5 校验，避免长文本转录损坏）
+# 一次性同步器：把本地已验证的 dart 文件经公开 CDN 写回仓库（md5 校验，避免长文本转录损坏）
 on:
   workflow_dispatch:
   push:
@@ -21,12 +21,12 @@ jobs:
         run: |
           set -e
           get() { curl -fsSL "$1" -o "$2"; }
-          get https://aka.doubaocdn.com/s/ZF3sbkLhUl lib/models/feed_item.dart
+          get https://aka.doubaocdn.com/s/aVDZe2IAUc lib/models/feed_item.dart
           get https://aka.doubaocdn.com/s/Peb4MPaklO lib/utils/music_bgm.dart
           get https://aka.doubaocdn.com/s/eLTMrf00ZU lib/pages/shorts/video_card.dart
           get https://aka.doubaocdn.com/s/2Q9Wjlpuaz lib/pages/post/post_editor.dart
           md5sum -c <<'EOF'
-          2df01a97b8b4e7ace3f5d392177e5630  lib/models/feed_item.dart
+          764b6aaea71983c9c9cb9d504b3c3908  lib/models/feed_item.dart
           405511d63369738ff7267c51e170f536  lib/utils/music_bgm.dart
           8b76fdb58463db4a6d6eb8469ff98e38  lib/pages/shorts/video_card.dart
           aec1926432080b058d6b1238a2a9a667  lib/pages/post/post_editor.dart
@@ -40,7 +40,7 @@ jobs:
           git config user.name "ci-sync"
           git config user.email "ci-sync@users.noreply.github.com"
           git add lib/models/feed_item.dart lib/utils/music_bgm.dart lib/pages/shorts/video_card.dart lib/pages/post/post_editor.dart
-          git commit -m "feat(audio): 短视频原声+配乐按发布者音量混播；配乐跟随视频循环归零、图集整首循环；发布页新增双音量滑杆" || echo "no change"
+          git commit -m "fix(model): feed 解析容错（author/music/数值脏值不再打断整页列表）" || echo "no change"
           git push origin HEAD:ui/immersive-black
 
       - name: Trigger build-community
