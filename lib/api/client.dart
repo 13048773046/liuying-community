@@ -28,10 +28,9 @@ class ApiClient {
   // ---------- 基础请求 ----------
 
   static Map<String, String> _headers({bool json = true}) => {
-        if (token != null && token!.isNotEmpty)
-          'Authorization': 'Bearer $token',
-        if (json) 'Content-Type': 'application/json; charset=utf-8',
-      };
+    if (token != null && token!.isNotEmpty) 'Authorization': 'Bearer $token',
+    if (json) 'Content-Type': 'application/json; charset=utf-8',
+  };
 
   /// 解析后端统一响应 {ok, error/msg, ...}
   static Map<String, dynamic> _unwrap(http.Response r) {
@@ -42,36 +41,52 @@ class ApiClient {
       throw ApiException(r.statusCode, '响应解析失败 (HTTP ${r.statusCode})');
     }
     if (r.statusCode != 200 || (j['ok'] != true)) {
-      throw ApiException(r.statusCode, (j['error'] ?? j['msg'] ?? '请求失败') as String);
+      throw ApiException(
+        r.statusCode,
+        (j['error'] ?? j['msg'] ?? '请求失败') as String,
+      );
     }
     return j;
   }
 
-  static Future<Map<String, dynamic>> get(String path,
-      {Map<String, String>? query}) async {
+  static Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, String>? query,
+  }) async {
     var uri = Uri.parse('$kApiBase$path');
     if (query != null && query.isNotEmpty) {
       uri = uri.replace(queryParameters: {...uri.queryParameters, ...query});
     }
-    final r = await http.get(uri, headers: _headers()).timeout(
-        const Duration(seconds: 15));
+    final r = await http
+        .get(uri, headers: _headers())
+        .timeout(const Duration(seconds: 15));
     return _unwrap(r);
   }
 
-  static Future<Map<String, dynamic>> post(String path,
-      {Map<String, dynamic>? body}) async {
+  static Future<Map<String, dynamic>> post(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
     final r = await http
-        .post(Uri.parse('$kApiBase$path'),
-            headers: _headers(), body: jsonEncode(body ?? {}))
+        .post(
+          Uri.parse('$kApiBase$path'),
+          headers: _headers(),
+          body: jsonEncode(body ?? {}),
+        )
         .timeout(const Duration(seconds: 20));
     return _unwrap(r);
   }
 
-  static Future<Map<String, dynamic>> put(String path,
-      {Map<String, dynamic>? body}) async {
+  static Future<Map<String, dynamic>> put(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
     final r = await http
-        .put(Uri.parse('$kApiBase$path'),
-            headers: _headers(), body: jsonEncode(body ?? {}))
+        .put(
+          Uri.parse('$kApiBase$path'),
+          headers: _headers(),
+          body: jsonEncode(body ?? {}),
+        )
         .timeout(const Duration(seconds: 20));
     return _unwrap(r);
   }
@@ -108,7 +123,8 @@ class ApiClient {
 
   /// 本地邮箱格式校验（与服务端校验正则完全一致）
   static bool isValidEmail(String email) =>
-      RegExp(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$').hasMatch(email);
+      RegExp(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$')
+          .hasMatch(email);
 
   /// 发送邮箱验证码（音乐 /music/api/send-email-code）
   ///
@@ -131,20 +147,27 @@ class ApiClient {
       throw ApiException(r.statusCode, '响应解析失败 (HTTP ${r.statusCode})');
     }
     if (r.statusCode != 200 || j['ok'] != true) {
-      throw ApiException(r.statusCode,
-          (j['err'] ?? j['error'] ?? j['msg'] ?? '发送失败') as String);
+      throw ApiException(
+        r.statusCode,
+        (j['err'] ?? j['error'] ?? j['msg'] ?? '发送失败') as String,
+      );
     }
   }
 
   /// 邮箱验证码登录 / 注册（音乐 /music/api/login-email，新邮箱自动注册）
   /// 成功返回用户资料（含 token）。同样用 JSON 而非 multipart（见 sendEmailCode）。
   static Future<Map<String, dynamic>> loginEmail(
-      String email, String code) async {
+    String email,
+    String code,
+  ) async {
     final r = await http
         .post(
           Uri.parse('$kMusicBase/api/login-email'),
           headers: _headers(),
-          body: jsonEncode({'email': normalizeEmail(email), 'code': code.trim()}),
+          body: jsonEncode({
+            'email': normalizeEmail(email),
+            'code': code.trim(),
+          }),
         )
         .timeout(const Duration(seconds: 20));
     final Map<String, dynamic> j;
@@ -155,16 +178,24 @@ class ApiClient {
     }
     // 音乐登录成功直接返回用户 JSON（含 token，无 ok 包装）；失败返回 {err: msg}
     if (r.statusCode != 200) {
-      throw ApiException(r.statusCode,
-          (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String);
+      throw ApiException(
+        r.statusCode,
+        (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String,
+      );
     }
     return j;
   }
 
   /// 账号密码登录（音乐 /music/api/login，返回 token 与用户资料）
   /// 返回 null 表示失败（message 已抛异常）。
-  static Future<Map<String, dynamic>> login(String account, String password) async {
-    final req = http.MultipartRequest('POST', Uri.parse('$kMusicBase/api/login'));
+  static Future<Map<String, dynamic>> login(
+    String account,
+    String password,
+  ) async {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$kMusicBase/api/login'),
+    );
     req.fields['account'] = account;
     req.fields['password'] = password;
     final streamed = await req.send().timeout(const Duration(seconds: 20));
@@ -176,7 +207,10 @@ class ApiClient {
       throw ApiException(r.statusCode, '响应解析失败 (HTTP ${r.statusCode})');
     }
     if (r.statusCode != 200) {
-      throw ApiException(r.statusCode, (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String);
+      throw ApiException(
+        r.statusCode,
+        (j['err'] ?? j['error'] ?? j['msg'] ?? '登录失败') as String,
+      );
     }
     return j;
   }
@@ -184,14 +218,20 @@ class ApiClient {
   // ---------- 搜索 ----------
 
   /// 全局搜索：posts/videos/users/topics（type 留空 = 全部）
-  static Future<Map<String, dynamic>> search(String q,
-          {String type = '', int page = 1, int size = 20}) =>
-      get('/search', query: {
-        'q': q,
-        if (type.isNotEmpty) 'type': type,
-        'page': '$page',
-        'size': '$size',
-      });
+  static Future<Map<String, dynamic>> search(
+    String q, {
+    String type = '',
+    int page = 1,
+    int size = 20,
+  }) => get(
+    '/search',
+    query: {
+      'q': q,
+      if (type.isNotEmpty) 'type': type,
+      'page': '$page',
+      'size': '$size',
+    },
+  );
 
   /// 搜索联想：topics + users
   static Future<Map<String, dynamic>> searchSuggest(String q) =>
@@ -214,11 +254,25 @@ class ApiClient {
   }
 
   /// 排行榜：type=post|topic|user
-  static Future<Map<String, dynamic>> rankings(String type,
-          {int limit = 20}) =>
+  static Future<Map<String, dynamic>> rankings(String type, {int limit = 20}) =>
       get('/rankings', query: {'type': type, 'limit': '$limit'});
 
   /// 热门话题（含 post_count）
+  /// 配乐曲库（分页）：社区后端只读音乐 tracks 表，返回 {list,total,offset,hasMore}
+  /// - 选配乐弹层下拉即加载下一页；`q` 由服务端全库模糊匹配（歌名/歌手/专辑/上传者）
+  static Future<Map<String, dynamic>> musicTracksPage({
+    int offset = 0,
+    int limit = 20,
+    String q = '',
+  }) => get(
+    '/music/tracks',
+    query: {
+      'offset': '$offset',
+      'limit': '$limit',
+      if (q.trim().isNotEmpty) 'q': q.trim(),
+    },
+  );
+
   /// 配乐候选列表：直连音乐项目 /music/api/tracks?local=1（本地可播，无需登录）
   static Future<List<Map<String, dynamic>>> musicTracks() async {
     final r = await http
@@ -246,23 +300,21 @@ class ApiClient {
 
   /// 举报（post/comment）
   static Future<Map<String, dynamic>> report(
-          String targetType, String targetId, String reason) =>
-      post('/report',
-          body: {
-            'targetType': targetType,
-            'targetId': targetId,
-            'reason': reason,
-          });
+    String targetType,
+    String targetId,
+    String reason,
+  ) => post(
+    '/report',
+    body: {'targetType': targetType, 'targetId': targetId, 'reason': reason},
+  );
 
   /// 领取任务奖励
   static Future<Map<String, dynamic>> taskClaim(String taskId) =>
       post('/tasks/$taskId/claim');
 
   /// 投票
-  static Future<Map<String, dynamic>> pollVote(
-          String postId, int option) =>
-      post('/poll/vote',
-          body: {'postId': postId, 'option': option});
+  static Future<Map<String, dynamic>> pollVote(String postId, int option) =>
+      post('/poll/vote', body: {'postId': postId, 'option': option});
 
   // ---------- 信息流 ----------
 
@@ -275,14 +327,17 @@ class ApiClient {
     String boardId = '',
     String topic = '',
   }) async {
-    final j = await get('/feed', query: {
-      'tab': tab,
-      'page': '$page',
-      'size': '$size',
-      if (type.isNotEmpty) 'type': type,
-      if (boardId.isNotEmpty) 'board_id': boardId,
-      if (topic.isNotEmpty) 'topic': topic,
-    });
+    final j = await get(
+      '/feed',
+      query: {
+        'tab': tab,
+        'page': '$page',
+        'size': '$size',
+        if (type.isNotEmpty) 'type': type,
+        if (boardId.isNotEmpty) 'board_id': boardId,
+        if (topic.isNotEmpty) 'topic': topic,
+      },
+    );
     return FeedPage.fromJson(j);
   }
 
@@ -317,13 +372,17 @@ class ApiClient {
       throw ApiException(413, '图片过大（≤10MB），请压缩后重试');
     }
     try {
-      final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-image'));
+      final req = http.MultipartRequest(
+        'POST',
+        Uri.parse('$kApiBase/upload-image'),
+      );
       if (token != null && token!.isNotEmpty) {
         req.headers['Authorization'] = 'Bearer $token';
       }
       req.files.add(await http.MultipartFile.fromPath('file', filePath));
       final r = await http.Response.fromStream(
-          await req.send().timeout(const Duration(seconds: 90)));
+        await req.send().timeout(const Duration(seconds: 90)),
+      );
       return _unwrap(r);
     } catch (e) {
       throw _netError(e, '图片上传');
@@ -346,14 +405,17 @@ class ApiClient {
     Object? lastErr;
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        final req =
-            http.MultipartRequest('POST', Uri.parse('$kApiBase/upload-video'));
+        final req = http.MultipartRequest(
+          'POST',
+          Uri.parse('$kApiBase/upload-video'),
+        );
         if (token != null && token!.isNotEmpty) {
           req.headers['Authorization'] = 'Bearer $token';
         }
         req.files.add(await http.MultipartFile.fromPath('file', filePath));
         final r = await http.Response.fromStream(
-            await req.send().timeout(const Duration(seconds: 300)));
+          await req.send().timeout(const Duration(seconds: 300)),
+        );
         return _unwrap(r);
       } catch (e) {
         // 仅在“未收到服务端响应”的网络类异常下重试，业务错误（_unwrap 抛的
@@ -384,12 +446,10 @@ class ApiClient {
     String kind = 'fav',
     int page = 1,
     int size = 20,
-  }) =>
-      get('/favorites', query: {
-        'kind': kind,
-        'page': '$page',
-        'size': '$size',
-      });
+  }) => get(
+    '/favorites',
+    query: {'kind': kind, 'page': '$page', 'size': '$size'},
+  );
 
   // ---------- 意见反馈 ----------
 
@@ -398,22 +458,25 @@ class ApiClient {
     required String type,
     required String content,
     String contact = '',
-  }) =>
-      post('/feedback', body: {
-        'type': type,
-        'content': content,
-        'contact': contact,
-      });
+  }) => post(
+    '/feedback',
+    body: {'type': type, 'content': content, 'contact': contact},
+  );
 
   // ---------- 通知（互动 + 社区官方，官方与音乐完全分离） ----------
 
-  static Future<Map<String, dynamic>> notifications(
-          {String group = '', int page = 1, int size = 20}) =>
-      get('/notifications', query: {
-        if (group.isNotEmpty) 'group': group,
-        'page': '$page',
-        'size': '$size',
-      });
+  static Future<Map<String, dynamic>> notifications({
+    String group = '',
+    int page = 1,
+    int size = 20,
+  }) => get(
+    '/notifications',
+    query: {
+      if (group.isNotEmpty) 'group': group,
+      'page': '$page',
+      'size': '$size',
+    },
+  );
 
   static Future<Map<String, dynamic>> notificationsUnread() =>
       get('/notifications/unread');
@@ -437,21 +500,32 @@ class ApiClient {
   // ---------- 私信 IM（1对1，仅互关可发） ----------
 
   /// 会话列表
-  static Future<Map<String, dynamic>> dmConversations(
-          {int page = 1, int size = 20}) =>
-      get('/dm/conversations', query: {'page': '$page', 'size': '$size'});
+  static Future<Map<String, dynamic>> dmConversations({
+    int page = 1,
+    int size = 20,
+  }) => get('/dm/conversations', query: {'page': '$page', 'size': '$size'});
 
   /// 聊天记录（created 升序返回）
-  static Future<Map<String, dynamic>> dmMessages(
-          {required String peer, double before = 0, int limit = 30}) =>
-      get('/dm/messages',
-          query: {'peer': peer, if (before > 0) 'before': '$before', 'limit': '$limit'});
+  static Future<Map<String, dynamic>> dmMessages({
+    required String peer,
+    double before = 0,
+    int limit = 30,
+  }) => get(
+    '/dm/messages',
+    query: {
+      'peer': peer,
+      if (before > 0) 'before': '$before',
+      'limit': '$limit',
+    },
+  );
 
   /// 发送私信（互关校验在服务端；type: text/image/video/location/card）
-  static Future<Map<String, dynamic>> dmSend(String peer, String content,
-          {String type = 'text'}) =>
-      post('/dm/send',
-          body: {'peer': peer, 'content': content, 'type': type});
+  static Future<Map<String, dynamic>> dmSend(
+    String peer,
+    String content, {
+    String type = 'text',
+  }) =>
+      post('/dm/send', body: {'peer': peer, 'content': content, 'type': type});
 
   /// 标记某会话已读
   static Future<void> dmRead(String peer) async {
@@ -482,27 +556,31 @@ class ApiClient {
 
   /// 点赞状态设置：liked=true → POST（点赞）/ false → DELETE（取消赞）。
   /// 注意：后端 POST 是「幂等添加」而不是切换，必须显式传目标状态。
-  static Future<Map<String, dynamic>> setPostLike(String postId,
-          {required bool liked}) =>
-      liked ? post('/post/$postId/like') : delete('/post/$postId/like');
+  static Future<Map<String, dynamic>> setPostLike(
+    String postId, {
+    required bool liked,
+  }) => liked ? post('/post/$postId/like') : delete('/post/$postId/like');
 
   /// 收藏/取消收藏（kind=fav 收藏 | later 稍后看）
-  static Future<Map<String, dynamic>> toggleFav(String postId,
-          {String kind = 'fav', bool? faved}) =>
-      (faved == true)
-          ? delete('/post/$postId/$kind')
-          : post('/post/$postId/$kind');
+  static Future<Map<String, dynamic>> toggleFav(
+    String postId, {
+    String kind = 'fav',
+    bool? faved,
+  }) => (faved == true)
+      ? delete('/post/$postId/$kind')
+      : post('/post/$postId/$kind');
 
   /// 分享计数上报（返回最新 count）
   static Future<Map<String, dynamic>> reportShare(String postId) =>
       post('/post/$postId/share');
 
   /// 评论点赞状态设置（同 setPostLike：后端 POST=添加、DELETE=取消）
-  static Future<Map<String, dynamic>> setCommentLike(String commentId,
-          {required bool liked}) =>
-      liked
-          ? post('/comment/$commentId/like')
-          : delete('/comment/$commentId/like');
+  static Future<Map<String, dynamic>> setCommentLike(
+    String commentId, {
+    required bool liked,
+  }) => liked
+      ? post('/comment/$commentId/like')
+      : delete('/comment/$commentId/like');
 
   /// 关注/取关（互通：写音乐 follows 表）
   static Future<Map<String, dynamic>> toggleFollow(String uid) =>
@@ -532,16 +610,18 @@ class ApiClient {
     String? city,
     String? email,
     String? code,
-  }) =>
-      post('/user/me', body: {
-        if (name != null && name.isNotEmpty) 'name': name,
-        'signature': ?signature,
-        'gender': ?gender,
-        'age': ?age,
-        'city': ?city,
-        if (email != null && email.isNotEmpty) 'email': email,
-        if (code != null && code.isNotEmpty) 'code': code,
-      });
+  }) => post(
+    '/user/me',
+    body: {
+      if (name != null && name.isNotEmpty) 'name': name,
+      'signature': ?signature,
+      'gender': ?gender,
+      'age': ?age,
+      'city': ?city,
+      if (email != null && email.isNotEmpty) 'email': email,
+      if (code != null && code.isNotEmpty) 'code': code,
+    },
+  );
 
   /// 发送邮箱验证码（社区改绑邮箱，5 分钟有效）
   static Future<Map<String, dynamic>> sendEmailCodeCommunity(String email) =>
@@ -549,7 +629,10 @@ class ApiClient {
 
   /// 上传头像（multipart，写音乐 files 目录 + users.avatar）
   static Future<Map<String, dynamic>> uploadAvatar(File file) async {
-    final req = http.MultipartRequest('POST', Uri.parse('$kApiBase/user/me/avatar'));
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$kApiBase/user/me/avatar'),
+    );
     if (token != null && token!.isNotEmpty) {
       req.headers['Authorization'] = 'Bearer $token';
     }
@@ -568,14 +651,19 @@ class ApiClient {
   static Future<Map<String, dynamic>> emojiFavs() => get('/emojis/favs');
 
   /// 收藏/取消收藏表情
-  static Future<Map<String, dynamic>> emojiFav(String emojiId,
-          {bool fav = true}) async {
+  static Future<Map<String, dynamic>> emojiFav(
+    String emojiId, {
+    bool fav = true,
+  }) async {
     if (fav) {
       return post('/emoji/fav', body: {'emojiId': emojiId});
     }
     final r = await http
-        .delete(Uri.parse('$kApiBase/emoji/fav'),
-            headers: _headers(), body: jsonEncode({'emojiId': emojiId}))
+        .delete(
+          Uri.parse('$kApiBase/emoji/fav'),
+          headers: _headers(),
+          body: jsonEncode({'emojiId': emojiId}),
+        )
         .timeout(const Duration(seconds: 20));
     return _unwrap(r);
   }
@@ -583,7 +671,9 @@ class ApiClient {
   /// 上传自定义表情（图片/GIF，自动加入收藏）
   static Future<Map<String, dynamic>> uploadCustomEmoji(File file) async {
     final req = http.MultipartRequest(
-        'POST', Uri.parse('$kApiBase/emojis/custom'));
+      'POST',
+      Uri.parse('$kApiBase/emojis/custom'),
+    );
     if (token != null && token!.isNotEmpty) {
       req.headers['Authorization'] = 'Bearer $token';
     }
@@ -597,15 +687,17 @@ class ApiClient {
 
   /// 审核列表：audit=0 待审 / 1 通过 / 2 已拒绝（管理员）
   static Future<Map<String, dynamic>> adminPosts({int? audit, int page = 1}) =>
-      get('/admin/posts', query: {
-        if (audit != null) 'audit': '$audit',
-        'page': '$page',
-      });
+      get(
+        '/admin/posts',
+        query: {if (audit != null) 'audit': '$audit', 'page': '$page'},
+      );
 
   /// 审核动作：audit(通过/拒绝) / pin(置顶) / featured(精华) / takedown(下架)
   static Future<Map<String, dynamic>> adminAction(
-      String postId, String action,
-      {String? reason}) async {
+    String postId,
+    String action, {
+    String? reason,
+  }) async {
     Map<String, dynamic> body = {};
     if (action == 'audit') {
       if (reason != null && reason.isNotEmpty) {
@@ -618,33 +710,39 @@ class ApiClient {
   }
 
   /// 关注 / 粉丝列表
-  static Future<Map<String, dynamic>> userList(String uid,
-          {required String kind, int page = 1, int size = 20}) =>
-      get('/user/$uid/$kind', query: {
-        'page': '$page',
-        'size': '$size',
-      });
+  static Future<Map<String, dynamic>> userList(
+    String uid, {
+    required String kind,
+    int page = 1,
+    int size = 20,
+  }) => get('/user/$uid/$kind', query: {'page': '$page', 'size': '$size'});
 
   // ---------- 评论（帖/视频共用） ----------
 
-  static Future<Map<String, dynamic>> comments(String postId,
-      {int page = 1, int size = 20}) async {
-    final j = await get('/post/$postId/comments', query: {
-      'page': '$page',
-      'size': '$size',
-    });
+  static Future<Map<String, dynamic>> comments(
+    String postId, {
+    int page = 1,
+    int size = 20,
+  }) async {
+    final j = await get(
+      '/post/$postId/comments',
+      query: {'page': '$page', 'size': '$size'},
+    );
     return j;
   }
 
   static Future<Map<String, dynamic>> postDetail(String postId) =>
       get('/post/$postId');
 
-  static Future<Map<String, dynamic>> addComment(String postId, String content,
-      {String? sticker, List<String> images = const []}) async {
-    return post('/post/$postId/comment', body: {
-      'content': content,
-      'images': images,
-      'sticker': ?sticker,
-    });
+  static Future<Map<String, dynamic>> addComment(
+    String postId,
+    String content, {
+    String? sticker,
+    List<String> images = const [],
+  }) async {
+    return post(
+      '/post/$postId/comment',
+      body: {'content': content, 'images': images, 'sticker': ?sticker},
+    );
   }
 }
