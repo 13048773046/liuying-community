@@ -3,6 +3,49 @@ library;
 
 import 'dart:convert';
 
+/// 容错 Map 解析：后端可能给 null、`Map<dynamic, dynamic>`（空字面量）或 JSON 字符串，
+/// 直接 `as Map<String, dynamic>` 会抛类型异常，把整页列表一起打断。
+Map<String, dynamic> mapOf(dynamic v) {
+  if (v is Map<String, dynamic>) return v;
+  if (v is Map) {
+    return {for (final e in v.entries) e.key.toString(): e.value};
+  }
+  return <String, dynamic>{};
+}
+
+/// 容错配乐解析：后端可能给 JSON 字符串、已解码对象，或空串/空对象；无有效 url 视为无配乐。
+Map<String, dynamic>? musicOf(dynamic v) {
+  dynamic raw = v;
+  if (raw is String) {
+    if (raw.trim().isEmpty) return null;
+    try {
+      raw = jsonDecode(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+  if (raw is! Map) return null;
+  final m = mapOf(raw);
+  final url = m['url'];
+  if (url is! String || url.isEmpty) return null;
+  return m;
+}
+
+/// 容错整数解析：后端可能给 num、数字字符串或脏值，`as num` 抛异常会打断整页列表。
+int intOf(dynamic v, [int fallback = 0]) {
+  if (v is num) return v.toInt();
+  if (v is String) {
+    final n = int.tryParse(v.trim());
+    if (n != null) return n;
+    final d = double.tryParse(v.trim());
+    if (d != null) return d.toInt();
+  }
+  return fallback;
+}
+
+/// 百分比（0-100）解析：越界钳制、脏值回落默认。
+int pctOf(dynamic v, int fallback) => intOf(v, fallback).clamp(0, 100);
+
 /// 容错布尔解析：后端可能返回 true/false，也可能返回 1/0（int）或 '1'/'0'（string）。
 /// 直接 `as bool` 会在后端返回 0/1 时抛 type 'int' is not a subtype of type 'bool'。
 bool boolOf(dynamic v, [bool fallback = false]) {
@@ -30,9 +73,9 @@ class Author {
     : id = (j['id'] ?? '') as String,
       name = (j['name'] ?? '') as String,
       avatar = (j['avatar'] ?? '') as String,
-      level = ((j['level'] ?? 0) as num).toInt(),
+      level = intOf(j['level']),
       frameId = (j['frameId'] ?? '') as String,
-      adminLevel = ((j['adminLevel'] ?? 0) as num).toInt(),
+      adminLevel = intOf(j['adminLevel']),
       adminName = (j['adminName'] ?? '') as String;
 
   bool get isAdmin => adminLevel > 0;
@@ -74,33 +117,29 @@ class FeedItem {
       images = ((j['images'] ?? []) as List).map((e) => e.toString()).toList(),
       video = (j['video'] ?? '') as String,
       cover = (j['cover'] ?? '') as String,
-      duration = ((j['duration'] ?? 0) as num).toInt(),
+      duration = intOf(j['duration']),
       boardId = (j['boardId'] ?? '') as String,
       tag = (j['tag'] ?? '') as String,
       topic = ((j['topic'] ?? []) as List).map((e) => e.toString()).toList(),
       mentions = ((j['mentions'] ?? []) as List)
           .map((e) => e.toString())
           .toList(),
-      likeCount = ((j['likeCount'] ?? 0) as num).toInt(),
-      commentCount = ((j['commentCount'] ?? 0) as num).toInt(),
-      shareCount = ((j['shareCount'] ?? 0) as num).toInt(),
+      likeCount = intOf(j['likeCount']),
+      commentCount = intOf(j['commentCount']),
+      shareCount = intOf(j['shareCount']),
       liked = boolOf(j['liked']),
       faved = boolOf(j['faved']),
       sticky = boolOf(j['sticky']),
       featured = boolOf(j['featured']),
-      auditStatus = ((j['auditStatus'] ?? 0) as num).toInt(),
+      auditStatus = intOf(j['auditStatus']),
       auditReason = (j['auditReason'] ?? '') as String,
       takenDown = boolOf(j['takenDown']),
-      poll = (j['poll'] is Map<String, dynamic>)
-          ? (j['poll'] as Map<String, dynamic>)
-          : null,
-      music = ((j['music'] ?? '') as String).isNotEmpty
-          ? (jsonDecode(j['music'] as String) as Map<String, dynamic>)
-          : null,
-      audioVolume = ((j['audioVolume'] ?? 100) as num).toInt().clamp(0, 100),
-      musicVolume = ((j['musicVolume'] ?? 50) as num).toInt().clamp(0, 100),
-      created = ((j['created'] ?? 0) as num).toInt(),
-      author = Author.fromJson((j['author'] ?? {}) as Map<String, dynamic>);
+      poll = (j['poll'] is Map) ? mapOf(j['poll']) : null,
+      music = musicOf(j['music']),
+      audioVolume = pctOf(j['audioVolume'], 100),
+      musicVolume = pctOf(j['musicVolume'], 50),
+      created = intOf(j['created']),
+      author = Author.fromJson(mapOf(j['author']));
 
   bool get isVideo => type == 'video';
 }
