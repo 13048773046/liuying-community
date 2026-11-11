@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- 流萤社区启动页（Android 5.0+）：深黑底 + 品牌内容图（圆角 Logo + 名称 + 标语）居中，
+     与 drawable/launch_background 一致，无缝衔接 Flutter 首帧（不再用系统默认白屏）。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
+    <item android:drawable="@color/splash_bg" />
+    <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+            android:src="@drawable/splash_brand" />
+    </item>
 </layer-list>

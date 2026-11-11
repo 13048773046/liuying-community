@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:community_app/main.dart';
@@ -13,7 +13,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(const CommunityApp());
-    // 等 _Bootstrap 恢复登录态（SharedPreferences 异步）
+    // 首帧即 RootPage；固定循环 pump 等待布局就绪
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 100));
       if (find.text('首页').evaluate().isNotEmpty) break;
