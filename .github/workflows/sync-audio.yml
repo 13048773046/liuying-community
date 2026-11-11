@@ -23,15 +23,18 @@ jobs:
           get() { curl -fsSL "$1" -o "$2"; }
           get https://aka.doubaocdn.com/s/aVDZe2IAUc lib/models/feed_item.dart
           get https://aka.doubaocdn.com/s/Peb4MPaklO lib/utils/music_bgm.dart
-          get https://aka.doubaocdn.com/s/eLTMrf00ZU lib/pages/shorts/video_card.dart
+          get https://aka.doubaocdn.com/s/mPbVIu11iO lib/pages/shorts/video_card.dart
           get https://aka.doubaocdn.com/s/2Q9Wjlpuaz lib/pages/post/post_editor.dart
+          get https://aka.doubaocdn.com/s/19dO5kti7f test/video_loop_restart_test.dart
+          get https://aka.doubaocdn.com/s/WCIYT04RGA test/feed_item_audio_volume_test.dart
           md5sum -c <<'EOF'
           764b6aaea71983c9c9cb9d504b3c3908  lib/models/feed_item.dart
           405511d63369738ff7267c51e170f536  lib/utils/music_bgm.dart
-          8b76fdb58463db4a6d6eb8469ff98e38  lib/pages/shorts/video_card.dart
+          3247f8369036b6529179d2529a742f50  lib/pages/shorts/video_card.dart
           aec1926432080b058d6b1238a2a9a667  lib/pages/post/post_editor.dart
+          e9618170cceb10db927c89df0fd48e24  test/video_loop_restart_test.dart
+          c8a8bf175eb985c0c8ee747e8e625226  test/feed_item_audio_volume_test.dart
           EOF
-          wc -l lib/models/feed_item.dart lib/utils/music_bgm.dart lib/pages/shorts/video_card.dart lib/pages/post/post_editor.dart
 
       - name: Commit and push
         env:
@@ -39,11 +42,6 @@ jobs:
         run: |
           git config user.name "ci-sync"
           git config user.email "ci-sync@users.noreply.github.com"
-          git add lib/models/feed_item.dart lib/utils/music_bgm.dart lib/pages/shorts/video_card.dart lib/pages/post/post_editor.dart
-          git commit -m "fix(model): feed 解析容错（author/music/数值脏值不再打断整页列表）" || echo "no change"
+          git add lib test
+          git commit -m "refactor(audio): 抽出 videoLoopRestartDetected 纯函数并补单测（配乐随视频循环归零/音量字段解析）" || echo "no change"
           git push origin HEAD:ui/immersive-black
-
-      - name: Trigger build-community
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run build-community.yml --ref ui/immersive-black
