@@ -406,11 +406,11 @@ class _SearchPageState extends State<SearchPage> {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               sliver: SliverMasonryGrid.count(
                 crossAxisCount: 2,
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 6,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
                 childCount: items.length,
                 itemBuilder: (_, i) => _FeedTile(
                   item: items[i],
@@ -706,11 +706,11 @@ class _SearchPageState extends State<SearchPage> {
           ),
         if (_postResults.isNotEmpty)
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             sliver: SliverMasonryGrid.count(
               crossAxisCount: 2,
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
               childCount: _postResults.length,
               itemBuilder: (_, i) => _FeedTile(
                 item: _postResults[i],
@@ -832,7 +832,6 @@ class _FeedTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
               if (item.type == 'video')
                 Positioned(
                   right: 8,
