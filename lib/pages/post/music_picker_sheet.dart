@@ -46,7 +46,8 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet> {
   bool _hasMore = true;
   int _total = 0;
   String? _err;
-  int? _playingId;
+  String? _playingKey; // 跨表唯一：t:<id> / c:<id>
+  String? _loadingKey;
 
   /// 递增请求号：搜索词变化后，旧请求的结果不再上屏（防串页）
   int _reqSeq = 0;
@@ -136,18 +137,31 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet> {
     });
   }
 
-  Future<void> _toggle(int? trackId, String url) async {
-    if (_playingId == trackId) {
+  Future<void> _toggle(String key, String url) async {
+    if (_playingKey == key) {
       await _prev.pause();
-      if (mounted) setState(() => _playingId = null);
+      if (mounted) setState(() => _playingKey = null);
       return;
     }
+    setState(() => _loadingKey = key);
     try {
       await _prev.stop();
       await _prev.setUrl(url);
       await _prev.play();
-      if (mounted) setState(() => _playingId = trackId);
-    } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _playingKey = key;
+          _loadingKey = null;
+        });
+      }
+    } catch (e) {
+      // 以前这里 catch 掉所有异常，点试听没声音也没提示；现在把失败显式告诉用户
+      if (mounted) {
+        setState(() => _loadingKey = null);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('试听失败，请检查网络后重试')));
+      }
+    }
   }
 
   @override
@@ -271,15 +285,17 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet> {
     final dur = (t['durText'] ?? '') as String;
     final fname = (t['fname'] ?? '') as String;
     final cover = (t['cover'] ?? '') as String;
+    final key = (t['key'] ?? tid) as String;
     final url = '$kMusicBase/files/$fname';
-    final playing = _playingId?.toString() == tid;
+    final playing = _playingKey == key;
+    final loading = _loadingKey == key;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpace.x2),
       child: Row(
         children: [
           Expanded(
             child: PressableScale(
-              onTap: () => _toggle(int.tryParse(tid), url),
+              onTap: () => _toggle(key, url),
               scale: 0.98,
               child: Row(
                 children: [
@@ -294,7 +310,7 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet> {
                               radius: AppRadius.sm,
                             )
                           : Image.network(
-                              '$kMusicBase/api/cover/$cover',
+                              cover,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => const ImagePlaceholder(
                                 icon: Icons.music_note_rounded,
@@ -331,14 +347,16 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet> {
             ),
           ),
           IconCircleButton(
-            icon: playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            icon: loading
+                ? Icons.hourglass_top_rounded
+                : (playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
             size: 32,
             iconSize: 18,
             color: const Color(AppColors.accent),
             background: playing
                 ? const Color(AppColors.accent).withValues(alpha: 0.16)
                 : Colors.white.withValues(alpha: 0.06),
-            onTap: () => _toggle(int.tryParse(tid), url),
+            onTap: () => _toggle(key, url),
           ),
           const SizedBox(width: AppSpace.x2),
           PillButton(
@@ -348,7 +366,7 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet> {
               'url': url,
               'name': artist.isEmpty ? title : '$title - $artist',
               'cover': cover,
-              'trackId': tid,
+              'trackId': key,
               'durText': dur,
             }),
           ),
