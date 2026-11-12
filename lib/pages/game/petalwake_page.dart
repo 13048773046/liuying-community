@@ -1,13 +1,14 @@
 /// 流萤航线（Petalwake）：把现成的 WebGL2 网页游戏按需搬到手机上。
 ///
-/// 流程：首次进入 → 下载资源包（约 100MB）→ 解压到应用私有目录 → 起一个只监听
-/// 127.0.0.1 的本地 HTTP 服务 → WebView 打开 `http://127.0.0.1:<port>/index.html`。
+/// 流程：首次进入 → 分段下载资源包（支持断点续传）→ 解压安装（带进度）→
+/// 起一个只监听 127.0.0.1 的本地 HTTP 服务 → WebView 打开 `index.html`。
 /// 之后每次进入都直接读本地文件，不再走网络，也不占 App 包体。
 library;
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:archive/archive_io.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +26,10 @@ const String kFlightVersionUrl = '$kFlightSite/version.json';
 /// 资源包按 100MB 量级估算，用于文案提示（真实大小以 version.json 为准）
 const int kFlightApproxBytes = 105 * 1024 * 1024;
 
-enum FlightStatus { checking, absent, downloading, extracting, ready, failed }
+/// 分段下载的段数：服务器限速是按连接计的，几段并行能把 105MB 压到一两分钟。
+const int kSegments = 4;
+
+enum FlightStatus { checking, absent, downloading, installing, ready, failed }
 
 class PetalwakePage extends StatefulWidget {
   const PetalwakePage({super.key});
@@ -38,7 +42,12 @@ class _PetalwakePageState extends State<PetalwakePage> {
   FlightStatus _status = FlightStatus.checking;
   String _remoteVersion = '';
   int _remoteSize = kFlightApproxBytes;
+
+  /// 下载进度 0..1
   double _progress = 0;
+
+  /// 安装（解压）进度 0..1
+  double _install = 0;
   double _speed = 0; // bytes/s
   String _message = '';
 
@@ -67,29 +76,28 @@ class _PetalwakePageState extends State<PetalwakePage> {
     final marker = File('${dir.path}/version.json');
     final index = File('${dir.path}/index.html');
 
-    String localVersion = '';
+    // 已经装好就直接进游戏：不再去比对远端版本，避免“装好了又让你重下一遍”。
     if (await marker.exists() && await index.exists()) {
+      String version = '';
       try {
-        localVersion = _readVersion(await marker.readAsString());
+        version = _readVersion(await marker.readAsString());
       } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _remoteVersion = version;
+        if (version.isNotEmpty) _remoteSize = kFlightApproxBytes;
+      });
+      await _startGame();
+      return;
     }
 
     final remote = await _fetchRemoteVersion();
     if (!mounted) return;
-
-    if (localVersion.isNotEmpty && remote['version'] == localVersion) {
-      setState(() {
-        _remoteVersion = localVersion;
-        _remoteSize = (remote['size'] as int?) ?? kFlightApproxBytes;
-      });
-      await _startGame();
-    } else {
-      setState(() {
-        _status = FlightStatus.absent;
-        _remoteVersion = (remote['version'] as String?) ?? '';
-        _remoteSize = (remote['size'] as int?) ?? kFlightApproxBytes;
-      });
-    }
+    setState(() {
+      _status = FlightStatus.absent;
+      _remoteVersion = (remote['version'] as String?) ?? '';
+      _remoteSize = (remote['size'] as int?) ?? kFlightApproxBytes;
+    });
   }
 
   Future<Map<String, dynamic>> _fetchRemoteVersion() async {
@@ -120,6 +128,16 @@ class _PetalwakePageState extends State<PetalwakePage> {
     return v is String ? v : '';
   }
 
+  Future<String> _downloadDir() async {
+    final support = await getApplicationSupportDirectory();
+    final d = Directory('${support.path}/flight_download');
+    if (!await d.exists()) await d.create(recursive: true);
+    return d.path;
+  }
+
+  String _partPath(String dl, int i) => '$dl/part_$i.bin';
+
+  // ------------------------------------------------------------------ 下载（分段 + 续传）
   Future<void> _download() async {
     final dir = _siteDir;
     if (dir == null) return;
@@ -127,62 +145,228 @@ class _PetalwakePageState extends State<PetalwakePage> {
     setState(() {
       _status = FlightStatus.downloading;
       _progress = 0;
+      _install = 0;
       _speed = 0;
       _message = '正在连接…';
     });
 
-    final tmpDir = await getTemporaryDirectory();
-    final zipFile = File('${tmpDir.path}/petalwake.zip');
-
     try {
-      final client = http.Client();
-      final req = http.Request('GET', Uri.parse(kFlightZipUrl));
-      final resp = await client.send(req).timeout(const Duration(seconds: 30));
-      if (resp.statusCode != 200) {
-        throw HttpException('资源包不可用（HTTP ${resp.statusCode}）');
-      }
-      final total = resp.contentLength ?? _remoteSize;
-      final sink = zipFile.openWrite();
-      var received = 0;
-      var lastTick = DateTime.now().millisecondsSinceEpoch;
-      var lastBytes = 0;
+      final remote = await _fetchRemoteVersion();
+      final size = (remote['size'] as int?) ?? _remoteSize;
+      final dlPath = await _downloadDir();
+      final metaFile = File('$dlPath/meta.json');
+      final zipFile = File('$dlPath/petalwake.zip');
 
-      await for (final chunk in resp.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        final now = DateTime.now().millisecondsSinceEpoch;
-        if (now - lastTick > 200) {
-          final inst = (received - lastBytes) / ((now - lastTick) / 1000.0);
-          lastTick = now;
-          lastBytes = received;
-          if (!mounted) continue;
-          setState(() {
-            _progress = total > 0 ? (received / total).clamp(0.0, 1.0) : 0;
-            _speed = inst;
-            _message = '正在下载 ${_fmt(received)} / ${_fmt(total)}';
-          });
+      // 上次已经拼好的包：直接进安装，不再重下。
+      if (await zipFile.exists() && await zipFile.length() == size) {
+        await _installFrom(zipFile);
+        return;
+      }
+
+      List<_Seg> segs;
+      final saved = await _loadSegments(metaFile, size);
+      if (saved != null) {
+        segs = saved;
+        // 续传：每段的实际进度以磁盘上的 part 文件长度为准
+        for (var i = 0; i < segs.length; i++) {
+          final f = File(_partPath(dlPath, i));
+          segs[i].done = await f.exists()
+              ? math.min(await f.length(), segs[i].length)
+              : 0;
+        }
+      } else {
+        for (var i = 0; i < kSegments; i++) {
+          try {
+            final f = File(_partPath(dlPath, i));
+            if (await f.exists()) await f.delete();
+          } catch (_) {}
+        }
+        final chunk = (size / kSegments).ceil();
+        segs = [];
+        for (var i = 0; i < kSegments; i++) {
+          final start = i * chunk;
+          final end = math.min(size - 1, start + chunk - 1);
+          if (start > end) break;
+          segs.add(_Seg(start, end));
+        }
+        await _saveSegments(metaFile, size, segs);
+      }
+
+      final done0 = segs.fold<int>(0, (p, s) => p + s.done);
+      if (done0 > 0) {
+        setState(() {
+          _progress = size > 0 ? done0 / size : 0;
+          _message = '继续上次的下载…';
+        });
+      }
+
+      var lastTick = DateTime.now().millisecondsSinceEpoch;
+      var lastBytes = done0;
+
+      Future<void> pull(_Seg s, int idx) async {
+        final part = File(_partPath(dlPath, idx));
+        if (s.done >= s.length) return;
+        final client = http.Client();
+        try {
+          while (s.done < s.length) {
+            final from = s.start + s.done;
+            final req = http.Request('GET', Uri.parse(kFlightZipUrl))
+              ..headers['Range'] = 'bytes=$from-${s.end}';
+            final resp =
+                await client.send(req).timeout(const Duration(seconds: 30));
+            if (resp.statusCode != 206) {
+              throw HttpException('服务器不支持断点续传（HTTP ${resp.statusCode}）');
+            }
+            final sink = part.openWrite(mode: FileMode.append);
+            await for (final chunk in resp.stream) {
+              sink.add(chunk);
+              s.done += chunk.length;
+              final now = DateTime.now().millisecondsSinceEpoch;
+              if (now - lastTick > 200 && mounted) {
+                final total = segs.fold<int>(0, (p, x) => p + x.done);
+                final inst = (total - lastBytes) / ((now - lastTick) / 1000.0);
+                lastTick = now;
+                lastBytes = total;
+                setState(() {
+                  _progress = size > 0 ? (total / size).clamp(0.0, 1.0) : 0;
+                  _speed = inst;
+                  _message = '正在下载 ${_fmt(total)} / ${_fmt(size)}';
+                });
+              }
+            }
+            await sink.close();
+          }
+        } finally {
+          client.close();
         }
       }
-      await sink.close();
-      client.close();
+
+      await Future.wait([for (var i = 0; i < segs.length; i++) pull(segs[i], i)]);
+
+      final total = segs.fold<int>(0, (p, s) => p + s.done);
+      if (total != size) {
+        throw HttpException('下载不完整（${_fmt(total)} / ${_fmt(size)}）');
+      }
 
       if (!mounted) return;
       setState(() {
-        _status = FlightStatus.extracting;
+        _message = '正在合并文件…';
         _progress = 1;
-        _message = '正在解压…';
       });
 
-      await _extractInto(dir, zipFile);
+      final sink = zipFile.openWrite();
+      for (var i = 0; i < segs.length; i++) {
+        await sink.addStream(File(_partPath(dlPath, i)).openRead());
+      }
+      await sink.close();
+
+      for (var i = 0; i < segs.length; i++) {
+        try {
+          await File(_partPath(dlPath, i)).delete();
+        } catch (_) {}
+      }
+      try {
+        await metaFile.delete();
+      } catch (_) {}
+
+      await _installFrom(zipFile);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _status = FlightStatus.failed;
+        _message = '下载失败：$e';
+      });
+    }
+  }
+
+  Future<List<_Seg>?> _loadSegments(File meta, int size) async {
+    if (!await meta.exists()) return null;
+    try {
+      final m = jsonDecode(await meta.readAsString()) as Map<String, dynamic>;
+      if (m['url'] != kFlightZipUrl || (m['size'] as int?) != size) return null;
+      final list = (m['segs'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map((e) => _Seg((e['start'] as num).toInt(), (e['end'] as num).toInt()))
+          .toList();
+      return list.isEmpty ? null : list;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveSegments(File meta, int size, List<_Seg> segs) async {
+    await meta.writeAsString(jsonEncode({
+      'url': kFlightZipUrl,
+      'size': size,
+      'segs': [
+        for (final s in segs) {'start': s.start, 'end': s.end}
+      ],
+    }));
+  }
+
+  // ------------------------------------------------------------------ 安装（解压）+ 进度
+  Future<void> _installFrom(File zipFile) async {
+    final dir = _siteDir;
+    if (dir == null) return;
+
+    if (mounted) {
+      setState(() {
+        _status = FlightStatus.installing;
+        _install = 0;
+        _speed = 0;
+        _message = '正在安装…';
+      });
+    }
+
+    // 安装前先摘掉标记，避免半装状态被当成已完成
+    final marker = File('${dir.path}/version.json');
+    try {
+      if (await marker.exists()) await marker.delete();
+    } catch (_) {}
+
+    try {
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final input = InputFileStream(zipFile.path);
+      try {
+        final archive = ZipDecoder().decodeBuffer(input, verify: false);
+        final totalFiles = archive.files.where((f) => f.isFile).length;
+        var done = 0;
+        for (final f in archive) {
+          if (!f.isFile) continue;
+          final out = File('${dir.path}/${f.name}');
+          final parent = out.parent;
+          if (!await parent.exists()) await parent.create(recursive: true);
+          final ostream = OutputFileStream(out.path);
+          try {
+            f.writeContent(ostream);
+          } finally {
+            ostream.close();
+          }
+          done++;
+          if (mounted && (done % 10 == 0 || done == totalFiles)) {
+            setState(() {
+              _install = totalFiles > 0 ? done / totalFiles : 0;
+              _message = '正在安装 $done/$totalFiles 个文件';
+            });
+          }
+        }
+      } finally {
+        input.close();
+      }
+
+      final remote = await _fetchRemoteVersion();
+      await marker.writeAsString(jsonEncode(
+          remote.isNotEmpty ? remote : {'version': _remoteVersion}));
+
       try {
         await zipFile.delete();
       } catch (_) {}
 
-      final remote = await _fetchRemoteVersion();
-      await File('${dir.path}/version.json').writeAsString(
-          jsonEncode(remote.isNotEmpty ? remote : {'version': _remoteVersion}));
-
       if (!mounted) return;
+      setState(() {
+        _install = 1;
+        _message = '安装完成';
+      });
       await _startGame();
     } catch (e) {
       if (!mounted) return;
@@ -193,31 +377,11 @@ class _PetalwakePageState extends State<PetalwakePage> {
     }
   }
 
-  Future<void> _extractInto(Directory dir, File zipFile) async {
-    if (!await dir.exists()) await dir.create(recursive: true);
-    final input = InputFileStream(zipFile.path);
-    try {
-      final archive = ZipDecoder().decodeBuffer(input, verify: false);
-      for (final f in archive) {
-        if (!f.isFile) continue;
-        final out = File('${dir.path}/${f.name}');
-        await out.create(recursive: true);
-        final ostream = OutputFileStream(out.path);
-        try {
-          f.writeContent(ostream);
-        } finally {
-          ostream.close();
-        }
-      }
-    } finally {
-      input.close();
-    }
-  }
-
   Future<void> _startGame() async {
     final dir = _siteDir;
     if (dir == null) return;
 
+    await _server?.stop();
     final server = _LocalSiteServer(dir);
     await server.start();
     _server = server;
@@ -248,6 +412,13 @@ class _PetalwakePageState extends State<PetalwakePage> {
     if (dir != null && await dir.exists()) {
       try {
         await dir.delete(recursive: true);
+      } catch (_) {}
+    }
+    final dl = await _downloadDir();
+    final dlDir = Directory(dl);
+    if (await dlDir.exists()) {
+      try {
+        await dlDir.delete(recursive: true);
       } catch (_) {}
     }
     _status = FlightStatus.absent;
@@ -292,7 +463,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
     if (_status == FlightStatus.ready && _web != null) {
       return WebViewWidget(controller: _web!);
     }
-    if (_status == FlightStatus.downloading || _status == FlightStatus.extracting) {
+    if (_status == FlightStatus.downloading || _status == FlightStatus.installing) {
       return _progressView();
     }
     if (_status == FlightStatus.failed) {
@@ -327,15 +498,15 @@ class _PetalwakePageState extends State<PetalwakePage> {
                     color: Colors.white)),
             const SizedBox(height: 10),
             Text(
-              '草甸、海崖、灯塔与送信航线。首次进入需要下载约 $sizeMb MB 资源包，'
-              '下载并解压后保存在手机本地，以后直接进入，不再消耗流量。',
+              '草甸、海崖、灯塔与送信航线。首次进入下载约 $sizeMb MB 资源包，'
+              '下载并安装后保存在手机本地，以后直接进入，不再消耗流量。',
               style: const TextStyle(
                   fontSize: 13, height: 1.7, color: Color(0xFFA7B0BE)),
             ),
             const SizedBox(height: 18),
-            _bullet('建议在 Wi-Fi 下下载，解压后约占 180 MB 空间'),
+            _bullet('分段下载，支持断点续传；网络中断后再点会接着下'),
+            _bullet('建议在 Wi-Fi 下下载，安装后约占用 180 MB 空间'),
             _bullet('左侧滑动控制升降与侧倾，右侧按钮控制借风/减速/翻滚'),
-            _bullet('社区升级、积分与航线奖励即将接入'),
             const Spacer(),
             SizedBox(
               width: double.infinity,
@@ -354,7 +525,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
               ),
             ),
             const SizedBox(height: 10),
-            const Text('下载后可离线游玩；删除本地资源包可释放空间。',
+            const Text('已下载的部分会被保留，不会重复下载。',
                 style: TextStyle(fontSize: 11, color: Color(0xFF68717E))),
           ],
         ),
@@ -382,25 +553,31 @@ class _PetalwakePageState extends State<PetalwakePage> {
   }
 
   Widget _progressView() {
-    final pct = (_progress * 100).clamp(0, 100).toStringAsFixed(0);
-    final speed = _speed > 0 ? '${(_speed / (1024 * 1024)).toStringAsFixed(1)} MB/s' : '';
+    final installing = _status == FlightStatus.installing;
+    final value = installing ? _install : _progress;
+    final pct = (value * 100).clamp(0, 100).toStringAsFixed(0);
+    final speed = (!installing && _speed > 0)
+        ? '${(_speed / (1024 * 1024)).toStringAsFixed(1)} MB/s'
+        : '';
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 26),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.flight_takeoff, size: 40, color: Color(0xFF4CD9A5)),
+            Icon(installing ? Icons.inventory_2_outlined : Icons.flight_takeoff,
+                size: 40, color: const Color(0xFF4CD9A5)),
             const SizedBox(height: 18),
-            Text(_status == FlightStatus.extracting ? '正在解压…' : '正在下载…',
+            Text(installing ? '正在安装' : '正在下载',
                 style: const TextStyle(fontSize: 16, color: Colors.white)),
             const SizedBox(height: 6),
-            Text(_message, style: const TextStyle(fontSize: 12, color: Color(0xFF8E97A5))),
+            Text(_message,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF8E97A5))),
             const SizedBox(height: 18),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
-                value: _status == FlightStatus.extracting ? null : _progress,
+                value: value,
                 minHeight: 8,
                 backgroundColor: const Color(0xFF1A1F26),
                 valueColor: const AlwaysStoppedAnimation(Color(0xFF3DDC97)),
@@ -410,13 +587,17 @@ class _PetalwakePageState extends State<PetalwakePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('$pct%', style: const TextStyle(fontSize: 12, color: Color(0xFF8E97A5))),
-                Text(speed, style: const TextStyle(fontSize: 12, color: Color(0xFF8E97A5))),
+                Text('$pct%',
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF8E97A5))),
+                Text(speed,
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF8E97A5))),
               ],
             ),
             const SizedBox(height: 26),
-            const Text('安装过程中请保持页面开启',
-                style: TextStyle(fontSize: 11, color: Color(0xFF68717E))),
+            Text(installing ? '安装完成后自动进入游戏' : '可以随时离开，下次会续传',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF68717E))),
           ],
         ),
       ),
@@ -434,14 +615,15 @@ class _PetalwakePageState extends State<PetalwakePage> {
             const SizedBox(height: 14),
             Text(_message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12.5, height: 1.6, color: Color(0xFF8E97A5))),
+                style: const TextStyle(
+                    fontSize: 12.5, height: 1.6, color: Color(0xFF8E97A5))),
             const SizedBox(height: 20),
             FilledButton(
               style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF3DDC97),
                   foregroundColor: const Color(0xFF05231A)),
               onPressed: _download,
-              child: const Text('重试'),
+              child: const Text('继续'),
             ),
           ],
         ),
@@ -454,12 +636,17 @@ class _PetalwakePageState extends State<PetalwakePage> {
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: const Color(0xFF12161C),
-        title: const Text('删除本地资源包？', style: TextStyle(fontSize: 15, color: Colors.white)),
+        title: const Text('删除本地资源包？',
+            style: TextStyle(fontSize: 15, color: Colors.white)),
         content: const Text('删除后下次进入需要重新下载约 100MB。',
             style: TextStyle(fontSize: 13, color: Color(0xFFA7B0BE))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('删除')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('删除')),
         ],
       ),
     );
@@ -469,6 +656,15 @@ class _PetalwakePageState extends State<PetalwakePage> {
       unawaited(_reset());
     }
   }
+}
+
+/// 一个下载分段：闭区间 [start, end]，done 为已落盘字节数。
+class _Seg {
+  _Seg(this.start, this.end);
+  final int start;
+  final int end;
+  int done = 0;
+  int get length => end - start + 1;
 }
 
 /// 只监听 127.0.0.1 的静态文件服务：让 ES module / importmap / fetch 在原生 Origin 下正常工作。
@@ -524,7 +720,8 @@ class _LocalSiteServer {
           return;
         }
         res.statusCode = HttpStatus.partialContent;
-        res.headers.set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$total');
+        res.headers.set(
+            HttpHeaders.contentRangeHeader, 'bytes $start-$end/$total');
         res.headers.set(HttpHeaders.contentLengthHeader, '${end - start + 1}');
         await res.addStream(file.openRead(start, end + 1));
       } else {
@@ -543,7 +740,9 @@ class _LocalSiteServer {
   String _mime(String path) {
     final p = path.toLowerCase();
     if (p.endsWith('.html')) return 'text/html; charset=utf-8';
-    if (p.endsWith('.js') || p.endsWith('.mjs')) return 'text/javascript; charset=utf-8';
+    if (p.endsWith('.js') || p.endsWith('.mjs')) {
+      return 'text/javascript; charset=utf-8';
+    }
     if (p.endsWith('.css')) return 'text/css; charset=utf-8';
     if (p.endsWith('.json')) return 'application/json; charset=utf-8';
     if (p.endsWith('.webp')) return 'image/webp';
