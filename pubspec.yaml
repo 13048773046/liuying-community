@@ -1,7 +1,7 @@
 name: community_app
 description: "流萤社区 · 短视频+图文混合社区（Android/iOS 单代码库，与流萤音乐账号互通）"
 publish_to: 'none'
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ^3.13.5
@@ -33,6 +33,12 @@ dependencies:
   photo_view: ^0.15.0
   # 系统分享面板（分享帖子/视频到微信、复制链接等）
   share_plus: ^10.1.4
+  # 流萤航线：内嵌 WebGL 小游戏（本地 HTTP 服务 + WebView）
+  webview_flutter: ^4.10.0
+  # 航线资源包解压
+  archive: ^3.6.1
+  # 航线资源本地目录
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

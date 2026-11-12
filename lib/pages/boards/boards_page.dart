@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../api/client.dart';
 import '../../design/components.dart';
 import '../../widgets/board_feed_grid.dart';
+import '../game/petalwake_page.dart';
 
 class Board {
   final String id;
@@ -87,6 +88,7 @@ class _BoardsPageState extends State<BoardsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _header(),
+            _flightCard(context),
             if (!_loading && _boards.isNotEmpty) ...[
               TagRail(
                 labels: _boards.map(_label).toList(),
@@ -100,6 +102,75 @@ class _BoardsPageState extends State<BoardsPage> {
             ],
             Expanded(child: _content()),
           ],
+        ),
+      ),
+    );
+  }
+
+
+  /// 「流萤航线」入口：现成的 WebGL 网页游戏，首次点进去才下载资源包，之后本地离线运行。
+  Widget _flightCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PetalwakePage())),
+          child: Container(
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [Color(0xFF112B23), Color(0xFF0B1116)],
+              ),
+              border: Border.all(color: const Color(0x444CD9A5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.flight_takeoff,
+                    size: 22, color: Color(0xFF4CD9A5)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text('流萤航线',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
+                      SizedBox(height: 3),
+                      Text('骑上扫帚飞过花甸 · 首次进入需下载',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 11, color: Color(0xFF8E97A5))),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1F4CD9A5),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text('进入',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF4CD9A5))),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
