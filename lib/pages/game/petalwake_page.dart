@@ -12,6 +12,7 @@ import 'dart:math' as math;
 
 import 'package:archive/archive_io.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -55,15 +56,29 @@ class _PetalwakePageState extends State<PetalwakePage> {
   _LocalSiteServer? _server;
   WebViewController? _web;
 
+  /// 页面加载完但游戏还没进入主循环时，显示覆盖层，避免“白屏什么都不显示”
+  bool _webReady = false;
+  bool _starting = false;
+  String? _webError;
+
   @override
   void initState() {
     super.initState();
+    // 进游戏前：强制横屏 + 全屏沉浸（隐藏系统栏）
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _bootstrap();
   }
 
   @override
   void dispose() {
     _server?.stop();
+    // 离开游戏：恢复竖屏 + 正常系统栏，避免影响社区其他页面
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -379,29 +394,112 @@ class _PetalwakePageState extends State<PetalwakePage> {
 
   Future<void> _startGame() async {
     final dir = _siteDir;
-    if (dir == null) return;
+    if (dir == null || _starting) return;
+    if (_status == FlightStatus.ready && _web != null) return;
+    _starting = true;
 
-    await _server?.stop();
-    final server = _LocalSiteServer(dir);
-    await server.start();
-    _server = server;
+    try {
+      await _server?.stop();
+      final server = _LocalSiteServer(dir);
+      await server.start();
+      _server = server;
 
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF0B0F14));
-    if (Platform.isAndroid) {
-      await controller.setNavigationDelegate(NavigationDelegate(
-        onNavigationRequest: (r) => NavigationDecision.navigate,
-      ));
+      final controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0xFF07090C))
+        ..addJavaScriptChannel('pw',
+            onMessageReceived: (m) => _onJsText(m.message));
+
+      if (Platform.isAndroid) {
+        await controller.setNavigationDelegate(NavigationDelegate(
+          onNavigationRequest: (r) => NavigationDecision.navigate,
+          onWebResourceError: (e) {
+            if (e.isForMainFrame == true) {
+              _onJsText('err:${e.description}');
+            }
+          },
+        ));
+      }
+
+      // 直接带参数进入：?play 跳过 "Take off" 点击门槛，低画质 + 限制 dpr 降低移动端显存压力
+      final url = 'http://127.0.0.1:${server.port}/index.html?play&q=low&dpr=1.25';
+      await controller.loadRequest(Uri.parse(url));
+
+      // 注入探针：游戏进入主循环 / WebGL 上下文丢失 / JS 报错，都回报给原生层
+      await controller.runJavaScript('''
+(function(){
+  if (window.__pwProbe) return; window.__pwProbe = 1;
+  var n = 0;
+  var iv = setInterval(function(){
+    n++;
+    try {
+      if (window.PW && window.PW.ready) {
+        clearInterval(iv);
+        window.pw.postMessage('ready');
+      } else if (n > 240) {
+        clearInterval(iv);
+        window.pw.postMessage('timeout');
+      }
+    } catch (e) {}
+  }, 500);
+  window.addEventListener('webglcontextlost', function(){
+    try { window.pw.postMessage('lost'); } catch (e) {}
+  }, true);
+  window.onerror = function(m, s, l, c, e){
+    try { window.pw.postMessage('err:' + m + ' @' + s + ':' + l); } catch (_) {}
+  };
+})();
+''');
+
+      if (!mounted) return;
+      setState(() {
+        _web = controller;
+        _status = FlightStatus.ready;
+        _webReady = false;
+        _webError = null;
+        _message = '';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _status = FlightStatus.failed;
+        _message = '启动失败：$e';
+      });
+    } finally {
+      _starting = false;
     }
-    await controller.loadRequest(Uri.parse('http://127.0.0.1:${server.port}/index.html'));
+  }
 
+  void _onJsText(String v) {
     if (!mounted) return;
+    if (v == 'ready') {
+      setState(() {
+        _webReady = true;
+        _webError = null;
+      });
+      return;
+    }
+    if (v == 'lost') {
+      setState(() => _webError = '图形上下文丢失，点“重新加载”再试');
+      return;
+    }
+    if (v == 'timeout') {
+      setState(() => _webError = '进入超时，点“重新加载”再试');
+      return;
+    }
+    if (v.startsWith('err:')) {
+      setState(() => _webError = v.substring(4));
+    }
+  }
+
+  Future<void> _reloadGame() async {
+    _webReady = false;
+    _webError = null;
     setState(() {
-      _web = controller;
-      _status = FlightStatus.ready;
-      _message = '';
+      _status = FlightStatus.checking;
+      _web = null;
     });
+    await _startGame();
   }
 
   Future<void> _reset() async {
@@ -440,36 +538,177 @@ class _PetalwakePageState extends State<PetalwakePage> {
   // ------------------------------------------------------------------ UI
   @override
   Widget build(BuildContext context) {
+    final inGame = _status == FlightStatus.ready && _web != null;
     return Scaffold(
       backgroundColor: const Color(0xFF07090C),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF07090C),
-        elevation: 0,
-        title: const Text('流萤航线', style: TextStyle(fontSize: 16)),
-        actions: [
-          if (_status == FlightStatus.ready)
-            IconButton(
-              tooltip: '删除本地资源包',
-              onPressed: _confirmReset,
-              icon: const Icon(Icons.delete_outline, size: 20),
+      // 进入游戏后标题栏整体隐藏（沉浸式），只留一个很轻的悬浮返回键
+      appBar: inGame
+          ? null
+          : AppBar(
+              backgroundColor: const Color(0xFF07090C),
+              elevation: 0,
+              title: const Text('流萤航线', style: TextStyle(fontSize: 16)),
+              actions: [
+                if (_status == FlightStatus.ready)
+                  IconButton(
+                    tooltip: '删除本地资源包',
+                    onPressed: _confirmReset,
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                  ),
+              ],
             ),
-        ],
-      ),
       body: _body(),
     );
   }
 
   Widget _body() {
-    if (_status == FlightStatus.ready && _web != null) {
-      return WebViewWidget(controller: _web!);
+    final inGame = _status == FlightStatus.ready && _web != null;
+    if (inGame) {
+      return Stack(
+        children: [
+          Positioned.fill(child: WebViewWidget(controller: _web!)),
+          if (!_webReady) _enterOverlay(),
+          Positioned(
+            left: 10,
+            top: 10,
+            child: SafeArea(
+              child: Row(
+                children: [
+                  _glassButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 8),
+                  if (!_webReady)
+                    _glassButton(icon: Icons.refresh, onTap: _reloadGame),
+                ],
+              ),
+            ),
+          ),
+          if (_webReady)
+            Positioned(
+              right: 10,
+              top: 10,
+              child: SafeArea(
+                child: _glassButton(icon: Icons.more_horiz, onTap: _gameMenu),
+              ),
+            ),
+        ],
+      );
     }
-    if (_status == FlightStatus.downloading || _status == FlightStatus.installing) {
+    if (_status == FlightStatus.downloading ||
+        _status == FlightStatus.installing) {
       return _progressView();
     }
     if (_status == FlightStatus.failed) {
       return _errorView();
     }
     return _introView();
+  }
+
+  Widget _glassButton({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(19),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: const Color(0xCC0E1319),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0x33FFFFFF)),
+          ),
+          child: Icon(icon, size: 17, color: const Color(0xCCFFFFFF)),
+        ),
+      ),
+    );
+  }
+
+  Widget _enterOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: const Color(0xF207090C),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_webError == null)
+                const SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF3DDC97)),
+                  ),
+                )
+              else
+                const Icon(Icons.cloud_off, size: 26, color: Color(0xFF8E97A5)),
+              const SizedBox(height: 16),
+              Text(_webError == null ? '正在进入航线…' : '加载中断',
+                  style: const TextStyle(fontSize: 13, color: Colors.white)),
+              if (_webError != null) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Text(
+                    _webError!,
+                    textAlign: TextAlign.center,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11, height: 1.5, color: Color(0xFF8E97A5)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF3DDC97),
+                    foregroundColor: const Color(0xFF05231A),
+                  ),
+                  onPressed: _reloadGame,
+                  child: const Text('重新加载'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _gameMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF12161C),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.refresh, size: 19),
+              title: const Text('重新加载游戏', style: TextStyle(fontSize: 13)),
+              onTap: () {
+                Navigator.pop(c);
+                _reloadGame();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, size: 19),
+              title: const Text('删除本地资源包', style: TextStyle(fontSize: 13)),
+              onTap: () {
+                Navigator.pop(c);
+                _confirmReset();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _introView() {
