@@ -1,0 +1,25 @@
+name: build-community
+# rebuild-marker: picker cover + collected merge + startup bgm fix
+on:
+  push:
+    branches: [main, ui/immersive-black]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------- 启动图：CI 用 tool/make_splash.py 渲染（与本地同一脚本/同一字体） ----------
+  splash-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render splash assets
+        run: |
+          echo "placeholder-run"
+  build-community:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No-op
+        run: echo "marker build trigger"
