@@ -26,6 +26,15 @@ import '../../widgets/video_controls_bar.dart';
 
 import 'dart:async';
 
+/// 视频「循环回 0」判定（纯函数，便于单测）：
+/// 播放位置从后段突然回跳（且上一刻已过 1 秒）即视为播完一轮回到开头。
+/// - `prev`：上一帧位置（秒）；`pos`：当前位置（秒）
+bool videoLoopRestartDetected(double? prev, double pos) {
+  if (prev == null) return false;
+  if (prev <= 1.0) return false;
+  return pos < prev - 0.3;
+}
+
 class VideoCard extends StatefulWidget {
   final FeedItem item;
   final bool isActive;
@@ -55,7 +64,11 @@ class _VideoCardState extends State<VideoCard>
   /// - `_tickerEnabled`：所在 Tab 不再活跃（RootPage 的 TickerMode）
   /// - `_appResumed`：App 退到后台
   bool _routeVisible = true;
-  bool _tickerEnabled = true;
+
+  /// 初值必须保守为 false：RootPage 五个 Tab 常驻构建，短视频页在后台也会 initState，
+  /// 若这里默认 true，图文卡片的首次配乐同步会脱离真实可见性直接出声（「一开 App 就有歌」）。
+  /// 真实值在 didChangeDependencies 里由 TickerMode 读取后覆盖。
+  bool _tickerEnabled = false;
   bool _appResumed = true;
 
   /// 真正允许出声的条件：当前页 + 页面可见 + Tab 活跃 + App 在前台
@@ -101,10 +114,10 @@ class _VideoCardState extends State<VideoCard>
     _shareCount = widget.item.shareCount;
     if (widget.item.video.isNotEmpty) {
       _initVideo();
-    } else {
-      // 图文/纯文帖：短视频 tab 同样播放所选配乐（抖音式图集有 BGM）
-      _syncBgm();
     }
+    // 图文/纯文帖的配乐**不能在这里起播**：initState 阶段 TickerMode（Tab 是否活跃）
+    // 与路由可见性都还没拿到，短视频页在后台被常驻构建时会立刻出声。
+    // 首次同步统一放到 didChangeDependencies 之后（见 _firstSyncDone）。
   }
 
   @override
@@ -119,7 +132,18 @@ class _VideoCardState extends State<VideoCard>
       _tickerEnabled = enabled;
       _applyPlayback();
     }
+    if (!_firstSyncDone) {
+      _firstSyncDone = true;
+      // 首帧之后再走一次统一入口：此时 Tab 活跃状态已确定，
+      // 活跃的图文/纯文帖能正常起播，后台 Tab 的卡片则保持静默。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _applyPlayback();
+      });
+    }
   }
+
+  /// 首次「可见性判定 + 起播」是否已完成（防止 initState 期间误起播）
+  bool _firstSyncDone = false;
 
   // ---------------- RouteAware：被别的页面盖住 / 回到本页 ----------------
 
@@ -235,7 +259,7 @@ class _VideoCardState extends State<VideoCard>
     }
     if (!_useBgm || !_bgmOwner || prev == null) return;
     // 位置回跳且上一刻在视频前段之后 → 视频完成了一次循环，配乐也回 0
-    if (pos < prev - 0.3 && prev > 1.0) {
+    if (videoLoopRestartDetected(prev, pos)) {
       MusicBgm.I.restart();
     }
   }
