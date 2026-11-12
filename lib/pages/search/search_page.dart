@@ -1,8 +1,8 @@
 /// 搜索页：按抖音搜索页布局 1:1 还原
 ///
 /// 结构：返回箭头 + 胶囊搜索框（相机 / 竖线 / 搜索）→ 搜索历史两列文字 + 「展开更多历史 /
-/// 清空」→ 联想词两列（命中片段标红）→ 分类标签（猜你想看 / 热榜 / 同城 / 直播 / 团购）
-/// → 双列瀑布流卡片（底部渐变 / 标题 / 右下播放钮 / 作者 + 点赞）→ 右下角麦克风悬浮钮。
+/// 清空」→ 联想词两列（命中片段标红）→ 分类标签（猜你想看 / 热榜 / 同城）
+/// → 双列瀑布流卡片（底部渐变 / 标题 / 右下播放钮 / 作者 + 点赞）。
 /// 数据走社区接口：猜你想看 = /feed?tab=recommend，热榜 = /rankings?type=post，
 /// 搜索仍走 /search（帖子、视频、用户、话题）。
 library;
@@ -55,7 +55,7 @@ class _SearchPageState extends State<SearchPage> {
   List<Map<String, dynamic>> _topicResults = [];
 
   // 分类标签与瀑布流
-  static const _tabs = ['猜你想看', '热榜', '同城', '直播', '团购'];
+  static const _tabs = ['猜你想看', '热榜', '同城'];
   int _tab = 0;
   final Map<int, List<FeedItem>> _tabItems = {};
   int _feedPage = 0;
@@ -97,7 +97,7 @@ class _SearchPageState extends State<SearchPage> {
     } catch (_) {}
   }
 
-  /// 分类标签数据：0=猜你想看（推荐流），1=热榜（点赞榜），2~4 暂未开放
+  /// 分类标签数据：0=猜你想看（推荐流），1=热榜（点赞榜），2=同城（建设中）
   Future<void> _loadFeed({bool refresh = false}) async {
     if (_feedLoading) return;
     if (!refresh && !_feedHasMore) return;
@@ -238,19 +238,10 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return ImmersivePage(
-      child: Stack(
+      child: Column(
         children: [
-          Column(
-            children: [
-              _topBar(),
-              Expanded(child: _searched ? _resultView() : _discoverView()),
-            ],
-          ),
-          Positioned(
-            right: 14,
-            bottom: tabBarBottomInset(context) + 18,
-            child: _micButton(),
-          ),
+          _topBar(),
+          Expanded(child: _searched ? _resultView() : _discoverView()),
         ],
       ),
     );
@@ -346,29 +337,6 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _micButton() {
-    return GestureDetector(
-      onTap: () => showAppToast(context, '语音搜索开发中'),
-      child: Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          color: _kFieldBg,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child:
-            const Icon(Icons.mic_none_rounded, size: 24, color: Colors.white),
       ),
     );
   }
