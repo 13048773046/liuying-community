@@ -2,7 +2,7 @@
 ///
 /// 结构：返回箭头 + 胶囊搜索框（相机 / 竖线 / 搜索）→ 搜索历史两列文字 + 「展开更多历史 /
 /// 清空」→ 联想词两列（命中片段标红）→ 分类标签（猜你想看 / 热榜 / 同城 / 直播 / 团购）
-/// → 双列瀑布流卡片（视频角标 / 渐变遮罩 / 标题 / 作者 + 点赞）→ 右下角麦克风悬浮钮。
+/// → 双列瀑布流卡片（底部渐变 / 标题 / 右下播放钮 / 作者 + 点赞）→ 右下角麦克风悬浮钮。
 /// 数据走社区接口：猜你想看 = /feed?tab=recommend，热榜 = /rankings?type=post，
 /// 搜索仍走 /search（帖子、视频、用户、话题）。
 library;
@@ -763,7 +763,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
-/// 瀑布流卡片：缩略图 + 视频角标 + 底部渐变（标题 / 作者 / 点赞）
+/// 瀑布流卡片：缩略图 + 底部渐变 + 标题 + 右下播放钮 / 作者 / 点赞
 class _FeedTile extends StatelessWidget {
   final FeedItem item;
   final double height;
@@ -801,6 +801,20 @@ class _FeedTile extends StatelessWidget {
     );
   }
 
+  /// 视频播放钮：圆形半透明黑底 + 白色三角
+  Widget _playButton() {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.play_arrow_rounded,
+          size: 19, color: Colors.white),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final thumb = _thumb;
@@ -832,21 +846,6 @@ class _FeedTile extends StatelessWidget {
                   ),
                 ),
               _shade(thumb.isEmpty ? 54 : height * 0.55),
-              if (item.type == 'video')
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.play_arrow_rounded,
-                        size: 17, color: Colors.white),
-                  ),
-                ),
               Positioned(
                 left: 9,
                 right: 9,
@@ -868,6 +867,13 @@ class _FeedTile extends StatelessWidget {
                         ),
                       ),
                     const SizedBox(height: 6),
+                    if (item.type == 'video') ...[
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _playButton(),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
                     Row(
                       children: [
                         UserAvatar(
