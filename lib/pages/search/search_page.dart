@@ -785,6 +785,22 @@ class _FeedTile extends StatelessWidget {
     return '';
   }
 
+  /// 底部渐变层（渐变对象独立定义，避免深层嵌套）
+  Widget _shade(double h) {
+    const g = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Colors.transparent, Color(0xC7000000)],
+    );
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: h,
+      child: const DecoratedBox(decoration: BoxDecoration(gradient: g)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final thumb = _thumb;
@@ -815,24 +831,7 @@ class _FeedTile extends StatelessWidget {
                         fontSize: 14, height: 1.45, color: Colors.white),
                   ),
                 ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: thumb.isEmpty ? 54 : height * 0.55,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.78),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              _shade(thumb.isEmpty ? 54 : height * 0.55),
               if (item.type == 'video')
                 Positioned(
                   right: 8,
