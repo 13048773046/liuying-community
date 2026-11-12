@@ -832,6 +832,7 @@ class _FeedTile extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
               if (item.type == 'video')
                 Positioned(
                   right: 8,
