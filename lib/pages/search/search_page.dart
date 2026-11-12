@@ -1,12 +1,16 @@
-/// 搜索页：悬浮搜索框 + 历史/热门 + 实时联想 + 帖子/用户/话题结果
+/// 搜索页：按抖音搜索页布局 1:1 还原
 ///
-/// 沉浸黑：黑底圆角输入框（280ms 防抖与联想逻辑原样保留）、热词用 [TagPill]、
-/// 历史用紧凑胶囊、结果用 [ListRow]/[PostCard] 风格行。
+/// 结构：返回箭头 + 胶囊搜索框（相机 / 竖线 / 搜索）→ 搜索历史两列文字 + 「展开更多历史 /
+/// 清空」→ 联想词两列（命中片段标红）→ 分类标签（猜你想看 / 热榜 / 同城 / 直播 / 团购）
+/// → 双列瀑布流卡片（视频角标 / 渐变遮罩 / 标题 / 作者 + 点赞）→ 右下角麦克风悬浮钮。
+/// 数据走社区接口：猜你想看 = /feed?tab=recommend，热榜 = /rankings?type=post，
+/// 搜索仍走 /search（帖子、视频、用户、话题）。
 library;
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
@@ -17,6 +21,11 @@ import '../../widgets/image_box.dart';
 import '../../widgets/user_avatar.dart';
 import '../post/post_detail.dart';
 import '../user/user_profile.dart';
+
+/// 命中词高亮色
+const _kHitRed = Color(0xFFFE2C55);
+/// 搜索框底色
+const _kFieldBg = Color(0xFF2A2A2E);
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -30,10 +39,13 @@ class _SearchPageState extends State<SearchPage> {
   final _focus = FocusNode();
   Timer? _debounce;
 
-  // 联想
-  List<String> _sugTopics = [];
-  List<Map<String, dynamic>> _sugUsers = [];
-  bool _suggesting = false;
+  static const _historyKey = 'search_history';
+
+  // 历史 / 联想
+  List<String> _history = [];
+  bool _historyExpanded = false;
+  List<String> _hot = [];
+  List<String> _suggestions = [];
 
   // 结果
   bool _searched = false;
@@ -42,18 +54,20 @@ class _SearchPageState extends State<SearchPage> {
   List<Map<String, dynamic>> _userResults = [];
   List<Map<String, dynamic>> _topicResults = [];
 
-  // 历史 + 热门
-  List<String> _history = [];
-  List<String> _hot = [];
-
-  static const _historyKey = 'search_history';
+  // 分类标签与瀑布流
+  static const _tabs = ['猜你想看', '热榜', '同城', '直播', '团购'];
+  int _tab = 0;
+  final Map<int, List<FeedItem>> _tabItems = {};
+  int _feedPage = 0;
+  bool _feedHasMore = true;
+  bool _feedLoading = false;
 
   @override
   void initState() {
     super.initState();
     _loadHistory();
     _loadHot();
-    Future.microtask(() => _focus.requestFocus());
+    _loadFeed();
   }
 
   @override
@@ -63,6 +77,8 @@ class _SearchPageState extends State<SearchPage> {
     _focus.dispose();
     super.dispose();
   }
+
+  // -------------------------------------------------------------- 数据
 
   Future<void> _loadHistory() async {
     final sp = await SharedPreferences.getInstance();
@@ -74,50 +90,104 @@ class _SearchPageState extends State<SearchPage> {
     try {
       final list = await ApiClient.searchHot();
       if (!mounted) return;
-      setState(() =>
-          _hot = list.map((e) => (e['q'] ?? '') as String).where((s) => s.isNotEmpty).toList());
+      setState(() => _hot = list
+          .map((e) => (e['q'] ?? '') as String)
+          .where((s) => s.isNotEmpty)
+          .toList());
     } catch (_) {}
+  }
+
+  /// 分类标签数据：0=猜你想看（推荐流），1=热榜（点赞榜），2~4 暂未开放
+  Future<void> _loadFeed({bool refresh = false}) async {
+    if (_feedLoading) return;
+    if (!refresh && !_feedHasMore) return;
+    final tab = _tab;
+    if (tab >= 2) return;
+    setState(() => _feedLoading = true);
+    try {
+      List<FeedItem> list;
+      bool hasMore;
+      if (tab == 0) {
+        final p = await ApiClient.feed(
+          tab: 'recommend',
+          page: refresh ? 1 : _feedPage + 1,
+          size: 12,
+        );
+        list = p.list;
+        hasMore = p.hasMore;
+        _feedPage = p.page;
+      } else {
+        final j = await ApiClient.rankings('post', limit: 20);
+        list = ((j['list'] ?? []) as List)
+            .whereType<Map<String, dynamic>>()
+            .map(FeedItem.fromJson)
+            .toList();
+        hasMore = false;
+      }
+      if (!mounted) return;
+      setState(() {
+        final cur = refresh ? <FeedItem>[] : (_tabItems[tab] ?? <FeedItem>[]);
+        final merged = [...cur];
+        for (final it in list) {
+          if (!merged.any((e) => e.id == it.id)) merged.add(it);
+        }
+        _tabItems[tab] = merged;
+        _feedHasMore = hasMore;
+        _feedLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _feedLoading = false);
+      if ((_tabItems[_tab] ?? []).isEmpty) showAppToast(context, '加载失败：$e');
+    }
   }
 
   void _onChanged(String q) {
     _debounce?.cancel();
     final kw = q.trim();
     if (kw.isEmpty) {
-      if (mounted && _suggesting) setState(() => _suggesting = false);
+      if (mounted && _suggestions.isNotEmpty) {
+        setState(() => _suggestions = []);
+      }
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 280), () async {
+    _debounce = Timer(const Duration(milliseconds: 260), () async {
       try {
         final j = await ApiClient.searchSuggest(kw);
         if (!mounted || _ctrl.text.trim() != kw) return;
+        final topics =
+            ((j['topics'] ?? []) as List).whereType<String>().toList();
+        final users = ((j['users'] ?? []) as List)
+            .whereType<Map<String, dynamic>>()
+            .map((e) => (e['name'] ?? '') as String)
+            .where((s) => s.isNotEmpty)
+            .toList();
         setState(() {
-          _suggesting = true;
-          _searched = false;
-          _sugTopics =
-              ((j['topics'] ?? []) as List).whereType<String>().toList();
-          _sugUsers = ((j['users'] ?? []) as List)
-              .whereType<Map<String, dynamic>>()
-              .toList();
+          _suggestions = <String>{
+            kw,
+            ...topics,
+            ...users,
+            ..._history.where((h) => h.contains(kw)).take(4),
+            ..._hot.where((h) => h.contains(kw)).take(4),
+          }.take(12).toList();
         });
       } catch (_) {}
     });
   }
 
-  Future<void> _submit(String q) async {
-    final kw = q.trim();
+  Future<void> _submit(String raw) async {
+    final kw = raw.trim();
     if (kw.isEmpty) return;
     _focus.unfocus();
     setState(() {
       _searched = true;
       _searching = true;
-      _suggesting = false;
       _postResults = [];
       _userResults = [];
       _topicResults = [];
     });
-    // 记录历史
     final sp = await SharedPreferences.getInstance();
-    final hist = [kw, ..._history.where((h) => h != kw)].take(10).toList();
+    final hist = [kw, ..._history.where((h) => h != kw)].take(20).toList();
     await sp.setStringList(_historyKey, hist);
     if (mounted) setState(() => _history = hist);
     try {
@@ -147,13 +217,12 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  /// 清空输入并回到默认（历史/热门）视图
   void _clearInput() {
     _ctrl.clear();
     _debounce?.cancel();
     setState(() {
-      _suggesting = false;
       _searched = false;
+      _suggestions = [];
     });
     _focus.requestFocus();
   }
@@ -164,54 +233,63 @@ class _SearchPageState extends State<SearchPage> {
     if (mounted) setState(() => _history = []);
   }
 
+  // -------------------------------------------------------------- 构建
+
   @override
   Widget build(BuildContext context) {
     return ImmersivePage(
-      child: Column(
+      child: Stack(
         children: [
-          _searchBar(),
-          Expanded(child: _body()),
+          Column(
+            children: [
+              _topBar(),
+              Expanded(child: _searched ? _resultView() : _discoverView()),
+            ],
+          ),
+          Positioned(
+            right: 14,
+            bottom: tabBarBottomInset(context) + 18,
+            child: _micButton(),
+          ),
         ],
       ),
     );
   }
 
-  // -------------------------------------------------------------- 顶部输入
-  Widget _searchBar() {
+  /// 顶部：返回箭头 + 胶囊搜索框（相机 / 竖线 / 搜索）
+  Widget _topBar() {
     final top = MediaQuery.paddingOf(context).top;
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          AppSpace.x3, top + AppSpace.x2, AppSpace.x3, AppSpace.x2),
+      padding: EdgeInsets.fromLTRB(4, top + 6, 12, 8),
       child: Row(
         children: [
-          IconCircleButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            size: 36,
-            iconSize: 16,
-            background: Colors.white.withValues(alpha: 0.06),
+          InkResponse(
             onTap: () => Navigator.pop(context),
+            radius: 22,
+            child: const SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(Icons.arrow_back_ios_new_rounded,
+                  size: 19, color: Colors.white),
+            ),
           ),
-          const SizedBox(width: AppSpace.x2),
           Expanded(
             child: Container(
               height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
+              padding: const EdgeInsets.only(left: 13, right: 5),
               decoration: BoxDecoration(
-                color: const Color(AppColors.elevated),
-                borderRadius: AppRadius.rPill,
-                border: Border.all(color: const Color(AppColors.border)),
+                color: _kFieldBg,
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.search_rounded,
-                      size: 18, color: Color(AppColors.textTertiary)),
-                  const SizedBox(width: AppSpace.x2),
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
                       focusNode: _focus,
-                      style: AppType.body,
-                      cursorColor: const Color(AppColors.accent),
+                      style: const TextStyle(
+                          fontSize: 15, color: Colors.white, height: 1.3),
+                      cursorColor: _kHitRed,
                       textInputAction: TextInputAction.search,
                       onChanged: _onChanged,
                       onSubmitted: _submit,
@@ -221,164 +299,387 @@ class _SearchPageState extends State<SearchPage> {
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
-                        hintText: '搜索帖子、用户、话题…',
+                        hintText: '搜你想看的',
                         hintStyle: TextStyle(
-                          fontSize: 13.5,
-                          height: 1.3,
-                          color: Color(AppColors.textTertiary),
-                        ),
+                            fontSize: 15,
+                            color: Color(0xFF8A8A8E),
+                            height: 1.3),
                       ),
                     ),
                   ),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: _ctrl,
                     builder: (_, value, _) => value.text.isEmpty
-                        ? const SizedBox(width: 2)
-                        : IconCircleButton(
-                            icon: Icons.cancel_rounded,
-                            size: 20,
-                            iconSize: 15,
-                            background: Colors.transparent,
-                            color: const Color(AppColors.textTertiary),
+                        ? const SizedBox.shrink()
+                        : GestureDetector(
                             onTap: _clearInput,
+                            behavior: HitTestBehavior.opaque,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6),
+                              child: Icon(Icons.cancel_rounded,
+                                  size: 17, color: Color(0xFF8A8A8E)),
+                            ),
                           ),
+                  ),
+                  const Icon(Icons.photo_camera_outlined,
+                      size: 22, color: Colors.white),
+                  Container(
+                    width: 1,
+                    height: 18,
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    color: Colors.white.withValues(alpha: 0.22),
+                  ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _submit(_ctrl.text),
+                    child: const Padding(
+                      padding: EdgeInsets.only(right: 8, left: 2),
+                      child: Text('搜索',
+                          style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500)),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(width: AppSpace.x2),
-          PillButton(
-            label: '取消',
-            variant: PillVariant.ghost,
-            size: PillSize.sm,
-            onTap: () => Navigator.pop(context),
-          ),
         ],
       ),
     );
   }
 
-  Widget _body() {
-    if (_searched) return _resultView();
-    if (_suggesting) return _suggestView();
-    return _defaultView();
-  }
-
-  // ---------- 默认：历史 + 热门 ----------
-  Widget _defaultView() {
-    if (_history.isEmpty && _hot.isEmpty) {
-      return const SingleChildScrollView(
-        child: EmptyState(
-          icon: Icons.search_rounded,
-          title: '搜索感兴趣的内容',
-          message: '帖子、视频、用户、话题都能搜',
+  Widget _micButton() {
+    return GestureDetector(
+      onTap: () => showAppToast(context, '语音搜索开发中'),
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: _kFieldBg,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-      );
-    }
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        AppSpace.gutter,
-        AppSpace.x2,
-        AppSpace.gutter,
-        MediaQuery.paddingOf(context).bottom + 24,
+        child:
+            const Icon(Icons.mic_none_rounded, size: 24, color: Colors.white),
       ),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      children: [
-        if (_history.isNotEmpty) ...[
-          SectionHeader(
-            title: '搜索历史',
-            padding: const EdgeInsets.only(bottom: AppSpace.x3),
-            actionLabel: '清空',
-            onAction: _clearHistory,
-          ),
-          Wrap(
-            spacing: AppSpace.x2,
-            runSpacing: AppSpace.x2,
-            children: [
-              for (final h in _history)
-                TagPill(
-                  label: h,
-                  compact: true,
-                  onTap: () {
-                    _ctrl.text = h;
-                    _submit(h);
-                  },
-                ),
-            ],
-          ),
-        ],
-        if (_hot.isNotEmpty) ...[
-          const SizedBox(height: AppSpace.x5),
-          const SectionHeader(
-            title: '热门搜索',
-            padding: EdgeInsets.only(bottom: AppSpace.x3),
-          ),
-          Wrap(
-            spacing: AppSpace.x2,
-            runSpacing: AppSpace.x2,
-            children: [
-              for (var i = 0; i < _hot.length; i++)
-                TagPill(
-                  label: _hot[i],
-                  icon: i < 3 ? Icons.local_fire_department_rounded : null,
-                  onTap: () {
-                    _ctrl.text = _hot[i];
-                    _submit(_hot[i]);
-                  },
-                ),
-            ],
-          ),
-        ],
-      ],
     );
   }
 
-  // ---------- 联想 ----------
-  Widget _suggestView() {
-    return ListView(
-      padding: EdgeInsets.only(
-          top: AppSpace.x1, bottom: MediaQuery.paddingOf(context).bottom + 24),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      children: [
-        for (final t in _sugTopics)
-          ListRow(
-            leading: const Icon(Icons.tag_rounded,
-                size: 18, color: Color(AppColors.textTertiary)),
-            title: '#$t',
-            trailing: const Icon(Icons.north_west_rounded,
-                size: 15, color: Color(AppColors.textTertiary)),
-            showChevron: false,
-            onTap: () => _submit(t),
-          ),
-        for (final u in _sugUsers)
-          ListRow(
-            leading: const Icon(Icons.person_outline_rounded,
-                size: 18, color: Color(AppColors.textTertiary)),
-            title: (u['name'] ?? '') as String,
-            trailing: const Icon(Icons.north_west_rounded,
-                size: 15, color: Color(AppColors.textTertiary)),
-            showChevron: false,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    UserProfilePage(uid: (u['id'] ?? '') as String),
+  // -------------------------------------------------------------- 默认页
+
+  Widget _discoverView() {
+    final q = _ctrl.text.trim();
+    final items = _tabItems[_tab] ?? <FeedItem>[];
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (_tab <= 1 && n.metrics.extentAfter < 420) _loadFeed();
+        return false;
+      },
+      child: CustomScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          if (_history.isNotEmpty) SliverToBoxAdapter(child: _historyBlock()),
+          if (q.isNotEmpty && _suggestions.isNotEmpty)
+            SliverToBoxAdapter(child: _suggestBlock(q)),
+          SliverToBoxAdapter(child: _tabBar()),
+          if (_tab >= 2)
+            SliverToBoxAdapter(child: _unavailable(_tab))
+          else if (items.isEmpty && !_feedLoading)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.only(top: 60),
+                child: Center(
+                  child: Text('还没有内容，稍后再来',
+                      style: TextStyle(color: Color(0xFF8A8A8E), fontSize: 13)),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              sliver: SliverMasonryGrid.count(
+                crossAxisCount: 2,
+                mainAxisSpacing: 2,
+                crossAxisSpacing: 2,
+                childCount: items.length,
+                itemBuilder: (_, i) => _FeedTile(
+                  item: items[i],
+                  height: _cardHeight(i),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => PostDetailPage(postId: items[i].id)),
+                  ),
+                ),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(
+                  top: 14, bottom: tabBarBottomInset(context) + 26),
+              child: Center(
+                child: _feedLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const SizedBox.shrink(),
               ),
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 
-  // ---------- 搜索结果 ----------
-  Widget _resultView() {
-    if (_searching) return const _SearchSkeleton();
+  double _cardHeight(int i) {
+    const hs = [214.0, 286.0, 246.0, 196.0, 268.0, 232.0];
+    return hs[i % hs.length];
+  }
 
+  /// 搜索历史：两列文字 + 右侧「展开更多历史 ∨ | 清空」
+  Widget _historyBlock() {
+    final shown = _historyExpanded ? _history : _history.take(6).toList();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            children: [
+              for (final h in shown)
+                SizedBox(
+                  width: (MediaQuery.sizeOf(context).width - 32) / 2,
+                  height: 44,
+                  child: InkWell(
+                    onTap: () {
+                      _ctrl.text = h;
+                      _submit(h);
+                    },
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        h,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 16, color: Colors.white, height: 1.2),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
+                    setState(() => _historyExpanded = !_historyExpanded),
+                child: Row(
+                  children: [
+                    Text(_historyExpanded ? '收起历史' : '展开更多历史',
+                        style: const TextStyle(
+                            fontSize: 13.5, color: Color(0xFF9A9AA0))),
+                    const SizedBox(width: 2),
+                    Icon(
+                        _historyExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: const Color(0xFF9A9AA0)),
+                  ],
+                ),
+              ),
+              if (_history.isNotEmpty) ...[
+                Container(
+                  width: 1,
+                  height: 14,
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  color: Colors.white.withValues(alpha: 0.16),
+                ),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () async {
+                    final ok = await _confirmClear();
+                    if (ok == true) await _clearHistory();
+                  },
+                  child: const Icon(Icons.delete_outline_rounded,
+                      size: 19, color: Color(0xFF9A9AA0)),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _confirmClear() {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(AppColors.elevated),
+        title: const Text('清空搜索历史？', style: TextStyle(fontSize: 16)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('清空')),
+        ],
+      ),
+    );
+  }
+
+  /// 联想词：两列，命中片段标红
+  Widget _suggestBlock(String q) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.10), width: 1),
+        ),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < _suggestions.length; i += 2)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _suggestCell(_suggestions[i], q)),
+                Expanded(
+                  child: i + 1 < _suggestions.length
+                      ? _suggestCell(_suggestions[i + 1], q)
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _suggestCell(String word, String q) {
+    return SizedBox(
+      height: 34,
+      child: InkWell(
+        onTap: () {
+          _ctrl.text = word;
+          _submit(word);
+        },
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: RichText(
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            text: TextSpan(
+              style: const TextStyle(fontSize: 15.5, color: Colors.white),
+              children: _highlight(word, q),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 命中片段红色加粗，其余白色
+  List<TextSpan> _highlight(String word, String q) {
+    if (q.isEmpty) return [TextSpan(text: word)];
+    final lower = word.toLowerCase();
+    final ql = q.toLowerCase();
+    final spans = <TextSpan>[];
+    var from = 0;
+    while (true) {
+      final at = lower.indexOf(ql, from);
+      if (at < 0) {
+        spans.add(TextSpan(text: word.substring(from)));
+        break;
+      }
+      if (at > from) spans.add(TextSpan(text: word.substring(from, at)));
+      spans.add(TextSpan(
+        text: word.substring(at, at + q.length),
+        style: const TextStyle(color: _kHitRed, fontWeight: FontWeight.w600),
+      ));
+      from = at + q.length;
+    }
+    return spans;
+  }
+
+  Widget _tabBar() {
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _tabs.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 22),
+        itemBuilder: (_, i) {
+          final on = i == _tab;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (_tab == i) return;
+              setState(() => _tab = i);
+              if (i <= 1) _loadFeed(refresh: (_tabItems[i] ?? []).isEmpty);
+            },
+            child: Center(
+              child: Text(
+                _tabs[i],
+                style: TextStyle(
+                  fontSize: on ? 17 : 15,
+                  fontWeight: on ? FontWeight.w700 : FontWeight.w400,
+                  color: on ? Colors.white : const Color(0xFF8A8A8E),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _unavailable(int tab) {
+    final label = _tabs[tab];
+    return Padding(
+      padding: const EdgeInsets.only(top: 90, bottom: 60),
+      child: Center(
+        child: Text(
+          '$label功能建设中',
+          style: const TextStyle(fontSize: 13.5, color: Color(0xFF8A8A8E)),
+        ),
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------- 结果页
+
+  Widget _resultView() {
+    if (_searching) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
     final empty =
         _postResults.isEmpty && _userResults.isEmpty && _topicResults.isEmpty;
     if (empty) {
-      return const SingleChildScrollView(
+      return const Center(
         child: EmptyState(
           icon: Icons.search_off_rounded,
           title: '没有找到相关内容',
@@ -386,152 +687,75 @@ class _SearchPageState extends State<SearchPage> {
         ),
       );
     }
-
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        AppSpace.gutter,
-        0,
-        AppSpace.gutter,
-        MediaQuery.paddingOf(context).bottom + 24,
-      ),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      children: [
-        if (_userResults.isNotEmpty) ...[
-          const SectionHeader(
-            title: '用户',
-            padding: EdgeInsets.only(top: AppSpace.x4, bottom: AppSpace.x1),
+    return CustomScrollView(
+      physics:
+          const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      slivers: [
+        if (_userResults.isNotEmpty)
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 96,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                itemCount: _userResults.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 18),
+                itemBuilder: (_, i) => _userCell(_userResults[i]),
+              ),
+            ),
           ),
-          for (final u in _userResults) _userRow(u),
-        ],
-        if (_topicResults.isNotEmpty) ...[
-          const SectionHeader(
-            title: '话题',
-            padding: EdgeInsets.only(top: AppSpace.x4, bottom: AppSpace.x3),
-          ),
-          Wrap(
-            spacing: AppSpace.x2,
-            runSpacing: AppSpace.x2,
-            children: [
-              for (final t in _topicResults)
-                TagPill(
-                  label: '#${t['name'] ?? ''}',
-                  onTap: () => _submit((t['name'] ?? '') as String),
+        if (_postResults.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            sliver: SliverMasonryGrid.count(
+              crossAxisCount: 2,
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 2,
+              childCount: _postResults.length,
+              itemBuilder: (_, i) => _FeedTile(
+                item: _postResults[i],
+                height: _cardHeight(i),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          PostDetailPage(postId: _postResults[i].id)),
                 ),
-            ],
+              ),
+            ),
           ),
-        ],
-        if (_postResults.isNotEmpty) ...[
-          const SectionHeader(
-            title: '帖子',
-            padding: EdgeInsets.only(top: AppSpace.x5, bottom: AppSpace.x3),
-          ),
-          for (final it in _postResults) _postRow(it),
-        ],
+        SliverToBoxAdapter(
+          child: SizedBox(height: tabBarBottomInset(context) + 30),
+        ),
       ],
     );
   }
 
-  Widget _userRow(Map<String, dynamic> u) {
+  Widget _userCell(Map<String, dynamic> u) {
     final name = (u['name'] ?? '用户') as String;
     final avatar = (u['avatar'] ?? '') as String;
-    final bio = (u['bio'] ?? '') as String;
-    final followers = ((u['followers'] ?? 0) as num).toInt();
-    return ListRow(
-      leading: UserAvatar(url: avatar, name: name, size: 44),
-      title: name,
-      subtitle: bio.isEmpty ? null : bio,
-      trailing: followers > 0
-          ? Text('${formatCount(followers)} 粉丝', style: AppType.micro)
-          : null,
-      showChevron: false,
-      padding: const EdgeInsets.symmetric(vertical: AppSpace.x2),
+    final followers = intOf(u['followers']);
+    return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
             builder: (_) => UserProfilePage(uid: (u['id'] ?? '') as String)),
       ),
-    );
-  }
-
-  Widget _postRow(FeedItem it) {
-    final thumb = (it.type == 'video' && it.cover.isNotEmpty)
-        ? it.cover
-        : (it.images.isNotEmpty ? it.images.first : '');
-    return PressableScale(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => PostDetailPage(postId: it.id)),
-      ),
-      scale: 0.98,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpace.x3),
-        padding: const EdgeInsets.all(AppSpace.x2),
-        decoration: BoxDecoration(
-          color: const Color(AppColors.card),
-          borderRadius: AppRadius.rMd,
-          border: Border.all(color: const Color(AppColors.border)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: SizedBox(
+        width: 76,
+        child: Column(
           children: [
-            if (thumb.isNotEmpty) ...[
-              ClipRRect(
-                borderRadius: AppRadius.rSm,
-                child: SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CachedNetworkImageCompat(
-                        url: thumb.startsWith('http') ? thumb : mediaUrl(thumb),
-                        fit: BoxFit.cover,
-                        borderRadius: AppRadius.sm,
-                      ),
-                      if (it.type == 'video')
-                        const Center(
-                          child: Icon(Icons.play_circle_fill_rounded,
-                              color: Colors.white, size: 26),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpace.x3),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    it.content,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppType.bodySm.copyWith(
-                        color: const Color(AppColors.textPrimary)),
-                  ),
-                  const SizedBox(height: AppSpace.x2),
-                  Row(
-                    children: [
-                      UserAvatar(url: it.author.avatar, size: 18),
-                      const SizedBox(width: AppSpace.x1),
-                      Expanded(
-                        child: Text(
-                          it.author.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppType.micro,
-                        ),
-                      ),
-                      const Icon(Icons.favorite_rounded,
-                          size: 12, color: Color(AppColors.heart)),
-                      const SizedBox(width: 3),
-                      Text(formatCount(it.likeCount), style: AppType.micro),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            UserAvatar(url: avatar, name: name, size: 52),
+            const SizedBox(height: 6),
+            Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5, color: Colors.white)),
+            if (followers > 0)
+              Text('${formatCount(followers)}粉丝',
+                  maxLines: 1,
+                  style: const TextStyle(
+                      fontSize: 10.5, color: Color(0xFF8A8A8E))),
           ],
         ),
       ),
@@ -539,38 +763,146 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
-/// 搜索中骨架：头像 + 文本行占位。
-class _SearchSkeleton extends StatelessWidget {
-  const _SearchSkeleton();
+/// 瀑布流卡片：缩略图 + 视频角标 + 底部渐变（标题 / 作者 / 点赞）
+class _FeedTile extends StatelessWidget {
+  final FeedItem item;
+  final double height;
+  final VoidCallback onTap;
+
+  const _FeedTile(
+      {required this.item, required this.height, required this.onTap});
+
+  String get _thumb {
+    if (item.type == 'video') return item.cover;
+    if (item.images.isNotEmpty) return item.images.first;
+    return '';
+  }
+
+  String get _title {
+    final c = item.content.trim();
+    if (c.isNotEmpty) return c;
+    if (item.topic.isNotEmpty) return '#${item.topic.first}';
+    return '';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 0),
-      physics: const NeverScrollableScrollPhysics(),
-      children: [
-        for (var i = 0; i < 6; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpace.x4),
-            child: Row(
-              children: const [
-                SkeletonBox(width: 44, height: 44, radius: 22),
-                SizedBox(width: AppSpace.x3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SkeletonBox(width: 120, height: 12),
-                      SizedBox(height: AppSpace.x2),
-                      SkeletonBox(height: 10),
-                    ],
+    final thumb = _thumb;
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: SizedBox(
+          height: height,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (thumb.isNotEmpty)
+                CachedNetworkImageCompat(
+                  url: thumb.startsWith('http') ? thumb : mediaUrl(thumb),
+                  fit: BoxFit.cover,
+                )
+              else
+                Container(
+                  color: const Color(AppColors.card),
+                  padding: const EdgeInsets.fromLTRB(10, 12, 10, 58),
+                  child: Text(
+                    _title,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 14, height: 1.45, color: Colors.white),
                   ),
                 ),
-              ],
-            ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: thumb.isEmpty ? 54 : height * 0.55,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.78),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (item.type == 'video')
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded,
+                        size: 17, color: Colors.white),
+                  ),
+                ),
+              Positioned(
+                left: 9,
+                right: 9,
+                bottom: 8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (thumb.isNotEmpty && _title.isNotEmpty)
+                      Text(
+                        _title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          height: 1.34,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        UserAvatar(
+                            url: item.author.avatar,
+                            name: item.author.name,
+                            size: 18),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            item.author.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 11.5, color: Color(0xCCFFFFFF)),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.favorite_rounded,
+                            size: 12, color: Color(0xCCFFFFFF)),
+                        const SizedBox(width: 3),
+                        Text(
+                          formatCount(item.likeCount),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Color(0xCCFFFFFF)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-      ],
+        ),
+      ),
     );
   }
 }
