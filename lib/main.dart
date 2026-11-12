@@ -14,6 +14,9 @@ import 'services/app_route_observer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 全站默认竖屏；进入「流萤航线」时由该页强制切横屏，退出时恢复竖屏
+  await SystemChrome.setPreferredOrientations(
+      const [DeviceOrientation.portraitUp]);
   // 沉浸式：内容延伸到系统栏下方，状态栏/导航栏全透明
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
