@@ -28,6 +28,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Impeller 在部分机型上与 WebView 的 WebGL 图层合成不兼容：HUD 能显示但 3D 画面全黑。
+             关闭 Impeller 回退 Skia，航线里的 WebGL 才能正常出画。 -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
