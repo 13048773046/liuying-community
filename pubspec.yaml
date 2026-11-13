@@ -1,7 +1,7 @@
 name: community_app
 description: "流萤社区 · 短视频+图文混合社区（Android/iOS 单代码库，与流萤音乐账号互通）"
 publish_to: 'none'
-version: 0.3.9+12
+version: 0.4.0+13
 
 environment:
   sdk: ^3.13.5
@@ -9,35 +9,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # HTTP 客户端
   http: ^1.2.2
-  # 视频播放（Android ExoPlayer / iOS AVPlayer）
   video_player: ^2.9.2
-  # 本地 token/偏好存储
   shared_preferences: ^2.3.2
-  # 头像/封面/表情包图片缓存
   cached_network_image: ^3.4.1
-  # 选图/选视频（发帖、视频封面）
   image_picker: ^1.1.2
-  # WebSocket 实时通知
   web_socket_channel: ^3.0.1
   flutter_staggered_grid_view: ^0.7.0
-  # 配乐播放（BGM，图文详情/短视频自动播）
   just_audio: ^0.9.42
-  # 地图选点（配乐外：发送定位）—— flutter_map + OSM/高德瓦片
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  # 跳转外部地图 App
   url_launcher: ^6.3.1
   flutter_svg: ^2.3.0
   photo_view: ^0.15.0
-  # 系统分享面板（分享帖子/视频到微信、复制链接等）
   share_plus: ^10.1.4
   # 流萤航线：内嵌 WebGL 小游戏（本地 HTTP 服务 + WebView）
   webview_flutter: ^4.10.0
-  # 航线资源包解压
   archive: ^3.6.1
-  # 航线资源本地目录
   path_provider: ^2.1.5
 
 dev_dependencies:
