@@ -2,7 +2,7 @@
 ///
 /// 流程：首次进入 → 分段下载资源包（支持断点续传）→ 解压安装（带进度）→
 /// 起一个只监听 127.0.0.1 的本地 HTTP 服务 → WebView 打开 `index.html`。
-/// 之后每次进入都直接读本地文件，不再走网络，也不占 App 包体。
+/// 之后每次进入都直接读本地文件，并在服务端版本号变化时自动更新资源包。
 library;
 
 import 'dart:async';
@@ -63,6 +63,10 @@ class _PetalwakePageState extends State<PetalwakePage> {
   String _diag = '';
   String _softTip = '';
   bool _autoRetried = false;
+
+  /// 正在按服务端版本号更新资源包
+  bool _updating = false;
+  String _pendingVersion = '';
   Timer? _enterTimer;
   Timer? _retryTimer;
   Timer? _tipTimer;
@@ -97,7 +101,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
     final marker = File('${dir.path}/version.json');
     final index = File('${dir.path}/index.html');
 
-    // 已经装好就直接进游戏：不再去比对远端版本，避免“装好了又让你重下一遍”。
+    // 本地已装好：先比一次服务端版本号，版本没变就直接进，变了就更新
     if (await marker.exists() && await index.exists()) {
       String version = '';
       try {
@@ -108,6 +112,21 @@ class _PetalwakePageState extends State<PetalwakePage> {
         _remoteVersion = version;
         if (version.isNotEmpty) _remoteSize = kFlightApproxBytes;
       });
+
+      // 每次进入前比对一次服务端版本号：服务端发过新版就自动更新资源包，
+      // 网络不通 / 清单拿不到时不做任何事，直接用本地这份进游戏。
+      final remote = await _fetchRemoteVersion(timeoutSec: 6);
+      final latest = remote['version'] as String?;
+      if (latest != null && latest.isNotEmpty && latest != version) {
+        if (!mounted) return;
+        setState(() {
+          _updating = true;
+          _pendingVersion = latest;
+          _remoteSize = (remote['size'] as int?) ?? _remoteSize;
+        });
+        await _download();
+        return;
+      }
       await _startGame();
       return;
     }
@@ -121,11 +140,12 @@ class _PetalwakePageState extends State<PetalwakePage> {
     });
   }
 
-  Future<Map<String, dynamic>> _fetchRemoteVersion() async {
+  Future<Map<String, dynamic>> _fetchRemoteVersion(
+      {int timeoutSec = 12}) async {
     try {
       final r = await http
           .get(Uri.parse(kFlightVersionUrl))
-          .timeout(const Duration(seconds: 12));
+          .timeout(Duration(seconds: timeoutSec));
       if (r.statusCode == 200) {
         final j = _decodeJson(r.body);
         if (j != null) return j;
@@ -173,6 +193,10 @@ class _PetalwakePageState extends State<PetalwakePage> {
 
     try {
       final remote = await _fetchRemoteVersion();
+      final latest = (remote['version'] as String?) ?? _remoteVersion;
+      if (mounted && latest.isNotEmpty) {
+        setState(() => _remoteVersion = latest);
+      }
       final size = (remote['size'] as int?) ?? _remoteSize;
       final dlPath = await _downloadDir();
       final metaFile = File('$dlPath/meta.json');
@@ -185,7 +209,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
       }
 
       List<_Seg> segs;
-      final saved = await _loadSegments(metaFile, size);
+      final saved = await _loadSegments(metaFile, size, latest);
       if (saved != null) {
         segs = saved;
         // 续传：每段的实际进度以磁盘上的 part 文件长度为准
@@ -210,7 +234,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
           if (start > end) break;
           segs.add(_Seg(start, end));
         }
-        await _saveSegments(metaFile, size, segs);
+        await _saveSegments(metaFile, size, segs, latest);
       }
 
       final done0 = segs.fold<int>(0, (p, s) => p + s.done);
@@ -300,11 +324,15 @@ class _PetalwakePageState extends State<PetalwakePage> {
     }
   }
 
-  Future<List<_Seg>?> _loadSegments(File meta, int size) async {
+  Future<List<_Seg>?> _loadSegments(File meta, int size, String version) async {
     if (!await meta.exists()) return null;
     try {
       final m = jsonDecode(await meta.readAsString()) as Map<String, dynamic>;
-      if (m['url'] != kFlightZipUrl || (m['size'] as int?) != size) return null;
+      if (m['url'] != kFlightZipUrl ||
+          (m['size'] as int?) != size ||
+          (m['version'] as String?) != version) {
+        return null;
+      }
       final list = (m['segs'] as List)
           .whereType<Map<String, dynamic>>()
           .map((e) => _Seg((e['start'] as num).toInt(), (e['end'] as num).toInt()))
@@ -315,10 +343,12 @@ class _PetalwakePageState extends State<PetalwakePage> {
     }
   }
 
-  Future<void> _saveSegments(File meta, int size, List<_Seg> segs) async {
+  Future<void> _saveSegments(
+      File meta, int size, List<_Seg> segs, String version) async {
     await meta.writeAsString(jsonEncode({
       'url': kFlightZipUrl,
       'size': size,
+      'version': version,
       'segs': [
         for (final s in segs) {'start': s.start, 'end': s.end}
       ],
@@ -346,6 +376,11 @@ class _PetalwakePageState extends State<PetalwakePage> {
     } catch (_) {}
 
     try {
+      if (_updating && await dir.exists()) {
+        try {
+          await dir.delete(recursive: true);
+        } catch (_) {}
+      }
       if (!await dir.exists()) await dir.create(recursive: true);
       final input = InputFileStream(zipFile.path);
       try {
@@ -376,8 +411,12 @@ class _PetalwakePageState extends State<PetalwakePage> {
       }
 
       final remote = await _fetchRemoteVersion();
-      await marker.writeAsString(jsonEncode(
-          remote.isNotEmpty ? remote : {'version': _remoteVersion}));
+      final v = _remoteVersion.isNotEmpty
+          ? _remoteVersion
+          : (remote['version'] as String?) ?? '';
+      await marker.writeAsString(jsonEncode(remote.isNotEmpty
+          ? {...remote, 'version': v.isEmpty ? remote['version'] : v}
+          : {'version': v}));
 
       try {
         await zipFile.delete();
@@ -387,6 +426,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
       setState(() {
         _install = 1;
         _message = '安装完成';
+        _updating = false;
+        _pendingVersion = '';
       });
       await _startGame();
     } catch (e) {
@@ -576,6 +617,30 @@ class _PetalwakePageState extends State<PetalwakePage> {
     _tipTimer = Timer(const Duration(seconds: 6), () {
       if (mounted) setState(() => _softTip = '');
     });
+  }
+
+  Future<void> _checkUpdate() async {
+    final remote = await _fetchRemoteVersion(timeoutSec: 8);
+    final latest = remote['version'] as String?;
+    if (!mounted) return;
+    if (latest == null || latest.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('连不上更新服务，稍后再试')),
+      );
+      return;
+    }
+    if (latest == _remoteVersion) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已是最新版本 v$latest')),
+      );
+      return;
+    }
+    setState(() {
+      _updating = true;
+      _pendingVersion = latest;
+      _remoteSize = (remote['size'] as int?) ?? _remoteSize;
+    });
+    await _download();
   }
 
   Future<void> _reloadGame() async {
@@ -820,6 +885,16 @@ class _PetalwakePageState extends State<PetalwakePage> {
                         fontSize: 10.5, color: Color(0xFF6E7784))),
               ),
             ListTile(
+              leading: const Icon(Icons.system_update_alt_rounded, size: 19),
+              title: const Text('检查资源包更新', style: TextStyle(fontSize: 13)),
+              subtitle: Text('本地版本 v${_remoteVersion.isEmpty ? '未知' : _remoteVersion}',
+                  style: const TextStyle(fontSize: 11)),
+              onTap: () {
+                Navigator.pop(c);
+                _checkUpdate();
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.refresh, size: 19),
               title: const Text('重新加载游戏', style: TextStyle(fontSize: 13)),
               onTap: () {
@@ -874,8 +949,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
             ),
             const SizedBox(height: 18),
             _bullet('分段下载，支持断点续传；网络中断后再点会接着下'),
+            _bullet('服务端更新资源包时会自动比对版本号并更新'),
             _bullet('建议在 Wi-Fi 下下载，安装后约占用 180 MB 空间'),
-            _bullet('左侧滑动控制升降与侧倾，右侧按钮控制借风/减速/翻滚'),
             const Spacer(),
             SizedBox(
               width: double.infinity,
@@ -894,8 +969,9 @@ class _PetalwakePageState extends State<PetalwakePage> {
               ),
             ),
             const SizedBox(height: 10),
-            const Text('已下载的部分会被保留，不会重复下载。',
-                style: TextStyle(fontSize: 11, color: Color(0xFF68717E))),
+            Text(
+                '已下载的部分会被保留，不会重复下载。${_remoteVersion.isEmpty ? '' : ' 当前版本 v$_remoteVersion'}',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF68717E))),
           ],
         ),
       ),
@@ -937,7 +1013,10 @@ class _PetalwakePageState extends State<PetalwakePage> {
             Icon(installing ? Icons.inventory_2_outlined : Icons.flight_takeoff,
                 size: 40, color: const Color(0xFF4CD9A5)),
             const SizedBox(height: 18),
-            Text(installing ? '正在安装' : '正在下载',
+            Text(
+                installing
+                    ? (_updating ? '正在安装新版本' : '正在安装')
+                    : (_updating ? '正在更新资源包' : '正在下载'),
                 style: const TextStyle(fontSize: 16, color: Colors.white)),
             const SizedBox(height: 6),
             Text(_message,
@@ -965,7 +1044,12 @@ class _PetalwakePageState extends State<PetalwakePage> {
               ],
             ),
             const SizedBox(height: 26),
-            Text(installing ? '安装完成后自动进入游戏' : '可以随时离开，下次会续传',
+            Text(
+                installing
+                    ? '安装完成后自动进入游戏'
+                    : (_updating && _pendingVersion.isNotEmpty
+                        ? '更新到 v$_pendingVersion · 可以随时离开，下次会续传'
+                        : '可以随时离开，下次会续传'),
                 style: const TextStyle(fontSize: 11, color: Color(0xFF68717E))),
           ],
         ),
