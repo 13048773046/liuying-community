@@ -65,6 +65,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
   bool _autoRetried = false;
   bool _pixBlack = false;
   String _gameUrlBase = '';
+  int _waitSec = 0;
 
   /// 正在按服务端版本号更新资源包
   bool _updating = false;
@@ -503,16 +504,29 @@ class _PetalwakePageState extends State<PetalwakePage> {
 
       _autoRetried = false;
       _pixBlack = false;
+      _waitSec = 0;
       _enterTimer?.cancel();
-      _enterTimer = Timer(const Duration(seconds: 10), () {
-        if (mounted && !_webReady) _forceEnter('页面未回报就绪，已先进入');
+      // 不再 10 秒就撤掉覆盖层：引擎在 iOS 上首次初始化要几十秒，
+      // 提前撤掉只会让用户对着黑屏发愣，还会误判成“加载完成”。
+      _enterTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+        if (!mounted) {
+          t.cancel();
+          return;
+        }
+        if (_webReady) {
+          t.cancel();
+          return;
+        }
+        setState(() => _waitSec++);
+        // 之前 22 秒就 reload，会把快到头的初始化打断重来，越等越不出画；改到 90 秒才算真卡死。
+        if (_waitSec >= 90 && !_autoRetried) {
+          _autoRetried = true;
+          t.cancel();
+          _web?.reload();
+        }
       });
       _retryTimer?.cancel();
-      _retryTimer = Timer(const Duration(seconds: 22), () {
-        if (!mounted || _webReady || _autoRetried) return;
-        _autoRetried = true;
-        _web?.reload();
-      });
+      _retryTimer = null;
 
       if (!mounted) return;
       setState(() {
@@ -556,29 +570,34 @@ class _PetalwakePageState extends State<PetalwakePage> {
       return r + ' | ' + (f ? 'float-rt' : 'no-float-rt');
     } catch(e){ return 'gl-err'; }
   }
-  // 真正的黑屏判定：读默认帧缓冲的像素。HUD 是 DOM，显示正常不代表 3D 出画了。
+  // 真正的黑屏判定：把 canvas 缩到 64×64 采样亮度。HUD 是 DOM，显示正常不代表 3D 出画了。
+  // 不用 readPixels：preserveDrawingBuffer=false 时读默认帧缓冲永远是 0，会误判成黑屏。
+  function lumNow(){
+    try {
+      var c = document.querySelector('canvas');
+      if (!c || !c.width || !c.height) return -2;
+      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+      var ctx2 = cv.getContext('2d');
+      ctx2.drawImage(c, 0, 0, 64, 64);
+      var d = ctx2.getImageData(0, 0, 64, 64).data;
+      var best = 0, sum = 0, cnt = 0;
+      for (var i = 0; i < d.length; i += 4) {
+        var l = Math.max(d[i], Math.max(d[i+1], d[i+2]));
+        if (l > best) best = l; sum += l; cnt++;
+      }
+      return best;
+    } catch(e){ return -3; }
+  }
   function samplePixels(){
     var best = 0, calls = -1, lost = 0, frames = 0;
     function step(){
       frames++;
       try {
         var r = window.PW && window.PW.renderer;
-        if (r) { calls = r.info.render.calls; }
-        var g = r && r.getContext();
-        if (g) {
-          lost = g.isContextLost() ? 1 : 0;
-          var w = g.drawingBufferWidth, h = g.drawingBufferHeight;
-          var pts = [[0.5,0.5],[0.25,0.75],[0.75,0.3],[0.5,0.9]];
-          var buf = new Uint8Array(4);
-          g.bindFramebuffer(g.FRAMEBUFFER, null);
-          for (var i = 0; i < pts.length; i++) {
-            try {
-              g.readPixels(Math.floor(w*pts[i][0]), Math.floor(h*pts[i][1]), 1, 1, g.RGBA, g.UNSIGNED_BYTE, buf);
-              var lum = Math.max(buf[0], Math.max(buf[1], buf[2]));
-              if (lum > best) best = lum;
-            } catch(e) {}
-          }
-        }
+        if (r && r.info) { calls = r.info.render.calls; }
+        var g = r && r.getContext && r.getContext();
+        if (g && g.isContextLost) lost = g.isContextLost() ? 1 : 0;
+        best = lumNow();
       } catch(e) {}
       if (frames < 10) { requestAnimationFrame(step); }
       else {
@@ -645,6 +664,22 @@ class _PetalwakePageState extends State<PetalwakePage> {
       setState(() => _diag = v.substring(5));
       return;
     }
+    // 页面内 diag.js 每隔一段时间回报：draws=绘制次数、lum=画面亮度、ready=引擎是否完成初始化
+    if (v.startsWith('d|')) {
+      final draws = RegExp(r'draws=(-?\d+)').firstMatch(v)?.group(1);
+      final ready = RegExp(r'ready=(\d)').firstMatch(v)?.group(1);
+      if (ready == '1' && !_webReady) {
+        _enterTimer?.cancel();
+        setState(() {
+          _webReady = true;
+          _webError = null;
+        });
+      }
+      setState(() {
+        _diag = '绘制${draws ?? '?'}次 · 引擎${ready == '1' ? '已就绪' : '初始化中'}';
+      });
+      return;
+    }
     if (v.startsWith('pix:')) {
       final parts = v.substring(4).split('|');
       final lum = int.tryParse(parts.first) ?? 0;
@@ -705,7 +740,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
     final q = Uri(queryParameters: {
       'os': Platform.isIOS ? 'ios' : 'android',
       'osv': Platform.operatingSystemVersion,
-      'app': '0.4.2',
+      'app': '0.4.3',
       'pix': extra,
       'gpu': gpu.length > 120 ? gpu.substring(0, 120) : gpu,
     }).query;
@@ -929,31 +964,44 @@ class _PetalwakePageState extends State<PetalwakePage> {
               else
                 const Icon(Icons.cloud_off, size: 26, color: Color(0xFF8E97A5)),
               const SizedBox(height: 16),
-              Text(_webError == null ? '正在进入航线…' : '页面正在自动重试…',
+              Text(
+                  _webError == null
+                      ? (_waitSec > 0 ? '引擎初始化中 ${_waitSec}s…' : '正在进入航线…')
+                      : '页面正在自动重试…',
                   style: const TextStyle(fontSize: 13, color: Colors.white)),
-              if (_webError != null) ...[
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Text(
-                    _webError!,
-                    textAlign: TextAlign.center,
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 11, height: 1.5, color: Color(0xFF8E97A5)),
-                  ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  _webError == null
+                      ? (_waitSec >= 20
+                          ? '首次进入引擎要铺地形、烘天空，iOS 上通常 30–60 秒，别切走，慢慢等它画出来。'
+                          : '正在铺地形、烘天空，稍等一下')
+                      : _webError ?? '',
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11, height: 1.5, color: Color(0xFF8E97A5)),
                 ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF3DDC97),
-                    foregroundColor: const Color(0xFF05231A),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () => setState(() => _webReady = true),
+                    child: const Text('先看看当前画面',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF8E97A5))),
                   ),
-                  onPressed: _reloadGame,
-                  child: const Text('重新加载'),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _reloadGame,
+                    child: const Text('重新加载',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF3DDC97))),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
