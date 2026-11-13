@@ -64,12 +64,9 @@ class _PetalwakePageState extends State<PetalwakePage> {
   @override
   void initState() {
     super.initState();
-    // 进游戏前：强制横屏 + 全屏沉浸（隐藏系统栏）
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // 下载 / 安装阶段保持竖屏（与社区其他页面一致），横屏留给真正进游戏那一刻
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _bootstrap();
   }
 
@@ -399,6 +396,20 @@ class _PetalwakePageState extends State<PetalwakePage> {
     _starting = true;
 
     try {
+      // 到这一步才切横屏：加载游戏页面前先摆好屏幕，避免画面先竖后横
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      // edgeToEdge 而非隐藏系统栏：背景可以铺到状态栏/刘海/手势条，内容仍按安全区排布
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ));
+
       await _server?.stop();
       final server = _LocalSiteServer(dir);
       await server.start();
@@ -460,6 +471,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
         _message = '';
       });
     } catch (e) {
+      await SystemChrome.setPreferredOrientations(
+          const [DeviceOrientation.portraitUp]);
       if (!mounted) return;
       setState(() {
         _status = FlightStatus.failed;
@@ -566,7 +579,15 @@ class _PetalwakePageState extends State<PetalwakePage> {
     if (inGame) {
       return Stack(
         children: [
-          Positioned.fill(child: WebViewWidget(controller: _web!)),
+          // 背景层：铺满到系统栏（状态栏/刘海/手势条）区域
+          const Positioned.fill(child: ColoredBox(color: Color(0xFF07090C))),
+          // 内容层：WebView 让出状态栏与刘海，不把画面内容压进系统栏
+          Positioned.fill(
+            child: SafeArea(
+              bottom: false,
+              child: WebViewWidget(controller: _web!),
+            ),
+          ),
           if (!_webReady) _enterOverlay(),
           Positioned(
             left: 10,
@@ -576,7 +597,14 @@ class _PetalwakePageState extends State<PetalwakePage> {
                 children: [
                   _glassButton(
                     icon: Icons.arrow_back_ios_new_rounded,
-                    onTap: () => Navigator.pop(context),
+                    onTap: () async {
+                      await SystemChrome.setPreferredOrientations(
+                          const [DeviceOrientation.portraitUp]);
+                      SystemChrome.setEnabledSystemUIMode(
+                          SystemUiMode.edgeToEdge);
+                      if (!mounted) return;
+                      Navigator.pop(context);
+                    },
                   ),
                   const SizedBox(width: 8),
                   if (!_webReady)
