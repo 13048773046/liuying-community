@@ -1,7 +1,7 @@
 /// 社区首页：沉浸黑单列信息流（关注 / 推荐）
 ///
-/// 版式：品牌标题 + 顶部操作（任务/搜索/发布）→ 关注·推荐分段 → 二楼入口 → 运营入口 →
-/// Banner → 全幅内容卡（[PostCard]）。整页一起滚动，不做吸顶。
+/// 版式：品牌标题 → 关注·推荐分段 → 二楼入口提示 → 运营入口 → Banner → 内容卡。
+/// 手势：在信息流顶部下拉，轻拉是刷新，拉过阈值整页下沉取出「二楼」。
 library;
 
 import 'package:flutter/material.dart';
@@ -41,12 +41,25 @@ class _HomePageState extends State<HomePage>
   String? _error;
   final ScrollController _scroll = ScrollController();
 
-  /// 二楼（下滑取出的小程序面板）
-  late final AnimationController _floorCtl = AnimationController(
+  /// 下拉手势进度 0..1：轻拉触发刷新，拉过阈值整页下沉取出二楼
+  late final AnimationController _pullCtl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 240),
-  );
-  double _floorPull = 0;
+    duration: const Duration(milliseconds: 220),
+  )..addListener(() {
+      if (mounted) setState(() {});
+    });
+
+  /// 进入二楼的阈值（下拉像素）
+  static const double kFloorPx = 150;
+
+  /// 触发刷新的阈值（下拉像素）
+  static const double kRefreshPx = 64;
+
+  bool _floorOpen = false;
+  bool _refreshing = false;
+  bool _pulling = false;
+  double _dragStartY = 0;
+  double _lastPullPx = 0;
 
   @override
   void initState() {
@@ -56,7 +69,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
-    _floorCtl.dispose();
+    _pullCtl.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -126,20 +139,29 @@ class _HomePageState extends State<HomePage>
     return ImmersivePage(
       child: SafeArea(
         bottom: false,
-        child: AnimatedBuilder(
-          animation: _floorCtl,
-          builder: (context, _) {
-            final t = Curves.easeOutCubic.transform(_floorCtl.value);
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final v = _pullCtl.value;
+            final open = _floorOpen;
+            // 未打开：页面跟手下沉；打开后继续沉下去，把二楼让出来
+            final offset =
+                open ? box.maxHeight * (0.08 + 0.36 * v) : v * kFloorPx;
+            final panelT = open
+                ? Curves.easeOutCubic.transform(v)
+                : ((v * kFloorPx - kRefreshPx) / (kFloorPx - kRefreshPx))
+                    .clamp(0.0, 1.0);
             return Stack(
               children: [
-                if (t > 0) Positioned.fill(child: _floorPanel(t)),
+                if (panelT > 0) Positioned.fill(child: _floorPanel(panelT)),
                 Transform.translate(
-                  offset: Offset(0, t * 26),
+                  offset: Offset(0, offset),
                   child: Opacity(
-                    opacity: 1 - t * 0.5,
-                    child: IgnorePointer(ignoring: t > 0, child: _homeList()),
+                    opacity: 1 - (open ? panelT * 0.45 : 0),
+                    child: IgnorePointer(ignoring: open, child: _homeList()),
                   ),
                 ),
+                if (!open)
+                  Positioned(top: 0, left: 0, right: 0, child: _pullHint()),
               ],
             );
           },
@@ -149,11 +171,27 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _homeList() {
-    return RefreshIndicator(
-      onRefresh: () => _load(refresh: true),
-      color: const Color(AppColors.accent),
-      backgroundColor: const Color(AppColors.elevated),
-      edgeOffset: 8,
+    return Listener(
+      onPointerDown: (e) {
+        if (_floorOpen || _refreshing) return;
+        if (!_scroll.hasClients || _scroll.position.pixels > 0) return;
+        _pulling = true;
+        _dragStartY = e.position.dy;
+      },
+      onPointerMove: (e) {
+        if (!_pulling) return;
+        final dy = e.position.dy - _dragStartY;
+        if (dy <= 0) {
+          if (_pullCtl.value != 0) _pullCtl.value = 0;
+          _lastPullPx = 0;
+          return;
+        }
+        final px = dy * 0.9;
+        _lastPullPx = px;
+        _pullCtl.value = (px / kFloorPx).clamp(0.0, 1.0);
+      },
+      onPointerUp: (_) => _releasePull(),
+      onPointerCancel: (_) => _releasePull(),
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
           if (n.metrics.extentAfter < 500) _load();
@@ -162,7 +200,7 @@ class _HomePageState extends State<HomePage>
         child: CustomScrollView(
           controller: _scroll,
           physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics()),
+              parent: ClampingScrollPhysics()),
           slivers: [
             SliverToBoxAdapter(child: _header()),
             SliverToBoxAdapter(child: _tabs()),
@@ -182,57 +220,122 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  // ---------------------------------------------------------------- 二楼入口
+  /// 松手：轻拉刷新，过二楼阈值整页下沉取出二楼
+  Future<void> _releasePull() async {
+    if (!_pulling) return;
+    _pulling = false;
+    final px = _lastPullPx;
+    _lastPullPx = 0;
+
+    if (px >= kFloorPx - 6) {
+      HapticFeedback.mediumImpact();
+      setState(() => _floorOpen = true);
+      await _pullCtl.animateTo(1,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic);
+      return;
+    }
+    if (px >= kRefreshPx) {
+      HapticFeedback.lightImpact();
+      setState(() => _refreshing = true);
+      _pullCtl.value = 0;
+      try {
+        await _load(refresh: true);
+      } finally {
+        if (mounted) setState(() => _refreshing = false);
+      }
+      return;
+    }
+    if (_pullCtl.value > 0) {
+      await _pullCtl.animateTo(0,
+          duration: const Duration(milliseconds: 240), curve: Curves.easeOut);
+    }
+  }
+
+  Future<void> _closeFloor() async {
+    if (!_floorOpen) return;
+    await _pullCtl.animateTo(0,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic);
+    if (mounted) setState(() => _floorOpen = false);
+  }
+
+  /// 顶部下拉提示：下拉刷新 → 松手刷新 → 松手进二楼
+  Widget _pullHint() {
+    final v = _pullCtl.value;
+    final px = v * kFloorPx;
+    final show = px > 6 || _refreshing;
+    final pastRefresh = px >= kRefreshPx;
+    final pastFloor = px >= kFloorPx - 6;
+    final color = pastFloor
+        ? const Color(AppColors.accent)
+        : (pastRefresh
+            ? const Color(0xFFCFE6D9)
+            : const Color(AppColors.textTertiary));
+    final label = _refreshing
+        ? '正在刷新…'
+        : (pastFloor ? '松手进二楼' : (pastRefresh ? '松手刷新' : '下拉刷新'));
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 120),
+        opacity: show ? 1 : 0,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xE60E1319),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(color: const Color(0x22FFFFFF)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_refreshing)
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xFF3DDC97)),
+                      ),
+                    )
+                  else
+                    Transform.rotate(
+                      angle: pastFloor ? 3.14159 : v * 3.14159,
+                      child: Icon(Icons.arrow_downward_rounded,
+                          size: 13, color: color),
+                    ),
+                  const SizedBox(width: 6),
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: color)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------- 二楼
+  /// 二楼入口提示：一行小字，只做引导，不占视觉重量
   Widget _floorEntry() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpace.gutter, AppSpace.x3, AppSpace.gutter, 0),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _openFloor,
-        onVerticalDragStart: (_) => _floorPull = 0,
-        onVerticalDragUpdate: (d) {
-          _floorPull += d.delta.dy;
-          if (_floorPull > 46) {
-            _floorPull = 0;
-            _openFloor();
-          }
-        },
-        onVerticalDragEnd: (_) => _floorPull = 0,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-          decoration: BoxDecoration(
-            color: const Color(AppColors.card),
-            borderRadius: AppRadius.rMd,
-            border: Border.all(color: const Color(AppColors.border)),
-          ),
-          child: Row(
-            children: [
-              _floorMiniIcon(
-                icon: Icons.flight_takeoff_rounded,
-                colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('二楼 · 下滑取出小工具',
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(AppColors.textPrimary))),
-                    const SizedBox(height: 3),
-                    Text('流萤航线 · 创作 · 任务 · 榜单',
-                        style: AppType.micro.copyWith(fontSize: 11)),
-                  ],
-                ),
-              ),
-              const Icon(Icons.keyboard_arrow_down_rounded,
-                  size: 18, color: Color(AppColors.textTertiary)),
-            ],
-          ),
-        ),
+          AppSpace.gutter, AppSpace.x2, AppSpace.gutter, AppSpace.x1),
+      child: Row(
+        children: [
+          const Icon(Icons.keyboard_arrow_down_rounded,
+              size: 14, color: Color(AppColors.textTertiary)),
+          const SizedBox(width: 3),
+          Text('下拉进入二楼', style: AppType.micro.copyWith(fontSize: 10.5)),
+        ],
       ),
     );
   }
@@ -249,187 +352,185 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  void _openFloor() {
-    _floorCtl.forward();
-    HapticFeedback.lightImpact();
-  }
-
-  Future<void> _closeFloor() async {
-    await _floorCtl.reverse();
-  }
-
   Widget _floorPanel(double t) {
     return GestureDetector(
       onTap: _closeFloor,
       onVerticalDragUpdate: (d) {
-        if (d.delta.dy < -30) _closeFloor();
+        if (d.delta.dy < -24) _closeFloor();
       },
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0B0D10), Color(AppColors.bg)],
+      child: Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF0B0D10), Color(AppColors.bg)],
+            ),
           ),
-        ),
-        child: Transform.translate(
-          offset: Offset(0, (1 - t) * -40),
-          child: SafeArea(
-            bottom: false,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpace.gutter, AppSpace.x5, AppSpace.gutter, 28),
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(AppColors.elevated),
-                        borderRadius: AppRadius.rXs,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * -40),
+            child: SafeArea(
+              bottom: false,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 28),
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(AppColors.elevated),
+                          borderRadius: AppRadius.rXs,
+                        ),
+                        child: Text('二楼 · 小程序',
+                            style: AppType.micro.copyWith(fontSize: 10.5)),
                       ),
-                      child: Text('二楼 · 小程序',
-                          style: AppType.micro.copyWith(fontSize: 10.5)),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: _closeFloor,
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: _closeFloor,
+                        child: Row(
+                          children: [
+                            Text('上滑收起',
+                                style: AppType.micro.copyWith(fontSize: 11)),
+                            const Icon(Icons.keyboard_arrow_up_rounded,
+                                size: 16, color: Color(AppColors.textTertiary)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.x4),
+                  const Text('常用的小工具，都在这一层',
+                      style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: Color(AppColors.textPrimary))),
+                  const SizedBox(height: 4),
+                  Text('在首页信息流顶部往下拉，拉过一半就出来了',
+                      style: AppType.micro.copyWith(fontSize: 11.5)),
+                  const SizedBox(height: AppSpace.x5),
+                  GridView.count(
+                    crossAxisCount: 4,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: AppSpace.x4,
+                    crossAxisSpacing: AppSpace.x2,
+                    childAspectRatio: 0.78,
+                    children: [
+                      _floorApp(
+                        label: '流萤航线',
+                        icon: Icons.flight_takeoff_rounded,
+                        colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
+                        onTap: () {
+                          _closeFloor();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const PetalwakePage()),
+                          );
+                        },
+                      ),
+                      _floorApp(
+                        label: '发一帖',
+                        icon: Icons.add_rounded,
+                        colors: const [Color(0xFF2A2A33), Color(0xFF4B3B2E)],
+                        onTap: () {
+                          _closeFloor();
+                          _openEditor();
+                        },
+                      ),
+                      _floorApp(
+                        label: '任务中心',
+                        icon: Icons.emoji_events_outlined,
+                        colors: const [Color(0xFF2B2A20), Color(0xFF6A5A22)],
+                        onTap: () {
+                          _closeFloor();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const TaskCenterPage()),
+                          );
+                        },
+                      ),
+                      _floorApp(
+                        label: '排行榜',
+                        icon: Icons.leaderboard_outlined,
+                        colors: const [Color(0xFF20222E), Color(0xFF343A5A)],
+                        onTap: () {
+                          _closeFloor();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const RankingPage()),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.x6),
+                  Text('最近使用',
+                      style: AppType.micro.copyWith(fontSize: 11.5)),
+                  const SizedBox(height: AppSpace.x3),
+                  GestureDetector(
+                    onTap: () {
+                      _closeFloor();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PetalwakePage()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpace.x3),
+                      decoration: BoxDecoration(
+                        color: const Color(AppColors.card),
+                        borderRadius: AppRadius.rMd,
+                        border:
+                            Border.all(color: const Color(AppColors.border)),
+                      ),
                       child: Row(
                         children: [
-                          Text('上滑收起',
-                              style: AppType.micro.copyWith(fontSize: 11)),
-                          const Icon(Icons.keyboard_arrow_up_rounded,
-                              size: 16, color: Color(AppColors.textTertiary)),
+                          _floorMiniIcon(
+                            icon: Icons.flight_takeoff_rounded,
+                            colors: const [
+                              Color(0xFF1B6B52),
+                              Color(0xFF3DDC97)
+                            ],
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('流萤航线',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(AppColors.textPrimary))),
+                                SizedBox(height: 2),
+                                Text('骑上扫帚，飞过花甸',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: Color(AppColors.textTertiary))),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded,
+                              size: 18, color: Color(AppColors.textTertiary)),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: AppSpace.x4),
-                const Text('常用的小工具，都在这一层',
-                    style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        color: Color(AppColors.textPrimary)),
-                ),
-                const SizedBox(height: 4),
-                Text('在首页往下轻轻一拉就出来了',
-                    style: AppType.micro.copyWith(fontSize: 11.5)),
-                const SizedBox(height: AppSpace.x5),
-                GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: AppSpace.x4,
-                  crossAxisSpacing: AppSpace.x2,
-                  childAspectRatio: 0.78,
-                  children: [
-                    _floorApp(
-                      label: '流萤航线',
-                      icon: Icons.flight_takeoff_rounded,
-                      colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
-                      onTap: () {
-                        _closeFloor();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const PetalwakePage()),
-                        );
-                      },
-                    ),
-                    _floorApp(
-                      label: '发一帖',
-                      icon: Icons.add_rounded,
-                      colors: const [Color(0xFF2A2A33), Color(0xFF4B3B2E)],
-                      onTap: () {
-                        _closeFloor();
-                        _openEditor();
-                      },
-                    ),
-                    _floorApp(
-                      label: '任务中心',
-                      icon: Icons.emoji_events_outlined,
-                      colors: const [Color(0xFF2B2A20), Color(0xFF6A5A22)],
-                      onTap: () {
-                        _closeFloor();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const TaskCenterPage()),
-                        );
-                      },
-                    ),
-                    _floorApp(
-                      label: '排行榜',
-                      icon: Icons.leaderboard_outlined,
-                      colors: const [Color(0xFF20222E), Color(0xFF343A5A)],
-                      onTap: () {
-                        _closeFloor();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const RankingPage()),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpace.x6),
-                Text('最近使用', style: AppType.micro.copyWith(fontSize: 11.5)),
-                const SizedBox(height: AppSpace.x3),
-                GestureDetector(
-                  onTap: () {
-                    _closeFloor();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PetalwakePage()),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpace.x3),
-                    decoration: BoxDecoration(
-                      color: const Color(AppColors.card),
-                      borderRadius: AppRadius.rMd,
-                      border: Border.all(color: const Color(AppColors.border)),
-                    ),
-                    child: Row(
-                      children: [
-                        _floorMiniIcon(
-                          icon: Icons.flight_takeoff_rounded,
-                          colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
-                        ),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('流萤航线',
-                                  style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(AppColors.textPrimary))),
-                              SizedBox(height: 2),
-                              Text('骑上扫帚，飞过花甸',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(AppColors.textTertiary))),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right_rounded,
-                            size: 18, color: Color(AppColors.textTertiary)),
-                      ],
-                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpace.x6),
-                Center(
-                  child: Text('点空白处或上滑收起二楼',
-                      style: AppType.micro.copyWith(fontSize: 11)),
-                ),
-              ],
+                  const SizedBox(height: AppSpace.x6),
+                  Center(
+                    child: Text('点空白处或上滑收起二楼',
+                        style: AppType.micro.copyWith(fontSize: 11)),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
