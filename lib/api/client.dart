@@ -1,6 +1,6 @@
 /// 流萤社区 · API 客户端
 /// - 社区接口：Bearer token（与音乐 tokens 表互通）
-/// - 登录：走音乐 /music/api/login（multipart），拿同一份 token
+/// - 登录：走音乐 /music/api/login（JSON），拿同一份 token
 library;
 
 import 'dart:async';
@@ -187,19 +187,25 @@ class ApiClient {
   }
 
   /// 账号密码登录（音乐 /music/api/login，返回 token 与用户资料）
-  /// 返回 null 表示失败（message 已抛异常）。
+  ///
+  /// 用 JSON 而不是 multipart：Dart http 的 multipart 会写小写
+  /// `content-disposition` 头，音乐后端曾按大小写敏感匹配导致字段被丢弃，
+  /// 表现为「密码明明是对的却一直提示账号或密码错误」。
+  /// 服务端现已兼容小写头，同时 /api/login 也支持 JSON 提交。
   static Future<Map<String, dynamic>> login(
     String account,
     String password,
   ) async {
-    final req = http.MultipartRequest(
-      'POST',
-      Uri.parse('$kMusicBase/api/login'),
-    );
-    req.fields['account'] = account;
-    req.fields['password'] = password;
-    final streamed = await req.send().timeout(const Duration(seconds: 20));
-    final r = await http.Response.fromStream(streamed);
+    final r = await http
+        .post(
+          Uri.parse('$kMusicBase/api/login'),
+          headers: _headers(),
+          body: jsonEncode({
+            'account': account.trim(),
+            'password': password,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
     final Map<String, dynamic> j;
     try {
       j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
