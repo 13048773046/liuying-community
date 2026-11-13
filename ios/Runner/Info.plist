@@ -71,5 +71,9 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Impeller 在 iOS 上与 WKWebView 的 WebGL(Metal) 图层合成不兼容：
+	     HUD/触屏控件能显示，3D 画面却是全黑。关闭 Impeller 回退 Skia，航线里的 WebGL 才能出画。 -->
+	<key>FLTEnableImpeller</key>
+	<false/>
 </dict>
 </plist>
