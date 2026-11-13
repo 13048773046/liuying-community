@@ -1,6 +1,6 @@
 /// 社区首页：沉浸黑单列信息流（关注 / 推荐）
 ///
-/// 版式：品牌标题 → 关注·推荐分段 → 二楼入口提示 → 运营入口 → Banner → 内容卡。
+/// 版式：品牌标题 → 关注·推荐分段 → 运营入口 → Banner → 内容卡。
 /// 手势：在信息流顶部下拉，轻拉是刷新，拉过阈值整页沉出屏幕，从后面取出「二楼」。
 library;
 
@@ -145,13 +145,24 @@ class _HomePageState extends State<HomePage>
             final open = _floorOpen;
             // 跟手阶段只小幅下沉；确认进二楼后整页沉出屏幕，二楼满屏亮相
             final offset = open ? box.maxHeight * v : v * kFloorPx;
+            final t = open ? Curves.easeOutQuart.transform(v) : 0.0;
             final panelT = open ? Curves.easeOutCubic.transform(v) : 0.0;
+            // 首页往下沉时同时轻微缩小并压暗，制造「退到后层」的纵深感
+            final contentScale = 1 - 0.05 * t;
+            final contentDim = 1 - 0.55 * t;
             return Stack(
               children: [
-                if (panelT > 0) Positioned.fill(child: _floorPanel(panelT)),
+                if (panelT > 0) Positioned.fill(child: _floorPanel(t)),
                 Transform.translate(
                   offset: Offset(0, offset),
-                  child: IgnorePointer(ignoring: open, child: _homeList()),
+                  child: Transform.scale(
+                    scale: contentScale,
+                    alignment: Alignment.topCenter,
+                    child: Opacity(
+                      opacity: contentDim,
+                      child: IgnorePointer(ignoring: open, child: _homeList()),
+                    ),
+                  ),
                 ),
                 if (!open)
                   Positioned(top: 0, left: 0, right: 0, child: _pullHint()),
@@ -197,7 +208,6 @@ class _HomePageState extends State<HomePage>
           slivers: [
             SliverToBoxAdapter(child: _header()),
             SliverToBoxAdapter(child: _tabs()),
-            SliverToBoxAdapter(child: _floorEntry()),
             SliverToBoxAdapter(child: _opsRail()),
             const SliverToBoxAdapter(
               child: Padding(
@@ -224,8 +234,8 @@ class _HomePageState extends State<HomePage>
       HapticFeedback.mediumImpact();
       setState(() => _floorOpen = true);
       await _pullCtl.animateTo(1,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic);
+          duration: const Duration(milliseconds: 340),
+          curve: Curves.easeOutQuart);
       return;
     }
     if (px >= kRefreshPx) {
@@ -248,8 +258,8 @@ class _HomePageState extends State<HomePage>
   Future<void> _closeFloor() async {
     if (!_floorOpen) return;
     await _pullCtl.animateTo(0,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic);
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOutCubic);
     if (mounted) setState(() => _floorOpen = false);
   }
 
@@ -317,22 +327,6 @@ class _HomePageState extends State<HomePage>
   }
 
   // ---------------------------------------------------------------- 二楼
-  /// 二楼入口提示：一行小字，只做引导，不占视觉重量
-  Widget _floorEntry() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpace.gutter, AppSpace.x2, AppSpace.gutter, AppSpace.x1),
-      child: Row(
-        children: [
-          const Icon(Icons.keyboard_arrow_down_rounded,
-              size: 14, color: Color(AppColors.textTertiary)),
-          const SizedBox(width: 3),
-          Text('下拉进入二楼', style: AppType.micro.copyWith(fontSize: 10.5)),
-        ],
-      ),
-    );
-  }
-
   Widget _floorMiniIcon({required IconData icon, required List<Color> colors}) {
     return Container(
       width: 30,
@@ -362,7 +356,7 @@ class _HomePageState extends State<HomePage>
             ),
           ),
           child: Transform.translate(
-            offset: Offset(0, (1 - t) * -40),
+            offset: Offset(0, (1 - t) * -36),
             child: SafeArea(
               bottom: false,
               child: ListView(
