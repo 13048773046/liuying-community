@@ -63,6 +63,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
   String _diag = '';
   String _softTip = '';
   bool _autoRetried = false;
+  bool _pixBlack = false;
+  String _gameUrlBase = '';
 
   /// 正在按服务端版本号更新资源包
   bool _updating = false;
@@ -177,6 +179,17 @@ class _PetalwakePageState extends State<PetalwakePage> {
   }
 
   String _partPath(String dl, int i) => '$dl/part_$i.bin';
+
+  String _fmt(int bytes) {
+    if (bytes >= 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    }
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '$bytes B';
+  }
 
   // ------------------------------------------------------------------ 下载（分段 + 续传）
   Future<void> _download() async {
@@ -485,9 +498,11 @@ class _PetalwakePageState extends State<PetalwakePage> {
 
       // 直接带参数进入：?play 跳过 "Take off" 点击门槛，低画质 + 限制 dpr 降低移动端显存压力
       final url = 'http://127.0.0.1:${server.port}/index.html?play&q=low&dpr=1.25';
+      _gameUrlBase = 'http://127.0.0.1:${server.port}/index.html?play&q=low';
       await controller.loadRequest(Uri.parse(url));
 
       _autoRetried = false;
+      _pixBlack = false;
       _enterTimer?.cancel();
       _enterTimer = Timer(const Duration(seconds: 10), () {
         if (mounted && !_webReady) _forceEnter('页面未回报就绪，已先进入');
@@ -531,6 +546,47 @@ class _PetalwakePageState extends State<PetalwakePage> {
 (function(){
   if (window.__pwProbe) return; window.__pwProbe = 1;
   var n = 0;
+  function glOf(){ try { var c = document.querySelector('canvas'); return c ? (c.getContext('webgl2') || c.getContext('webgl')) : null; } catch(e){ return null; } }
+  function desc(){
+    try {
+      var g = glOf(); if (!g) return 'nogl';
+      var dbg = g.getExtension('WEBGL_debug_renderer_info');
+      var r = dbg ? g.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'gl-ok';
+      var f = g.getExtension('EXT_color_buffer_float') || g.getExtension('EXT_color_buffer_half_float');
+      return r + ' | ' + (f ? 'float-rt' : 'no-float-rt');
+    } catch(e){ return 'gl-err'; }
+  }
+  // 真正的黑屏判定：读默认帧缓冲的像素。HUD 是 DOM，显示正常不代表 3D 出画了。
+  function samplePixels(){
+    var best = 0, calls = -1, lost = 0, frames = 0;
+    function step(){
+      frames++;
+      try {
+        var r = window.PW && window.PW.renderer;
+        if (r) { calls = r.info.render.calls; }
+        var g = r && r.getContext();
+        if (g) {
+          lost = g.isContextLost() ? 1 : 0;
+          var w = g.drawingBufferWidth, h = g.drawingBufferHeight;
+          var pts = [[0.5,0.5],[0.25,0.75],[0.75,0.3],[0.5,0.9]];
+          var buf = new Uint8Array(4);
+          g.bindFramebuffer(g.FRAMEBUFFER, null);
+          for (var i = 0; i < pts.length; i++) {
+            try {
+              g.readPixels(Math.floor(w*pts[i][0]), Math.floor(h*pts[i][1]), 1, 1, g.RGBA, g.UNSIGNED_BYTE, buf);
+              var lum = Math.max(buf[0], Math.max(buf[1], buf[2]));
+              if (lum > best) best = lum;
+            } catch(e) {}
+          }
+        }
+      } catch(e) {}
+      if (frames < 10) { requestAnimationFrame(step); }
+      else {
+        try { window.pw.postMessage('pix:' + best + '|calls:' + calls + '|lost:' + lost); } catch(e) {}
+      }
+    }
+    requestAnimationFrame(step);
+  }
   var iv = setInterval(function(){
     n++;
     try {
@@ -539,11 +595,10 @@ class _PetalwakePageState extends State<PetalwakePage> {
         window.pw.postMessage('ready');
         try {
           var c = document.querySelector('canvas');
-          var g = c && (c.getContext('webgl2') || c.getContext('webgl'));
-          var dbg = g && g.getExtension('WEBGL_debug_renderer_info');
           window.pw.postMessage('diag:' + (c ? (c.width + 'x' + c.height) : 'nocanvas')
-            + ' | ' + (g ? (dbg ? g.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'gl-ok') : 'nogl'));
+            + ' | ' + desc());
         } catch (e) {}
+        samplePixels();
       } else if (n > 240) {
         clearInterval(iv);
         window.pw.postMessage('timeout');
@@ -590,6 +645,34 @@ class _PetalwakePageState extends State<PetalwakePage> {
       setState(() => _diag = v.substring(5));
       return;
     }
+    if (v.startsWith('pix:')) {
+      final parts = v.substring(4).split('|');
+      final lum = int.tryParse(parts.first) ?? 0;
+      final calls =
+          parts.length > 1 ? int.tryParse(parts[1].split(':').last) ?? -1 : -1;
+      final lost =
+          parts.length > 2 ? int.tryParse(parts[2].split(':').last) ?? 0 : 0;
+      final black = lum <= 3;
+      _reportDiag('lum=$lum,calls=$calls,lost=$lost');
+      setState(() {
+        _pixBlack = black;
+        _diag = '$_diag · 亮度$lum/255 · 绘制${calls < 0 ? '未知' : calls}次'
+            '${lost == 1 ? ' · 上下文丢失' : ''}';
+      });
+      if (black) {
+        // 有上下文但画面全黑：要么没提交绘制，要么帧缓冲/图层没进合成。
+        // 先自动换更保守的参数重载一次，仍然黑就把诊断摊到屏幕上，方便截图定位。
+        if (!_autoRetried) {
+          _autoRetried = true;
+          _showTip('3D 画面未出画，正在改用保守渲染参数重试…', seconds: 12);
+          _webReady = true;
+          _web?.loadRequest(Uri.parse('$_gameUrlBase&dpr=1'));
+        } else {
+          _showTip('3D 画面未出画：$_diag', seconds: 12);
+        }
+      }
+      return;
+    }
     if (v.startsWith('err:')) {
       // 页面内 JS 报错或资源加载失败：只记录诊断，2s 后照常进入，
       // 用户可在“⋯”菜单里看到具体原因，而不是被弹回“加载中断”。
@@ -611,10 +694,32 @@ class _PetalwakePageState extends State<PetalwakePage> {
     setState(() {
       _webReady = true;
       _webError = null;
-      _softTip = tip;
     });
+    _showTip(tip);
+  }
+
+  /// 把设备上的真实渲染数据打到服务器访问日志里（GET 查询串即可，不需要后端接收）。
+  /// 这样用户不用截图，我也能拿到 GPU 名称、帧缓冲亮度、绘制次数，判断是“没出画”还是“没进合成”。
+  void _reportDiag(String extra) {
+    final gpu = _diag.isEmpty ? 'unknown' : _diag;
+    final q = Uri(queryParameters: {
+      'os': Platform.isIOS ? 'ios' : 'android',
+      'osv': Platform.operatingSystemVersion,
+      'app': '0.4.2',
+      'pix': extra,
+      'gpu': gpu.length > 120 ? gpu.substring(0, 120) : gpu,
+    }).query;
+    unawaited(http
+        .get(Uri.parse('$kFlightSite/_diag?$q'))
+        .timeout(const Duration(seconds: 8))
+        .catchError((_) => http.Response('', 204)));
+  }
+
+  void _showTip(String tip, {int seconds = 6}) {
+    if (!mounted) return;
+    setState(() => _softTip = tip);
     _tipTimer?.cancel();
-    _tipTimer = Timer(const Duration(seconds: 6), () {
+    _tipTimer = Timer(Duration(seconds: seconds), () {
       if (mounted) setState(() => _softTip = '');
     });
   }
@@ -673,17 +778,6 @@ class _PetalwakePageState extends State<PetalwakePage> {
     _status = FlightStatus.absent;
     if (mounted) setState(() {});
     await _bootstrap();
-  }
-
-  String _fmt(int bytes) {
-    if (bytes >= 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-    }
-    if (bytes >= 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    return '$bytes B';
   }
 
   // ------------------------------------------------------------------ UI
@@ -880,14 +974,16 @@ class _PetalwakePageState extends State<PetalwakePage> {
             if (_diag.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Text('渲染诊断：$_diag',
+                child: Text(
+                    '渲染诊断：$_diag\n画面状态：${_pixBlack ? '全黑（3D 未出画）' : '已出画'}',
                     style: const TextStyle(
-                        fontSize: 10.5, color: Color(0xFF6E7784))),
+                        fontSize: 10.5, height: 1.5, color: Color(0xFF6E7784))),
               ),
             ListTile(
               leading: const Icon(Icons.system_update_alt_rounded, size: 19),
               title: const Text('检查资源包更新', style: TextStyle(fontSize: 13)),
-              subtitle: Text('本地版本 v${_remoteVersion.isEmpty ? '未知' : _remoteVersion}',
+              subtitle: Text(
+                  '本地版本 v${_remoteVersion.isEmpty ? '未知' : _remoteVersion}',
                   style: const TextStyle(fontSize: 11)),
               onTap: () {
                 Navigator.pop(c);
