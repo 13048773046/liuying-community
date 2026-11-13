@@ -2,7 +2,7 @@
 ///
 /// 流程：首次进入 → 分段下载资源包（支持断点续传）→ 解压安装（带进度）→
 /// 起一个只监听 127.0.0.1 的本地 HTTP 服务 → WebView 打开 `index.html`。
-/// 之后每次进入都直接读本地文件，并在服务端版本号变化时自动更新资源包。
+/// 之后每次进入都直接读本地文件，并在服务端版本号变化时按差异更新资源包。
 library;
 
 import 'dart:async';
@@ -23,6 +23,9 @@ const String kFlightSite = 'https://www.dbmt999.asia/petalwake';
 /// 资源包与版本清单
 const String kFlightZipUrl = '$kFlightSite/petalwake.zip';
 const String kFlightVersionUrl = '$kFlightSite/version.json';
+
+/// 增量清单：逐文件 path/size/sha256，更新时只下载有变化的文件
+const String kFlightManifestUrl = '$kFlightSite/manifest.json';
 
 /// 资源包按 100MB 量级估算，用于文案提示（真实大小以 version.json 为准）
 const int kFlightApproxBytes = 105 * 1024 * 1024;
@@ -127,7 +130,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
           _pendingVersion = latest;
           _remoteSize = (remote['size'] as int?) ?? _remoteSize;
         });
-        await _download();
+        await _deltaUpdate(latest);
         return;
       }
       await _startGame();
@@ -181,15 +184,185 @@ class _PetalwakePageState extends State<PetalwakePage> {
 
   String _partPath(String dl, int i) => '$dl/part_$i.bin';
 
-  String _fmt(int bytes) {
-    if (bytes >= 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  // ------------------------------------------------------------------ 增量更新（只下改动的文件）
+  /// 服务端每次发版都会生成 manifest.json（逐文件 size/sha256）。
+  /// 版本号变了以后先比清单：只有内容真的变的文件才下载，改动占大头（>40%）才退回整包下载。
+  Future<void> _deltaUpdate(String latest) async {
+    final dir = _siteDir;
+    if (dir == null) return;
+
+    final remote = await _fetchManifest(latest);
+    if (remote == null || remote['version'] != latest) {
+      await _download();
+      return;
     }
-    if (bytes >= 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+
+    final localFile = File('${dir.path}/manifest.json');
+    final local = <String, String>{};
+    final localSize = <String, int>{};
+    var haveLocal = false;
+    if (await localFile.exists()) {
+      try {
+        final lm =
+            jsonDecode(await localFile.readAsString()) as Map<String, dynamic>;
+        for (final f
+            in (lm['files'] as List).whereType<Map<String, dynamic>>()) {
+          final p = f['path'] as String?;
+          if (p == null) continue;
+          local[p] = (f['sha256'] as String?) ?? '';
+          localSize[p] = (f['size'] as num?)?.toInt() ?? -1;
+        }
+        haveLocal = local.isNotEmpty;
+      } catch (_) {}
     }
-    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    return '$bytes B';
+    if (!haveLocal) {
+      await _download();
+      return;
+    }
+
+    final files = (remote['files'] as List)
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final total = (remote['total'] as num?)?.toInt() ?? 0;
+    final changed = <Map<String, dynamic>>[];
+    var changedBytes = 0;
+    final paths = <String>{};
+    for (final f in files) {
+      final p = f['path'] as String;
+      paths.add(p);
+      final size = (f['size'] as num?)?.toInt() ?? -1;
+      final sha = (f['sha256'] as String?) ?? '';
+      if (local[p] != sha || localSize[p] != size) {
+        changed.add(f);
+        changedBytes += size < 0 ? 0 : size;
+      }
+    }
+    final removed = local.keys.where((p) => !paths.contains(p)).toList();
+
+    // 改得太多就不值得逐文件拉，直接整包更快
+    if (total > 0 && changedBytes > total * 0.4) {
+      await _download();
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _status = FlightStatus.installing;
+        _install = 0;
+        _speed = 0;
+        _message = changed.isEmpty
+            ? '资源包已是最新，正在整理…'
+            : '正在更新 ${changed.length} 个文件（共 ${_fmt(changedBytes)}）';
+      });
+    }
+
+    var doneBytes = 0;
+    var lastTick = DateTime.now().millisecondsSinceEpoch;
+    var lastBytes = 0;
+
+    for (var i = 0; i < changed.length; i++) {
+      final f = changed[i];
+      final path = f['path'] as String;
+      final target = File('${dir.path}/$path');
+      final part = File('${target.path}.part');
+      try {
+        if (!await target.parent.exists()) {
+          await target.parent.create(recursive: true);
+        }
+        final client = http.Client();
+        try {
+          final req = http.Request('GET', Uri.parse('$kFlightSite/$path'));
+          final resp =
+              await client.send(req).timeout(const Duration(seconds: 30));
+          if (resp.statusCode != 200) {
+            throw HttpException('$path HTTP ${resp.statusCode}');
+          }
+          final sink = part.openWrite();
+          try {
+            await for (final chunk in resp.stream) {
+              sink.add(chunk);
+              doneBytes += chunk.length;
+              final now = DateTime.now().millisecondsSinceEpoch;
+              if (now - lastTick > 250 && mounted) {
+                final inst =
+                    (doneBytes - lastBytes) / ((now - lastTick) / 1000.0);
+                lastTick = now;
+                lastBytes = doneBytes;
+                setState(() {
+                  _install = changedBytes > 0
+                      ? (doneBytes / changedBytes).clamp(0.0, 1.0)
+                      : (i + 0.5) / changed.length;
+                  _speed = inst;
+                  _message = '正在下载 $path';
+                });
+              }
+            }
+          } finally {
+            await sink.close();
+          }
+        } finally {
+          client.close();
+        }
+        if (await target.exists()) {
+          try {
+            await target.delete();
+          } catch (_) {}
+        }
+        await part.rename(target.path);
+      } catch (e) {
+        try {
+          if (await part.exists()) await part.delete();
+        } catch (_) {}
+        // 单个文件失败就退回整包，别让用户卡在半新半旧的状态
+        if (mounted) setState(() => _message = '增量下载失败，改为整包更新…');
+        await _download();
+        return;
+      }
+      if (mounted && changedBytes > 0) {
+        setState(() => _install = (doneBytes / changedBytes).clamp(0.0, 1.0));
+      }
+    }
+
+    for (final p in removed) {
+      final f = File('${dir.path}/$p');
+      try {
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
+
+    try {
+      await localFile.writeAsString(jsonEncode(remote));
+    } catch (_) {}
+    try {
+      final marker = File('${dir.path}/version.json');
+      await marker.writeAsString(jsonEncode({
+        'version': latest,
+        'updated_at': remote['generated_at'],
+      }));
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _remoteVersion = latest;
+      _install = 1;
+      _updating = false;
+      _pendingVersion = '';
+      _message =
+          changed.isEmpty ? '资源包已是最新' : '已更新 ${changed.length} 个文件';
+    });
+    await _startGame();
+  }
+
+  Future<Map<String, dynamic>?> _fetchManifest(String version) async {
+    try {
+      final r = await http
+          .get(Uri.parse(kFlightManifestUrl))
+          .timeout(const Duration(seconds: 20));
+      if (r.statusCode == 200) {
+        final j = jsonDecode(r.body);
+        if (j is Map<String, dynamic>) return j;
+      }
+    } catch (_) {}
+    return null;
   }
 
   // ------------------------------------------------------------------ 下载（分段 + 续传）
@@ -274,7 +447,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
             final resp =
                 await client.send(req).timeout(const Duration(seconds: 30));
             if (resp.statusCode != 206) {
-              throw HttpException('服务器不支持断点续传（HTTP ${resp.statusCode}）');
+              throw HttpException(
+                  '服务器不支持断点续传（HTTP ${resp.statusCode}）');
             }
             final sink = part.openWrite(mode: FileMode.append);
             await for (final chunk in resp.stream) {
@@ -300,7 +474,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
         }
       }
 
-      await Future.wait([for (var i = 0; i < segs.length; i++) pull(segs[i], i)]);
+      await Future.wait(
+          [for (var i = 0; i < segs.length; i++) pull(segs[i], i)]);
 
       final total = segs.fold<int>(0, (p, s) => p + s.done);
       if (total != size) {
@@ -349,7 +524,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
       }
       final list = (m['segs'] as List)
           .whereType<Map<String, dynamic>>()
-          .map((e) => _Seg((e['start'] as num).toInt(), (e['end'] as num).toInt()))
+          .map((e) =>
+              _Seg((e['start'] as num).toInt(), (e['end'] as num).toInt()))
           .toList();
       return list.isEmpty ? null : list;
     } catch (_) {
@@ -431,6 +607,15 @@ class _PetalwakePageState extends State<PetalwakePage> {
       await marker.writeAsString(jsonEncode(remote.isNotEmpty
           ? {...remote, 'version': v.isEmpty ? remote['version'] : v}
           : {'version': v}));
+
+      // 装完把这一版的清单存到本地：下次比对只认清单里的 hash，不用扫 173MB 文件
+      try {
+        final man = await _fetchManifest(v);
+        if (man != null) {
+          await File('${dir.path}/manifest.json')
+              .writeAsString(jsonEncode(man));
+        }
+      } catch (_) {}
 
       try {
         await zipFile.delete();
@@ -740,7 +925,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
     final q = Uri(queryParameters: {
       'os': Platform.isIOS ? 'ios' : 'android',
       'osv': Platform.operatingSystemVersion,
-      'app': '0.4.3',
+      'app': '0.4.4',
       'pix': extra,
       'gpu': gpu.length > 120 ? gpu.substring(0, 120) : gpu,
     }).query;
@@ -780,7 +965,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
       _pendingVersion = latest;
       _remoteSize = (remote['size'] as int?) ?? _remoteSize;
     });
-    await _download();
+    await _deltaUpdate(latest);
   }
 
   Future<void> _reloadGame() async {
@@ -813,6 +998,17 @@ class _PetalwakePageState extends State<PetalwakePage> {
     _status = FlightStatus.absent;
     if (mounted) setState(() {});
     await _bootstrap();
+  }
+
+  String _fmt(int bytes) {
+    if (bytes >= 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    }
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '$bytes B';
   }
 
   // ------------------------------------------------------------------ UI
@@ -1030,8 +1226,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
             ListTile(
               leading: const Icon(Icons.system_update_alt_rounded, size: 19),
               title: const Text('检查资源包更新', style: TextStyle(fontSize: 13)),
-              subtitle: Text(
-                  '本地版本 v${_remoteVersion.isEmpty ? '未知' : _remoteVersion}',
+              subtitle: Text('本地版本 v${_remoteVersion.isEmpty ? '未知' : _remoteVersion}',
                   style: const TextStyle(fontSize: 11)),
               onTap: () {
                 Navigator.pop(c);
@@ -1093,7 +1288,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
             ),
             const SizedBox(height: 18),
             _bullet('分段下载，支持断点续传；网络中断后再点会接着下'),
-            _bullet('服务端更新资源包时会自动比对版本号并更新'),
+            _bullet('服务端更新资源包时只下载变化的文件，不再整包重下'),
             _bullet('建议在 Wi-Fi 下下载，安装后约占用 180 MB 空间'),
             const Spacer(),
             SizedBox(
@@ -1160,7 +1355,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
             Text(
                 installing
                     ? (_updating ? '正在安装新版本' : '正在安装')
-                    : (_updating ? '正在更新资源包' : '正在下载'),
+                    : (_updating ? '正在增量更新资源包' : '正在下载'),
                 style: const TextStyle(fontSize: 16, color: Colors.white)),
             const SizedBox(height: 6),
             Text(_message,
@@ -1192,7 +1387,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
                 installing
                     ? '安装完成后自动进入游戏'
                     : (_updating && _pendingVersion.isNotEmpty
-                        ? '更新到 v$_pendingVersion · 可以随时离开，下次会续传'
+                        ? '更新到 v$_pendingVersion · 只下载有变化的文件'
                         : '可以随时离开，下次会续传'),
                 style: const TextStyle(fontSize: 11, color: Color(0xFF68717E))),
           ],
