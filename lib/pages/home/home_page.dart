@@ -1,11 +1,14 @@
 /// 社区首页：沉浸黑单列信息流（关注 / 推荐）
 ///
-/// 版式：品牌标题 → 关注·推荐分段 → 运营入口 → Banner → 内容卡。
-/// 手势：在信息流顶部下拉，轻拉是刷新，拉过阈值整页沉出屏幕，从后面取出「二楼」。
+/// 版式：品牌标题 → 关注·推荐分段 →（二楼分开口）→ 运营入口 → Banner → 内容卡。
+/// 手势：下拉只进二楼。分开口在「关注/推荐」与「热门话题」之间，
+/// 下拉时顶部块（标题+关注/推荐）均匀渐隐，二楼从这条缝向上下撑开，
+/// 松手用弹簧动画归位（参考微信小程序二楼、SecondFloorBehavior 的交互模型）。
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/physics.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
@@ -41,30 +44,50 @@ class _HomePageState extends State<HomePage>
   String? _error;
   final ScrollController _scroll = ScrollController();
 
-  /// 下拉手势进度 0..1：轻拉触发刷新，拉过阈值整页沉出屏幕取出二楼
+  /// 下拉进度 0..1：0=一楼，1=二楼。拖拽与松手后的弹簧动画共用这一个值，
+  /// 所有位移/透明度都由它推导，保证「跟手 → 松手」不会有跳变。
   late final AnimationController _pullCtl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 220),
+    duration: const Duration(milliseconds: 320),
   )..addListener(() {
       if (mounted) setState(() {});
     });
 
-  /// 进入二楼的阈值（下拉像素）
-  static const double kFloorPx = 150;
+  /// 拉满二楼所需的手指行程（像素）。不是阈值，只是「拖多远算拉满」。
+  static const double kFloorPx = 210;
 
-  /// 触发刷新的阈值（下拉像素）
-  static const double kRefreshPx = 64;
+  /// 松手时超过这个进度就直接展开二楼；以下则弹回一楼
+  static const double kCommitProgress = 0.34;
 
   bool _floorOpen = false;
-  bool _refreshing = false;
   bool _pulling = false;
   double _dragStartY = 0;
-  double _lastPullPx = 0;
+  double _lastMoveY = 0;
+  int _lastMoveTs = 0;
+  double _flingVel = 0; // px/s，松手时作为弹簧初速度
+
+  /// 分开口的纵坐标 = 顶部块（标题 + 关注/推荐）的真实高度，首帧后实测回填
+  final GlobalKey _topKey = GlobalKey();
+  double _seamY = 132;
 
   @override
   void initState() {
     super.initState();
+    _pullCtl.addStatusListener((st) {
+      // 弹簧彻底回到一楼：关闭二楼，恢复一楼手势
+      if (st == AnimationStatus.dismissed && _floorOpen && mounted) {
+        setState(() => _floorOpen = false);
+      }
+    });
     _load(refresh: true);
+  }
+
+  void _measureSeam() {
+    final h = _topKey.currentContext?.size?.height;
+    if (h == null || h <= 0) return;
+    if ((h - _seamY).abs() > 0.5 && mounted) {
+      setState(() => _seamY = h);
+    }
   }
 
   @override
@@ -136,37 +159,89 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureSeam());
     return ImmersivePage(
       child: SafeArea(
         bottom: false,
         child: LayoutBuilder(
           builder: (context, box) {
-            final v = _pullCtl.value;
-            final open = _floorOpen;
-            // 跟手阶段只小幅下沉；确认进二楼后整页沉出屏幕，二楼满屏亮相
-            final offset = open ? box.maxHeight * v : v * kFloorPx;
-            final t = open ? Curves.easeOutQuart.transform(v) : 0.0;
-            final panelT = open ? Curves.easeOutCubic.transform(v) : 0.0;
-            // 首页往下沉时同时轻微缩小并压暗，制造「退到后层」的纵深感
-            final contentScale = 1 - 0.05 * t;
-            final contentDim = 1 - 0.55 * t;
-            return Stack(
+            final h = box.maxHeight;
+            final p = _pullCtl.value.clamp(0.0, 1.0);
+            final seam = _seamY.clamp(0.0, h);
+            // 缝隙以下的内容被往下推；缝隙以上的顶部块轻微上移并均匀渐隐
+            final push = p * (h - seam + 32);
+            final lift = p * seam * 0.35;
+            final body = Stack(
               children: [
-                if (panelT > 0) Positioned.fill(child: _floorPanel(t)),
-                Transform.translate(
-                  offset: Offset(0, offset),
-                  child: Transform.scale(
-                    scale: contentScale,
-                    alignment: Alignment.topCenter,
+                // 二楼：用裁剪矩形从分开口向上下撑开，而不是整页平移
+                if (p > 0.0001)
+                  Positioned.fill(
+                    child: ClipRect(
+                      clipper: _SeamClipper(seam: seam, progress: p, height: h),
+                      child: IgnorePointer(
+                        ignoring: !_floorOpen,
+                        child: _floorPanel(),
+                      ),
+                    ),
+                  ),
+                // 一楼下半部分：热门话题 / Banner / 信息流，整体被向下推
+                Positioned.fill(
+                  child: Transform.translate(
+                    offset: Offset(0, push),
                     child: Opacity(
-                      opacity: contentDim,
-                      child: IgnorePointer(ignoring: open, child: _homeList()),
+                      opacity: (1 - p * 0.45).clamp(0.0, 1.0),
+                      child: IgnorePointer(
+                        ignoring: p > 0.02,
+                        child: _homeList(),
+                      ),
                     ),
                   ),
                 ),
-                if (!open)
-                  Positioned(top: 0, left: 0, right: 0, child: _pullHint()),
+                // 一楼顶部块：标题 + 关注/推荐，随下拉均匀变透明
+                Positioned(
+                  top: -lift,
+                  left: 0,
+                  right: 0,
+                  child: Opacity(
+                    opacity: (1 - p).clamp(0.0, 1.0),
+                    child: IgnorePointer(
+                      ignoring: p > 0.02,
+                      child: Column(
+                        key: _topKey,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [_header(), _tabs()],
+                      ),
+                    ),
+                  ),
+                ),
+                // 分开口的小把手：只有图形，没有文字
+                if (p > 0.02 && p < 0.995)
+                  Positioned(
+                    top: seam - 7,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Container(
+                          width: 30 + 26 * p,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white
+                                .withValues(alpha: 0.20 + 0.35 * (1 - p)),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
+            );
+            return Listener(
+              onPointerDown: _onPullDown,
+              onPointerMove: _onPullMove,
+              onPointerUp: _onPullUp,
+              onPointerCancel: _onPullUp,
+              child: body,
             );
           },
         ),
@@ -175,39 +250,19 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _homeList() {
-    return Listener(
-      onPointerDown: (e) {
-        if (_floorOpen || _refreshing) return;
-        if (!_scroll.hasClients || _scroll.position.pixels > 0) return;
-        _pulling = true;
-        _dragStartY = e.position.dy;
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.metrics.extentAfter < 500) _load();
+        return false;
       },
-      onPointerMove: (e) {
-        if (!_pulling) return;
-        final dy = e.position.dy - _dragStartY;
-        if (dy <= 0) {
-          if (_pullCtl.value != 0) _pullCtl.value = 0;
-          _lastPullPx = 0;
-          return;
-        }
-        final px = dy * 0.9;
-        _lastPullPx = px;
-        _pullCtl.value = (px / kFloorPx).clamp(0.0, 1.0);
-      },
-      onPointerUp: (_) => _releasePull(),
-      onPointerCancel: (_) => _releasePull(),
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if (n.metrics.extentAfter < 500) _load();
-          return false;
-        },
+      child: Padding(
+        // 顶部这块留给「标题 + 关注/推荐」，分开口就落在它与热门话题之间
+        padding: EdgeInsets.only(top: _seamY),
         child: CustomScrollView(
           controller: _scroll,
           physics: const AlwaysScrollableScrollPhysics(
               parent: ClampingScrollPhysics()),
           slivers: [
-            SliverToBoxAdapter(child: _header()),
-            SliverToBoxAdapter(child: _tabs()),
             SliverToBoxAdapter(child: _opsRail()),
             const SliverToBoxAdapter(
               child: Padding(
@@ -223,107 +278,68 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  /// 松手：轻拉刷新，过二楼阈值整页沉出屏幕取出二楼
-  Future<void> _releasePull() async {
+  // ---------------------------------------------------------------- 下拉手势
+  void _onPullDown(PointerDownEvent e) {
+    if (_floorOpen) return;
+    if (!_scroll.hasClients || _scroll.position.pixels > 0) return;
+    _pulling = true;
+    _pullCtl.stop();
+    _dragStartY = e.position.dy;
+    _lastMoveY = e.position.dy;
+    _lastMoveTs = e.timeStamp.inMilliseconds;
+    _flingVel = 0;
+  }
+
+  void _onPullMove(PointerMoveEvent e) {
+    if (!_pulling) return;
+    final dy = e.position.dy - _dragStartY;
+    if (dy <= 0) {
+      if (_pullCtl.value != 0) _pullCtl.value = 0;
+      return;
+    }
+    // 轻微阻尼：行程越长越费力，手感更接近微信
+    final px = dy * 0.82;
+    _pullCtl.value = (px / kFloorPx).clamp(0.0, 1.0);
+
+    final ts = e.timeStamp.inMilliseconds;
+    final dt = ts - _lastMoveTs;
+    if (dt > 0) {
+      final v = (e.position.dy - _lastMoveY) / dt * 1000;
+      _flingVel = _flingVel * 0.55 + v * 0.45;
+      _lastMoveY = e.position.dy;
+      _lastMoveTs = ts;
+    }
+  }
+
+  void _onPullUp(PointerEvent e) {
     if (!_pulling) return;
     _pulling = false;
-    final px = _lastPullPx;
-    _lastPullPx = 0;
+    final p = _pullCtl.value;
+    if (p <= 0) return;
+    // 下拉只进二楼：拉过阈值、或明显快速一甩，就展开；否则弹回
+    final open = p >= kCommitProgress || (_flingVel > 1100 && p > 0.06);
+    _springTo(open ? 1.0 : 0.0, velocity: _flingVel / kFloorPx);
+  }
 
-    if (px >= kFloorPx - 6) {
+  /// 弹簧归位：临界阻尼，没有生硬的 ease 停顿，也不会来回弹
+  void _springTo(double target, {double velocity = 0}) {
+    if (target == 1.0) {
       HapticFeedback.mediumImpact();
-      setState(() => _floorOpen = true);
-      await _pullCtl.animateTo(1,
-          duration: const Duration(milliseconds: 340),
-          curve: Curves.easeOutQuart);
-      return;
+      if (!_floorOpen) setState(() => _floorOpen = true);
     }
-    if (px >= kRefreshPx) {
-      HapticFeedback.lightImpact();
-      setState(() => _refreshing = true);
-      _pullCtl.value = 0;
-      try {
-        await _load(refresh: true);
-      } finally {
-        if (mounted) setState(() => _refreshing = false);
-      }
-      return;
-    }
-    if (_pullCtl.value > 0) {
-      await _pullCtl.animateTo(0,
-          duration: const Duration(milliseconds: 240), curve: Curves.easeOut);
-    }
+    _pullCtl.animateWith(SpringSimulation(
+      const SpringDescription(mass: 1, stiffness: 250, damping: 32),
+      _pullCtl.value,
+      target,
+      velocity.clamp(-5.0, 5.0),
+    ));
   }
 
-  Future<void> _closeFloor() async {
+  void _closeFloor() {
     if (!_floorOpen) return;
-    await _pullCtl.animateTo(0,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeInOutCubic);
-    if (mounted) setState(() => _floorOpen = false);
-  }
-
-  /// 顶部下拉提示：下拉刷新 → 松手刷新 → 松手进二楼
-  Widget _pullHint() {
-    final v = _pullCtl.value;
-    final px = v * kFloorPx;
-    final show = px > 6 || _refreshing;
-    final pastRefresh = px >= kRefreshPx;
-    final pastFloor = px >= kFloorPx - 6;
-    final color = pastFloor
-        ? const Color(AppColors.accent)
-        : (pastRefresh
-            ? const Color(0xFFCFE6D9)
-            : const Color(AppColors.textTertiary));
-    final label = _refreshing
-        ? '正在刷新…'
-        : (pastFloor ? '松手进二楼' : (pastRefresh ? '松手刷新' : '下拉刷新'));
-    return IgnorePointer(
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 120),
-        opacity: show ? 1 : 0,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xE60E1319),
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                border: Border.all(color: const Color(0x22FFFFFF)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_refreshing)
-                    const SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.6,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Color(0xFF3DDC97)),
-                      ),
-                    )
-                  else
-                    Transform.rotate(
-                      angle: pastFloor ? 3.14159 : v * 3.14159,
-                      child: Icon(Icons.arrow_downward_rounded,
-                          size: 13, color: color),
-                    ),
-                  const SizedBox(width: 6),
-                  Text(label,
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: color)),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    HapticFeedback.lightImpact();
+    // 弹簧回到一楼后，由状态监听把 _floorOpen 摘掉
+    _springTo(0);
   }
 
   // ---------------------------------------------------------------- 二楼
@@ -339,129 +355,74 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _floorPanel(double t) {
+  Widget _floorPanel() {
     return GestureDetector(
       onTap: _closeFloor,
       onVerticalDragUpdate: (d) {
-        if (d.delta.dy < -24) _closeFloor();
+        if (d.delta.dy < -18) _closeFloor();
       },
-      child: Opacity(
-        opacity: t.clamp(0.0, 1.0),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF0B0D10), Color(AppColors.bg)],
-            ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0B0D10), Color(AppColors.bg)],
           ),
-          child: Transform.translate(
-            offset: Offset(0, (1 - t) * -36),
-            child: SafeArea(
-              bottom: false,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 96),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 96),
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 9, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(AppColors.elevated),
-                          borderRadius: AppRadius.rXs,
-                        ),
-                        child: Text('二楼 · 小程序',
-                            style: AppType.micro.copyWith(fontSize: 10.5)),
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: _closeFloor,
-                        child: Row(
-                          children: [
-                            Text('上滑收起',
-                                style: AppType.micro.copyWith(fontSize: 11)),
-                            const Icon(Icons.keyboard_arrow_up_rounded,
-                                size: 16, color: Color(AppColors.textTertiary)),
-                          ],
-                        ),
-                      ),
-                    ],
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(AppColors.elevated),
+                      borderRadius: AppRadius.rXs,
+                    ),
+                    child: Text('二楼 · 小程序',
+                        style: AppType.micro.copyWith(fontSize: 10.5)),
                   ),
-                  const SizedBox(height: AppSpace.x4),
-                  const Text('常用的小工具，都在这一层',
-                      style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                          color: Color(AppColors.textPrimary))),
-                  const SizedBox(height: 4),
-                  Text('在首页信息流顶部往下拉，拉过一半就出来了',
-                      style: AppType.micro.copyWith(fontSize: 11.5)),
-                  const SizedBox(height: AppSpace.x5),
-                  GridView.count(
-                    crossAxisCount: 4,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: AppSpace.x4,
-                    crossAxisSpacing: AppSpace.x2,
-                    childAspectRatio: 0.78,
-                    children: [
-                      _floorApp(
-                        label: '流萤航线',
-                        icon: Icons.flight_takeoff_rounded,
-                        colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
-                        onTap: () {
-                          _closeFloor();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const PetalwakePage()),
-                          );
-                        },
-                      ),
-                      _floorApp(
-                        label: '发一帖',
-                        icon: Icons.add_rounded,
-                        colors: const [Color(0xFF2A2A33), Color(0xFF4B3B2E)],
-                        onTap: () {
-                          _closeFloor();
-                          _openEditor();
-                        },
-                      ),
-                      _floorApp(
-                        label: '任务中心',
-                        icon: Icons.emoji_events_outlined,
-                        colors: const [Color(0xFF2B2A20), Color(0xFF6A5A22)],
-                        onTap: () {
-                          _closeFloor();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const TaskCenterPage()),
-                          );
-                        },
-                      ),
-                      _floorApp(
-                        label: '排行榜',
-                        icon: Icons.leaderboard_outlined,
-                        colors: const [Color(0xFF20222E), Color(0xFF343A5A)],
-                        onTap: () {
-                          _closeFloor();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const RankingPage()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpace.x6),
-                  Text('最近使用',
-                      style: AppType.micro.copyWith(fontSize: 11.5)),
-                  const SizedBox(height: AppSpace.x3),
+                  const Spacer(),
                   GestureDetector(
+                    onTap: _closeFloor,
+                    child: Row(
+                      children: [
+                        Text('上滑收起',
+                            style: AppType.micro.copyWith(fontSize: 11)),
+                        const Icon(Icons.keyboard_arrow_up_rounded,
+                            size: 16, color: Color(AppColors.textTertiary)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpace.x4),
+              const Text('常用的小工具，都在这一层',
+                  style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: Color(AppColors.textPrimary))),
+              const SizedBox(height: 4),
+              Text('在首页往下拉，就能从这条缝进来',
+                  style: AppType.micro.copyWith(fontSize: 11.5)),
+              const SizedBox(height: AppSpace.x5),
+              GridView.count(
+                crossAxisCount: 4,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: AppSpace.x4,
+                crossAxisSpacing: AppSpace.x2,
+                childAspectRatio: 0.78,
+                children: [
+                  _floorApp(
+                    label: '流萤航线',
+                    icon: Icons.flight_takeoff_rounded,
+                    colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
                     onTap: () {
                       _closeFloor();
                       Navigator.push(
@@ -470,55 +431,98 @@ class _HomePageState extends State<HomePage>
                             builder: (_) => const PetalwakePage()),
                       );
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(AppSpace.x3),
-                      decoration: BoxDecoration(
-                        color: const Color(AppColors.card),
-                        borderRadius: AppRadius.rMd,
-                        border:
-                            Border.all(color: const Color(AppColors.border)),
-                      ),
-                      child: Row(
-                        children: [
-                          _floorMiniIcon(
-                            icon: Icons.flight_takeoff_rounded,
-                            colors: const [
-                              Color(0xFF1B6B52),
-                              Color(0xFF3DDC97)
-                            ],
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('流萤航线',
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(AppColors.textPrimary))),
-                                SizedBox(height: 2),
-                                Text('骑上扫帚，飞过花甸',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: Color(AppColors.textTertiary))),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right_rounded,
-                              size: 18, color: Color(AppColors.textTertiary)),
-                        ],
-                      ),
-                    ),
                   ),
-                  const SizedBox(height: AppSpace.x6),
-                  Center(
-                    child: Text('点空白处或上滑收起二楼',
-                        style: AppType.micro.copyWith(fontSize: 11)),
+                  _floorApp(
+                    label: '发一帖',
+                    icon: Icons.add_rounded,
+                    colors: const [Color(0xFF2A2A33), Color(0xFF4B3B2E)],
+                    onTap: () {
+                      _closeFloor();
+                      _openEditor();
+                    },
+                  ),
+                  _floorApp(
+                    label: '任务中心',
+                    icon: Icons.emoji_events_outlined,
+                    colors: const [Color(0xFF2B2A20), Color(0xFF6A5A22)],
+                    onTap: () {
+                      _closeFloor();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const TaskCenterPage()),
+                      );
+                    },
+                  ),
+                  _floorApp(
+                    label: '排行榜',
+                    icon: Icons.leaderboard_outlined,
+                    colors: const [Color(0xFF20222E), Color(0xFF343A5A)],
+                    onTap: () {
+                      _closeFloor();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const RankingPage()),
+                      );
+                    },
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: AppSpace.x6),
+              Text('最近使用', style: AppType.micro.copyWith(fontSize: 11.5)),
+              const SizedBox(height: AppSpace.x3),
+              GestureDetector(
+                onTap: () {
+                  _closeFloor();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PetalwakePage()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpace.x3),
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.card),
+                    borderRadius: AppRadius.rMd,
+                    border: Border.all(color: const Color(AppColors.border)),
+                  ),
+                  child: Row(
+                    children: [
+                      _floorMiniIcon(
+                        icon: Icons.flight_takeoff_rounded,
+                        colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('流萤航线',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(AppColors.textPrimary))),
+                            SizedBox(height: 2),
+                            Text('骑上扫帚，飞过花甸',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(AppColors.textTertiary))),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 18, color: Color(AppColors.textTertiary)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpace.x6),
+              Center(
+                child: Text('点空白处或上滑收起二楼',
+                    style: AppType.micro.copyWith(fontSize: 11)),
+              ),
+            ],
           ),
         ),
       ),
@@ -739,4 +743,26 @@ class _HomePageState extends State<HomePage>
       ),
     );
   }
+}
+
+/// 二楼的露出区域：以分开口为中心，随进度同时向上、向下撑开。
+/// 这样视觉上是「缝隙被拉开」，而不是一页从旁边滑过来。
+class _SeamClipper extends CustomClipper<Rect> {
+  _SeamClipper(
+      {required this.seam, required this.progress, required this.height});
+  final double seam;
+  final double progress;
+  final double height;
+
+  @override
+  Rect getClip(Size size) {
+    final p = progress.clamp(0.0, 1.0);
+    final up = seam * p;
+    final down = (height - seam) * p;
+    return Rect.fromLTRB(0, seam - up, size.width, seam + down);
+  }
+
+  @override
+  bool shouldReclip(_SeamClipper old) =>
+      old.seam != seam || old.progress != progress || old.height != height;
 }
