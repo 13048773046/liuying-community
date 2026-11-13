@@ -60,6 +60,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
   bool _webReady = false;
   bool _starting = false;
   String? _webError;
+  Timer? _enterTimer;
 
   @override
   void initState() {
@@ -72,6 +73,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
 
   @override
   void dispose() {
+    _enterTimer?.cancel();
     _server?.stop();
     // 离开游戏：恢复竖屏 + 正常系统栏，避免影响社区其他页面
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
@@ -421,46 +423,21 @@ class _PetalwakePageState extends State<PetalwakePage> {
         ..addJavaScriptChannel('pw',
             onMessageReceived: (m) => _onJsText(m.message));
 
-      if (Platform.isAndroid) {
-        await controller.setNavigationDelegate(NavigationDelegate(
-          onNavigationRequest: (r) => NavigationDecision.navigate,
-          onWebResourceError: (e) {
-            if (e.isForMainFrame == true) {
-              _onJsText('err:${e.description}');
-            }
-          },
-        ));
-      }
+      await controller.setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (r) => NavigationDecision.navigate,
+        onWebResourceError: (e) {
+          if (e.isForMainFrame == true) {
+            _onJsText('err:${e.description}');
+          }
+        },
+        // 关键：必须等页面 load 完成后再注入探针，否则 runJavaScript 打在旧文档上，
+        // 永远收不到 ready，界面就会一直停在“正在进入航线”。
+        onPageFinished: (url) => _injectProbe(controller),
+      ));
 
       // 直接带参数进入：?play 跳过 "Take off" 点击门槛，低画质 + 限制 dpr 降低移动端显存压力
       final url = 'http://127.0.0.1:${server.port}/index.html?play&q=low&dpr=1.25';
       await controller.loadRequest(Uri.parse(url));
-
-      // 注入探针：游戏进入主循环 / WebGL 上下文丢失 / JS 报错，都回报给原生层
-      await controller.runJavaScript('''
-(function(){
-  if (window.__pwProbe) return; window.__pwProbe = 1;
-  var n = 0;
-  var iv = setInterval(function(){
-    n++;
-    try {
-      if (window.PW && window.PW.ready) {
-        clearInterval(iv);
-        window.pw.postMessage('ready');
-      } else if (n > 240) {
-        clearInterval(iv);
-        window.pw.postMessage('timeout');
-      }
-    } catch (e) {}
-  }, 500);
-  window.addEventListener('webglcontextlost', function(){
-    try { window.pw.postMessage('lost'); } catch (e) {}
-  }, true);
-  window.onerror = function(m, s, l, c, e){
-    try { window.pw.postMessage('err:' + m + ' @' + s + ':' + l); } catch (_) {}
-  };
-})();
-''');
 
       if (!mounted) return;
       setState(() {
@@ -483,9 +460,48 @@ class _PetalwakePageState extends State<PetalwakePage> {
     }
   }
 
+  /// 页面加载完成后注入探针；同时挂 12s 兜底，即使探针失效也不会把用户焊在覆盖层上
+  Future<void> _injectProbe(WebViewController c) async {
+    try {
+      await c.runJavaScript(_probeJs);
+    } catch (_) {}
+    _enterTimer?.cancel();
+    _enterTimer = Timer(const Duration(seconds: 12), () {
+      if (mounted && !_webReady && _webError == null) {
+        setState(() => _webReady = true);
+      }
+    });
+  }
+
+  static const String _probeJs = """
+(function(){
+  if (window.__pwProbe) return; window.__pwProbe = 1;
+  var n = 0;
+  var iv = setInterval(function(){
+    n++;
+    try {
+      if (window.PW && window.PW.ready) {
+        clearInterval(iv);
+        window.pw.postMessage('ready');
+      } else if (n > 240) {
+        clearInterval(iv);
+        window.pw.postMessage('timeout');
+      }
+    } catch (e) {}
+  }, 500);
+  window.addEventListener('webglcontextlost', function(){
+    try { window.pw.postMessage('lost'); } catch (e) {}
+  }, true);
+  window.onerror = function(m, s, l, c, e){
+    try { window.pw.postMessage('err:' + m + ' @' + s + ':' + l); } catch (_) {}
+  };
+})();
+""";
+
   void _onJsText(String v) {
     if (!mounted) return;
     if (v == 'ready') {
+      _enterTimer?.cancel();
       setState(() {
         _webReady = true;
         _webError = null;
@@ -987,9 +1003,10 @@ class _LocalSiteServer {
           return;
         }
         res.statusCode = HttpStatus.partialContent;
-        res.headers.set(
-            HttpHeaders.contentRangeHeader, 'bytes $start-$end/$total');
-        res.headers.set(HttpHeaders.contentLengthHeader, '${end - start + 1}');
+        res.headers
+            .set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$total');
+        res.headers
+            .set(HttpHeaders.contentLengthHeader, '${end - start + 1}');
         await res.addStream(file.openRead(start, end + 1));
       } else {
         res.headers.set(HttpHeaders.contentLengthHeader, '$total');
