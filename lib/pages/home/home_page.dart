@@ -1,7 +1,7 @@
 /// 社区首页：沉浸黑单列信息流（关注 / 推荐）
 ///
 /// 版式：品牌标题 → 关注·推荐分段 → 二楼入口提示 → 运营入口 → Banner → 内容卡。
-/// 手势：在信息流顶部下拉，轻拉是刷新，拉过阈值整页下沉取出「二楼」。
+/// 手势：在信息流顶部下拉，轻拉是刷新，拉过阈值整页沉出屏幕，从后面取出「二楼」。
 library;
 
 import 'package:flutter/material.dart';
@@ -41,7 +41,7 @@ class _HomePageState extends State<HomePage>
   String? _error;
   final ScrollController _scroll = ScrollController();
 
-  /// 下拉手势进度 0..1：轻拉触发刷新，拉过阈值整页下沉取出二楼
+  /// 下拉手势进度 0..1：轻拉触发刷新，拉过阈值整页沉出屏幕取出二楼
   late final AnimationController _pullCtl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 220),
@@ -143,22 +143,15 @@ class _HomePageState extends State<HomePage>
           builder: (context, box) {
             final v = _pullCtl.value;
             final open = _floorOpen;
-            // 未打开：页面跟手下沉；打开后继续沉下去，把二楼让出来
-            final offset =
-                open ? box.maxHeight * (0.08 + 0.36 * v) : v * kFloorPx;
-            final panelT = open
-                ? Curves.easeOutCubic.transform(v)
-                : ((v * kFloorPx - kRefreshPx) / (kFloorPx - kRefreshPx))
-                    .clamp(0.0, 1.0);
+            // 跟手阶段只小幅下沉；确认进二楼后整页沉出屏幕，二楼满屏亮相
+            final offset = open ? box.maxHeight * v : v * kFloorPx;
+            final panelT = open ? Curves.easeOutCubic.transform(v) : 0.0;
             return Stack(
               children: [
                 if (panelT > 0) Positioned.fill(child: _floorPanel(panelT)),
                 Transform.translate(
                   offset: Offset(0, offset),
-                  child: Opacity(
-                    opacity: 1 - (open ? panelT * 0.45 : 0),
-                    child: IgnorePointer(ignoring: open, child: _homeList()),
-                  ),
+                  child: IgnorePointer(ignoring: open, child: _homeList()),
                 ),
                 if (!open)
                   Positioned(top: 0, left: 0, right: 0, child: _pullHint()),
@@ -220,7 +213,7 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  /// 松手：轻拉刷新，过二楼阈值整页下沉取出二楼
+  /// 松手：轻拉刷新，过二楼阈值整页沉出屏幕取出二楼
   Future<void> _releasePull() async {
     if (!_pulling) return;
     _pulling = false;
@@ -231,7 +224,7 @@ class _HomePageState extends State<HomePage>
       HapticFeedback.mediumImpact();
       setState(() => _floorOpen = true);
       await _pullCtl.animateTo(1,
-          duration: const Duration(milliseconds: 260),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic);
       return;
     }
@@ -255,7 +248,7 @@ class _HomePageState extends State<HomePage>
   Future<void> _closeFloor() async {
     if (!_floorOpen) return;
     await _pullCtl.animateTo(0,
-        duration: const Duration(milliseconds: 240),
+        duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic);
     if (mounted) setState(() => _floorOpen = false);
   }
@@ -374,7 +367,7 @@ class _HomePageState extends State<HomePage>
               bottom: false,
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 28),
+                    AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 96),
                 children: [
                   Row(
                     children: [
