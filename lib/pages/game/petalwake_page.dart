@@ -60,7 +60,12 @@ class _PetalwakePageState extends State<PetalwakePage> {
   bool _webReady = false;
   bool _starting = false;
   String? _webError;
+  String _diag = '';
+  String _softTip = '';
+  bool _autoRetried = false;
   Timer? _enterTimer;
+  Timer? _retryTimer;
+  Timer? _tipTimer;
 
   @override
   void initState() {
@@ -74,6 +79,8 @@ class _PetalwakePageState extends State<PetalwakePage> {
   @override
   void dispose() {
     _enterTimer?.cancel();
+    _retryTimer?.cancel();
+    _tipTimer?.cancel();
     _server?.stop();
     // 离开游戏：恢复竖屏 + 正常系统栏，避免影响社区其他页面
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
@@ -439,6 +446,18 @@ class _PetalwakePageState extends State<PetalwakePage> {
       final url = 'http://127.0.0.1:${server.port}/index.html?play&q=low&dpr=1.25';
       await controller.loadRequest(Uri.parse(url));
 
+      _autoRetried = false;
+      _enterTimer?.cancel();
+      _enterTimer = Timer(const Duration(seconds: 10), () {
+        if (mounted && !_webReady) _forceEnter('页面未回报就绪，已先进入');
+      });
+      _retryTimer?.cancel();
+      _retryTimer = Timer(const Duration(seconds: 22), () {
+        if (!mounted || _webReady || _autoRetried) return;
+        _autoRetried = true;
+        _web?.reload();
+      });
+
       if (!mounted) return;
       setState(() {
         _web = controller;
@@ -460,17 +479,11 @@ class _PetalwakePageState extends State<PetalwakePage> {
     }
   }
 
-  /// 页面加载完成后注入探针；同时挂 12s 兜底，即使探针失效也不会把用户焊在覆盖层上
+  /// 页面加载完成后注入探针（进入层不再靠探针兜底，统一由 _startGame 的计时器负责）
   Future<void> _injectProbe(WebViewController c) async {
     try {
       await c.runJavaScript(_probeJs);
     } catch (_) {}
-    _enterTimer?.cancel();
-    _enterTimer = Timer(const Duration(seconds: 12), () {
-      if (mounted && !_webReady && _webError == null) {
-        setState(() => _webReady = true);
-      }
-    });
   }
 
   static const String _probeJs = """
@@ -483,6 +496,13 @@ class _PetalwakePageState extends State<PetalwakePage> {
       if (window.PW && window.PW.ready) {
         clearInterval(iv);
         window.pw.postMessage('ready');
+        try {
+          var c = document.querySelector('canvas');
+          var g = c && (c.getContext('webgl2') || c.getContext('webgl'));
+          var dbg = g && g.getExtension('WEBGL_debug_renderer_info');
+          window.pw.postMessage('diag:' + (c ? (c.width + 'x' + c.height) : 'nocanvas')
+            + ' | ' + (g ? (dbg ? g.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'gl-ok') : 'nogl'));
+        } catch (e) {}
       } else if (n > 240) {
         clearInterval(iv);
         window.pw.postMessage('timeout');
@@ -502,6 +522,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
     if (!mounted) return;
     if (v == 'ready') {
       _enterTimer?.cancel();
+      _retryTimer?.cancel();
       setState(() {
         _webReady = true;
         _webError = null;
@@ -509,16 +530,52 @@ class _PetalwakePageState extends State<PetalwakePage> {
       return;
     }
     if (v == 'lost') {
-      setState(() => _webError = '图形上下文丢失，点“重新加载”再试');
+      // 图形上下文丢失不阻塞界面：记录 + 自动重载一次，让页面自己重建 WebGL
+      setState(() => _diag = 'WebGL 上下文丢失');
+      if (!_autoRetried) {
+        _autoRetried = true;
+        _web?.reload();
+      } else {
+        _forceEnter('图形上下文反复丢失，已保留当前画面');
+      }
       return;
     }
     if (v == 'timeout') {
-      setState(() => _webError = '进入超时，点“重新加载”再试');
+      setState(() => _diag = '探针超时（120s 未进入主循环）');
+      if (!_webReady) _forceEnter('页面主循环未启动');
+      return;
+    }
+    if (v.startsWith('diag:')) {
+      setState(() => _diag = v.substring(5));
       return;
     }
     if (v.startsWith('err:')) {
-      setState(() => _webError = v.substring(4));
+      // 页面内 JS 报错或资源加载失败：只记录诊断，2s 后照常进入，
+      // 用户可在“⋯”菜单里看到具体原因，而不是被弹回“加载中断”。
+      final msg = v.substring(4);
+      setState(() => _webError = msg);
+      if (!_webReady) {
+        Timer(const Duration(seconds: 2), () {
+          if (mounted && !_webReady) _forceEnter('页面报错：$msg');
+        });
+      }
     }
+  }
+
+  /// 不再依赖探针：无论页面是否回报，都把进入层收掉，让用户看到真实画面
+  void _forceEnter(String tip) {
+    if (!mounted || _webReady) return;
+    _enterTimer?.cancel();
+    _retryTimer?.cancel();
+    setState(() {
+      _webReady = true;
+      _webError = null;
+      _softTip = tip;
+    });
+    _tipTimer?.cancel();
+    _tipTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _softTip = '');
+    });
   }
 
   Future<void> _reloadGame() async {
@@ -629,6 +686,28 @@ class _PetalwakePageState extends State<PetalwakePage> {
               ),
             ),
           ),
+          if (_webReady && _softTip.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 24,
+              child: SafeArea(
+                child: Center(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xCC0E1319),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0x22FFFFFF)),
+                    ),
+                    child: Text(_softTip,
+                        style: const TextStyle(
+                            fontSize: 10.5, color: Color(0xFF8E97A5))),
+                  ),
+                ),
+              ),
+            ),
           if (_webReady)
             Positioned(
               right: 10,
@@ -691,7 +770,7 @@ class _PetalwakePageState extends State<PetalwakePage> {
               else
                 const Icon(Icons.cloud_off, size: 26, color: Color(0xFF8E97A5)),
               const SizedBox(height: 16),
-              Text(_webError == null ? '正在进入航线…' : '加载中断',
+              Text(_webError == null ? '正在进入航线…' : '页面正在自动重试…',
                   style: const TextStyle(fontSize: 13, color: Colors.white)),
               if (_webError != null) ...[
                 const SizedBox(height: 8),
@@ -733,6 +812,13 @@ class _PetalwakePageState extends State<PetalwakePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_diag.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text('渲染诊断：$_diag',
+                    style: const TextStyle(
+                        fontSize: 10.5, color: Color(0xFF6E7784))),
+              ),
             ListTile(
               leading: const Icon(Icons.refresh, size: 19),
               title: const Text('重新加载游戏', style: TextStyle(fontSize: 13)),
