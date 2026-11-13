@@ -1,6 +1,11 @@
-/// 邮箱验证码登录 / 注册页（与流萤音乐互通）：
-/// 走音乐 /music/api/send-email-code + /music/api/login-email，
-/// 新邮箱自动注册、老用户直接登录，成功后 token 双端可用。
+/// 登录 / 注册页（与流萤音乐账号互通）
+///
+/// 两种方式二选一：
+/// - 账号密码：音乐 /music/api/login（multipart：account + password），
+///   账号位支持填邮箱，服务端按 account 或 email 命中用户。
+/// - 邮箱验证码：/music/api/send-email-code + /music/api/login-email，
+///   新邮箱自动注册，老用户直接登录。
+/// 成功后 token 双端可用，并写入本地历史账号。
 library;
 
 import 'package:flutter/material.dart';
@@ -19,21 +24,34 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  /// 0 = 账号密码登录，1 = 邮箱验证码登录
+  int _mode = 0;
+
+  // 密码登录
+  final _account = TextEditingController();
+  final _password = TextEditingController();
+  bool _obscure = true;
+
+  // 验证码登录
   final _email = TextEditingController();
   final _code = TextEditingController();
-  bool _sendingCode = false; // 发送验证码进行中
-  bool _submitting = false; // 登录/注册进行中
+  bool _sendingCode = false;
+  int _countdown = 0;
+
+  bool _submitting = false;
   String? _error;
-  int _countdown = 0; // 发送验证码倒计时（秒）
   bool _agreed = false;
 
   @override
   void dispose() {
+    _account.dispose();
+    _password.dispose();
     _email.dispose();
     _code.dispose();
     super.dispose();
   }
 
+  // ---------------------------------------------------------------- 可用态
   bool get _canSendCode =>
       !_sendingCode &&
       !_submitting &&
@@ -41,14 +59,23 @@ class _LoginPageState extends State<LoginPage> {
       ApiClient.isValidEmail(ApiClient.normalizeEmail(_email.text));
 
   bool get _canSubmit {
-    final code = _code.text.trim();
-    return !_submitting &&
-        !_sendingCode &&
-        ApiClient.isValidEmail(ApiClient.normalizeEmail(_email.text)) &&
-        code.length == 6 &&
-        _agreed;
+    if (_submitting || !_agreed) return false;
+    if (_mode == 0) {
+      return _account.text.trim().isNotEmpty && _password.text.isNotEmpty;
+    }
+    return ApiClient.isValidEmail(ApiClient.normalizeEmail(_email.text)) &&
+        _code.text.trim().length == 6;
   }
 
+  void _switchMode(int m) {
+    if (_mode == m) return;
+    setState(() {
+      _mode = m;
+      _error = null;
+    });
+  }
+
+  // ---------------------------------------------------------------- 验证码
   Future<void> _sendCode() async {
     final email = ApiClient.normalizeEmail(_email.text);
     if (!ApiClient.isValidEmail(email)) {
@@ -69,7 +96,6 @@ class _LoginPageState extends State<LoginPage> {
         _sendingCode = false;
       });
       showAppToast(context, '验证码已发送至 $email，请查收');
-      // 倒计时
       Future.doWhile(() async {
         await Future.delayed(const Duration(seconds: 1));
         if (!mounted) return false;
@@ -85,7 +111,8 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _login() async {
+  // ---------------------------------------------------------------- 提交
+  Future<void> _submit() async {
     if (!_agreed) {
       setState(() => _error = '请先阅读并同意用户协议和隐私政策');
       return;
@@ -95,8 +122,12 @@ class _LoginPageState extends State<LoginPage> {
       _error = null;
     });
     try {
-      final email = ApiClient.normalizeEmail(_email.text);
-      final j = await ApiClient.loginEmail(email, _code.text);
+      final Map<String, dynamic> j = _mode == 0
+          ? await ApiClient.login(_account.text.trim(), _password.text)
+          : await ApiClient.loginEmail(
+              ApiClient.normalizeEmail(_email.text),
+              _code.text,
+            );
       final tok = (j['token'] ?? '') as String;
       if (tok.isEmpty) {
         throw ApiException(0, '登录未返回 token');
@@ -106,19 +137,26 @@ class _LoginPageState extends State<LoginPage> {
       await sp.setString('community_token', tok);
       ApiClient.token = tok;
       NotifyBus.shared.connect(tok);
-      // 保存到历史账号（切换账号用）
       await AuthSession.saveAccount(j, tok);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
+      var msg = e is ApiException ? e.message : '登录失败，请检查网络';
+      // 密码登录失败且填的是邮箱：多半是这个邮箱还没设置过密码
+      if (_mode == 0 &&
+          _account.text.contains('@') &&
+          msg.contains('密码错误')) {
+        msg = '$msg（该邮箱可能尚未设置密码，可切换到「邮箱验证码登录」）';
+      }
       setState(() {
-        _error = e is ApiException ? e.message : '登录失败，请检查网络';
+        _error = msg;
         _submitting = false;
       });
     }
   }
 
+  // ---------------------------------------------------------------- UI
   @override
   Widget build(BuildContext context) {
     return ImmersivePage(
@@ -130,165 +168,40 @@ class _LoginPageState extends State<LoginPage> {
               physics: const BouncingScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
                 AppSpace.gutter,
-                AppSpace.x6,
+                AppSpace.x5,
                 AppSpace.gutter,
                 AppSpace.x7 + MediaQuery.paddingOf(context).bottom,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo 区：萤火虫图标 + 名称
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppRadius.xl),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(AppColors.accent)
-                              .withValues(alpha: 0.22),
-                          blurRadius: 32,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppRadius.xl),
-                      child: Image.asset(
-                        'assets/logo.png',
-                        width: 76,
-                        height: 76,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
+                  _brand(),
+                  const SizedBox(height: AppSpace.x6),
+                  _modeSwitch(),
                   const SizedBox(height: AppSpace.x5),
-                  const Text('流萤社区', style: AppType.display),
-                  const SizedBox(height: AppSpace.x2),
-                  Text(
-                    '登录 / 注册 · 账号与流萤音乐互通',
-                    style: AppType.bodySm,
-                  ),
-                  const SizedBox(height: AppSpace.x7),
-                  // 邮箱
-                  TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    onChanged: (_) => setState(() {}), // 驱动发送按钮可用态
-                    style: AppType.body,
-                    cursorColor: const Color(AppColors.accent),
-                    decoration: _input('邮箱地址', Icons.mail_outline_rounded),
-                  ),
+                  ...(_mode == 0 ? _passwordFields() : _codeFields()),
                   const SizedBox(height: AppSpace.x3),
-                  // 验证码 + 发送按钮
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _code,
-                          keyboardType: TextInputType.number,
-                          maxLength: 6,
-                          onChanged: (_) => setState(() {}), // 驱动登录按钮可用态
-                          style: AppType.body,
-                          cursorColor: const Color(AppColors.accent),
-                          decoration: _input('验证码', Icons.verified_outlined),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpace.x2),
-                      PillButton(
-                        label: _countdown > 0 ? '${_countdown}s' : '发送验证码',
-                        size: PillSize.md,
-                        variant: _canSendCode
-                            ? PillVariant.primary
-                            : PillVariant.tonal,
-                        loading: _sendingCode,
-                        enabled: _canSendCode,
-                        onTap: _sendCode,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpace.x3),
-                  // 协议勾选
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      PressableScale(
-                        onTap: () => setState(() => _agreed = !_agreed),
-                        scale: 0.9,
-                        child: Icon(
-                          _agreed
-                              ? Icons.check_circle_rounded
-                              : Icons.radio_button_unchecked_rounded,
-                          size: 18,
-                          color: _agreed
-                              ? const Color(AppColors.accent)
-                              : const Color(AppColors.textTertiary),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text('我已阅读并同意', style: AppType.caption),
-                            PressableScale(
-                              onTap: () => _openAgreement(context),
-                              child: Text('《用户协议》',
-                                  style: AppType.caption
-                                      .copyWith(color: const Color(AppColors.accent))),
-                            ),
-                            Text('和', style: AppType.caption),
-                            PressableScale(
-                              onTap: () => _openPrivacy(context),
-                              child: Text('《隐私政策》',
-                                  style: AppType.caption
-                                      .copyWith(color: const Color(AppColors.accent))),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  _agreement(),
                   if (_error != null) ...[
                     const SizedBox(height: AppSpace.x3),
-                    Container(
-                      padding: const EdgeInsets.all(AppSpace.x3),
-                      decoration: BoxDecoration(
-                        color: const Color(AppColors.danger)
-                            .withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.error_outline_rounded,
-                              size: 16, color: Color(AppColors.danger)),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _error!,
-                              style: AppType.caption
-                                  .copyWith(color: const Color(AppColors.danger)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    _errorBox(_error!),
                   ],
                   const SizedBox(height: AppSpace.x6),
-                  // 登录按钮
                   PillButton(
-                    label: '登录 / 注册',
+                    label: _mode == 0 ? '登录' : '登录 / 注册',
                     size: PillSize.lg,
                     expand: true,
                     glow: _canSubmit,
                     loading: _submitting,
                     enabled: _canSubmit,
-                    onTap: _login,
+                    onTap: _submit,
                   ),
                   const SizedBox(height: AppSpace.x4),
                   Center(
                     child: Text(
-                      '验证码将发送至邮箱，新用户自动注册 · 账号与流萤音乐互通',
+                      _mode == 0
+                          ? '用流萤音乐账号 + 密码登录 · 没设过密码就用验证码登录'
+                          : '验证码将发送至邮箱，新用户自动注册 · 账号与流萤音乐互通',
                       textAlign: TextAlign.center,
                       style: AppType.micro,
                     ),
@@ -302,17 +215,248 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void _openAgreement(BuildContext context) {
-    // 与音乐项目共用官网协议页
-    _openUrl(context, 'https://www.dbmt999.asia/user-agreement.html');
+  Widget _brand() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(AppColors.accent).withValues(alpha: 0.22),
+                blurRadius: 32,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            child: Image.asset(
+              'assets/logo.png',
+              width: 72,
+              height: 72,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpace.x4),
+        const Text('流萤社区', style: AppType.display),
+        const SizedBox(height: AppSpace.x2),
+        Text('账号与流萤音乐互通', style: AppType.bodySm),
+      ],
+    );
   }
 
-  void _openPrivacy(BuildContext context) {
-    _openUrl(context, 'https://www.dbmt999.asia/privacy-policy.html');
+  /// 两种登录方式的分段切换（带滑块，点击即切）
+  Widget _modeSwitch() {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: const Color(AppColors.border)),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment:
+                _mode == 0 ? Alignment.centerLeft : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color:
+                      const Color(AppColors.accent).withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(
+                    color: const Color(AppColors.accent)
+                        .withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(child: _modeTab('账号密码登录', 0)),
+              Expanded(child: _modeTab('邮箱验证码登录', 1)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeTab(String label, int idx) {
+    final on = _mode == idx;
+    return PressableScale(
+      onTap: () => _switchMode(idx),
+      child: Center(
+        child: Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+            color: on
+                ? const Color(AppColors.textPrimary)
+                : const Color(AppColors.textTertiary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _passwordFields() {
+    return [
+      TextField(
+        controller: _account,
+        autocorrect: false,
+        onChanged: (_) => setState(() {}),
+        style: AppType.body,
+        cursorColor: const Color(AppColors.accent),
+        decoration: _input('账号或邮箱', Icons.person_outline_rounded),
+      ),
+      const SizedBox(height: AppSpace.x3),
+      TextField(
+        controller: _password,
+        obscureText: _obscure,
+        autocorrect: false,
+        enableSuggestions: false,
+        onChanged: (_) => setState(() {}),
+        style: AppType.body,
+        cursorColor: const Color(AppColors.accent),
+        decoration: _input('密码', Icons.lock_outline_rounded).copyWith(
+          suffixIcon: IconButton(
+            onPressed: () => setState(() => _obscure = !_obscure),
+            icon: Icon(
+              _obscure
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 20,
+              color: const Color(AppColors.textTertiary),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _codeFields() {
+    return [
+      TextField(
+        controller: _email,
+        keyboardType: TextInputType.emailAddress,
+        autocorrect: false,
+        onChanged: (_) => setState(() {}),
+        style: AppType.body,
+        cursorColor: const Color(AppColors.accent),
+        decoration: _input('邮箱地址', Icons.mail_outline_rounded),
+      ),
+      const SizedBox(height: AppSpace.x3),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _code,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              onChanged: (_) => setState(() {}),
+              style: AppType.body,
+              cursorColor: const Color(AppColors.accent),
+              decoration: _input('验证码', Icons.verified_outlined),
+            ),
+          ),
+          const SizedBox(width: AppSpace.x2),
+          PillButton(
+            label: _countdown > 0 ? '${_countdown}s' : '发送验证码',
+            size: PillSize.md,
+            variant: _canSendCode ? PillVariant.primary : PillVariant.tonal,
+            loading: _sendingCode,
+            enabled: _canSendCode,
+            onTap: _sendCode,
+          ),
+        ],
+      ),
+    ];
+  }
+
+  Widget _agreement() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PressableScale(
+          onTap: () => setState(() => _agreed = !_agreed),
+          scale: 0.9,
+          child: Icon(
+            _agreed
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            size: 18,
+            color: _agreed
+                ? const Color(AppColors.accent)
+                : const Color(AppColors.textTertiary),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('我已阅读并同意', style: AppType.caption),
+              PressableScale(
+                onTap: () => _openUrl(
+                    context, 'https://www.dbmt999.asia/user-agreement.html'),
+                child: Text('《用户协议》',
+                    style: AppType.caption
+                        .copyWith(color: const Color(AppColors.accent))),
+              ),
+              Text('和', style: AppType.caption),
+              PressableScale(
+                onTap: () => _openUrl(
+                    context, 'https://www.dbmt999.asia/privacy-policy.html'),
+                child: Text('《隐私政策》',
+                    style: AppType.caption
+                        .copyWith(color: const Color(AppColors.accent))),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _errorBox(String msg) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.x3),
+      decoration: BoxDecoration(
+        color: const Color(AppColors.danger).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline_rounded,
+              size: 16, color: Color(AppColors.danger)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              msg,
+              style: AppType.caption
+                  .copyWith(color: const Color(AppColors.danger)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openUrl(BuildContext context, String url) {
-    // 无 url_launcher 依赖时用系统弹窗提示；后续可接入浏览器插件
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
