@@ -958,8 +958,48 @@ class FeedSkeleton extends StatelessWidget {
   }
 }
 
-/// 空态：图标 + 标题 + 说明 + 可选动作。
-class EmptyState extends StatelessWidget {
+/// 消息/会话列表骨架：左侧 44 圆角方块 + 两行文字条 + 右侧短条。
+class MessageListSkeleton extends StatelessWidget {
+  const MessageListSkeleton({super.key, this.count = 3});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 0),
+      child: Column(
+        children: List.generate(
+          count,
+          (_) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.x4),
+            child: Row(
+              children: [
+                const SkeletonBox(width: 44, height: 44, radius: 12),
+                const SizedBox(width: AppSpace.x3),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonBox(width: 96, height: 12),
+                      SizedBox(height: 8),
+                      SkeletonBox(width: 180, height: 10),
+                    ],
+                  ),
+                ),
+                const SkeletonBox(width: 36, height: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 空态：图标 + 标题 + 说明 + 可选动作；进入时 320ms 淡入并轻微放大。
+class EmptyState extends StatefulWidget {
   const EmptyState({
     super.key,
     this.icon = Icons.inbox_outlined,
@@ -978,11 +1018,28 @@ class EmptyState extends StatelessWidget {
   final bool compact;
 
   @override
+  State<EmptyState> createState() => _EmptyStateState();
+}
+
+class _EmptyStateState extends State<EmptyState> {
+  @override
   Widget build(BuildContext context) {
-    return Padding(
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.slow,
+      curve: AppMotion.emphasized,
+      builder: (_, v, child) => Opacity(
+        opacity: v,
+        child: Transform.scale(scale: 0.96 + 0.04 * v, child: child),
+      ),
+      child: _content(),
+    );
+  }
+
+  Widget _content() => Padding(
       padding: EdgeInsets.symmetric(
         horizontal: AppSpace.x7,
-        vertical: compact ? AppSpace.x8 : AppSpace.x8 * 1.6,
+        vertical: widget.compact ? AppSpace.x8 : AppSpace.x8 * 1.6,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -994,23 +1051,23 @@ class EmptyState extends StatelessWidget {
               shape: BoxShape.circle,
               color: Colors.white.withValues(alpha: 0.05),
             ),
-            child: Icon(icon,
+            child: Icon(widget.icon,
                 size: 28, color: const Color(AppColors.textTertiary)),
           ),
           const SizedBox(height: AppSpace.x4),
-          Text(title,
+          Text(widget.title,
               textAlign: TextAlign.center,
               style: AppType.title.copyWith(color: const Color(AppColors.textSecondary))),
-          if (message != null) ...[
+          if (widget.message != null) ...[
             const SizedBox(height: AppSpace.x2),
-            Text(message!,
+            Text(widget.message!,
                 textAlign: TextAlign.center, style: AppType.caption),
           ],
-          if (actionLabel != null && onAction != null) ...[
+          if (widget.actionLabel != null && widget.onAction != null) ...[
             const SizedBox(height: AppSpace.x5),
             PillButton(
-              label: actionLabel!,
-              onTap: onAction,
+              label: widget.actionLabel!,
+              onTap: widget.onAction,
               variant: PillVariant.ghost,
               size: PillSize.sm,
             ),
@@ -1018,7 +1075,6 @@ class EmptyState extends StatelessWidget {
         ],
       ),
     );
-  }
 }
 
 /// 错误态（与空态区分：给重试）。
@@ -1068,9 +1124,12 @@ class LoadMoreFooter extends StatelessWidget {
         padding: EdgeInsets.symmetric(vertical: AppSpace.x5),
         child: Center(
           child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Color(AppColors.accent),
+            ),
           ),
         ),
       );

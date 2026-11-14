@@ -110,6 +110,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Future<void> _toggleLike() async {
+    HapticFeedback.lightImpact();
     if (_post == null) return;
     setState(() {
       _liked = !_liked;
@@ -127,6 +128,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Future<void> _toggleFav() async {
+    HapticFeedback.lightImpact();
     if (_post == null) return;
     // 接口语义：faved=true 表示「当前已收藏」→ 走 DELETE；所以传切换前的状态
     final wasFaved = _faved;
@@ -675,6 +677,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       onTap: _followBusy
           ? null
           : () async {
+              HapticFeedback.lightImpact();
               setState(() => _followBusy = true);
               try {
                 await ApiClient.toggleFollow(a.id);

@@ -7,6 +7,7 @@ library;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
 
@@ -333,22 +334,35 @@ class _VideoCardState extends State<VideoCard>
   // ---------- 互动 ----------
 
   Future<void> _toggleLike() async {
+    HapticFeedback.lightImpact();
     if (ApiClient.token == null) {
       _needLogin();
       return;
     }
+    // 先本地切换再请求：点击即刻有反馈，失败回滚
+    final next = !_liked;
+    setState(() {
+      _liked = next;
+      _likeCount += next ? 1 : -1;
+    });
     try {
-      final r = await ApiClient.setPostLike(widget.item.id, liked: _liked);
+      final r = await ApiClient.setPostLike(widget.item.id, liked: next);
       if (!mounted) return;
       setState(() {
         _liked = r['liked'] == true;
-        // 服务端返回 likeCount（此前误读 count 导致点赞计数永不更新）
         _likeCount = ((r['likeCount'] ?? _likeCount) as num).toInt();
       });
-    } catch (_) {}
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _liked = !next;
+        _likeCount += next ? -1 : 1;
+      });
+    }
   }
 
   Future<void> _toggleFav() async {
+    HapticFeedback.lightImpact();
     if (ApiClient.token == null) {
       _needLogin();
       return;
@@ -367,15 +381,22 @@ class _VideoCardState extends State<VideoCard>
   }
 
   Future<void> _toggleFollow() async {
+    HapticFeedback.lightImpact();
     if (ApiClient.token == null) {
       _needLogin();
       return;
     }
+    // 同样先切换再请求，避免"点了没反应"
+    final next = !_followed;
+    setState(() => _followed = next);
     try {
       final r = await ApiClient.toggleFollow(widget.item.author.id);
       if (!mounted) return;
-      setState(() => _followed = boolOf(r['following'], !_followed));
-    } catch (_) {}
+      setState(() => _followed = boolOf(r['following'], next));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _followed = !next);
+    }
   }
 
   Future<void> _share() async {

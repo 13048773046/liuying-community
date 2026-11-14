@@ -29,6 +29,7 @@ class _ShortsPageState extends State<ShortsPage> {
   bool _hasMore = true;
   int _page = 0;
   int _current = 0;
+  int _tab = 1; // 0=关注 1=推荐（默认推荐，与首页一致）
 
   @override
   void initState() {
@@ -41,7 +42,11 @@ class _ShortsPageState extends State<ShortsPage> {
     setState(() => _loading = true);
     try {
       // 同源混合：与首页同一内容池（视频+图片/图文帖全类型混排）
-      final p = await ApiClient.feed(page: _page + 1, size: 6);
+      final p = await ApiClient.feed(
+        tab: _tab == 0 ? 'follow' : 'recommend',
+        page: _page + 1,
+        size: 6,
+      );
       if (!mounted) return;
       setState(() {
         _page = p.page;
@@ -64,6 +69,21 @@ class _ShortsPageState extends State<ShortsPage> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// 切换关注/推荐：清空当前流并回到顶部重新加载
+  Future<void> _switchTab(int i) async {
+    if (_tab == i) return;
+    setState(() {
+      _tab = i;
+      _items.clear();
+      _page = 0;
+      _hasMore = true;
+      _loading = false;
+      _current = 0;
+    });
+    if (_controller.hasClients) _controller.jumpToPage(0);
+    await _loadMore();
   }
 
   @override
@@ -94,31 +114,75 @@ class _ShortsPageState extends State<ShortsPage> {
                 isActive: i == _current,
               ),
             ),
-          // 顶部悬浮玻璃栏（短视频是主 Tab，无返回）
-          const Positioned(
-            top: 0,
+          // 顶部分段：关注 / 推荐（V16 文字级指示器）
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 10,
             left: 0,
             right: 0,
-            child: IgnorePointer(
-              child: GlassTopBar(
-                floating: true,
-                showBack: false,
-                title: '短视频',
-              ),
-            ),
+            child: Center(child: _tabSwitch()),
           ),
         ],
       ),
     );
   }
 
+  Widget _tabSwitch() {
+    final labels = const ['关注', '推荐'];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < labels.length; i++)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _switchTab(i),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: i == 0 ? 0 : 26),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    labels[i],
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.2,
+                      letterSpacing: -0.15,
+                      fontWeight:
+                          i == _tab ? FontWeight.w700 : FontWeight.w500,
+                      color: i == _tab
+                          ? const Color(AppColors.textPrimary)
+                          : const Color(AppColors.textTertiary),
+                      shadows: const [
+                        Shadow(color: Color(0x99000000), blurRadius: 6),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  AnimatedContainer(
+                    duration: AppMotion.fast,
+                    width: i == _tab ? 16 : 0,
+                    height: 2.5,
+                    decoration: BoxDecoration(
+                      color: const Color(AppColors.accent),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildLoading() {
     if (!_loading) {
-      return const Center(
+      return Center(
         child: EmptyState(
           icon: Icons.movie_outlined,
-          title: '暂时没有内容',
-          message: '稍后再来看看，或去发一条短视频',
+          title: _tab == 0 ? '关注的人还没有作品' : '暂时没有内容',
+          message: _tab == 0
+              ? '去首页发现更多创作者，关注后会出现在这里'
+              : '稍后再来看看，或去发一条短视频',
         ),
       );
     }

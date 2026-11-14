@@ -6,6 +6,7 @@ library;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api/client.dart';
 import '../config.dart';
@@ -99,6 +100,7 @@ class _PostCardState extends State<PostCard> {
 
   /// 点赞：有外部回调就交给调用方，否则卡片自己调接口（乐观更新 + 失败回滚）
   Future<void> _toggleLike() async {
+    HapticFeedback.lightImpact();
     final next = !_liked;
     setState(() {
       _liked = next;
@@ -133,6 +135,7 @@ class _PostCardState extends State<PostCard> {
 
   /// 收藏：同点赞，faved 传的是「切换后的新状态」
   Future<void> _toggleFav() async {
+    HapticFeedback.lightImpact();
     final next = !_faved;
     setState(() => _faved = next);
     if (widget.onFav != null) {
@@ -175,8 +178,9 @@ class _PostCardState extends State<PostCard> {
     final item = widget.item;
     final radius = widget.rounded ? 16.0 : 0.0;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+    return _entrance(
+      Padding(
+        padding: const EdgeInsets.only(bottom: 14),
       child: PressableScale(
         onTap: widget.onTap,
         scale: 0.985,
@@ -208,6 +212,24 @@ class _PostCardState extends State<PostCard> {
           ),
         ),
       ),
+      ),
+    );
+  }
+
+  /// 首次出现时淡入 + 上移 12px；同一 State 内不重播。
+  Widget _entrance(Widget child) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.slow,
+      curve: AppMotion.emphasized,
+      builder: (_, v, inner) => Opacity(
+        opacity: v,
+        child: Transform.translate(
+          offset: Offset(0, 12 * (1 - v)),
+          child: inner,
+        ),
+      ),
+      child: child,
     );
   }
 

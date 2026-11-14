@@ -10,6 +10,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/client.dart';
@@ -364,6 +365,7 @@ class _CommentSheetState extends State<CommentSheet> {
 
   /// 评论点赞（本地乐观切换，失败回滚；接口沿用 ApiClient.commentLike）
   Future<void> _toggleCommentLike(Map<String, dynamic> c) async {
+    HapticFeedback.lightImpact();
     final cid = (c['id'] ?? '') as String;
     if (cid.isEmpty) return;
     final wasLiked = (c['liked'] ?? false) == true;
@@ -856,19 +858,23 @@ class _CommentSheetState extends State<CommentSheet> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            liked
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            size: 15,
-                            color: liked
-                                ? const Color(AppColors.heart)
-                                : const Color(AppColors.textTertiary),
+                          BounceOnChange(
+                            trigger: liked,
+                            peak: 1.35,
+                            child: Icon(
+                              liked
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 15,
+                              color: liked
+                                  ? const Color(AppColors.heart)
+                                  : const Color(AppColors.textTertiary),
+                            ),
                           ),
                           if (likeCount > 0) ...[
                             const SizedBox(width: AppSpace.x1),
-                            Text(
-                              '$likeCount',
+                            RollingText(
+                              text: '$likeCount',
                               style: AppType.micro.copyWith(
                                 color: liked
                                     ? const Color(AppColors.heart)

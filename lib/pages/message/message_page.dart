@@ -276,16 +276,10 @@ class _MessagePageState extends State<MessagePage> {
     );
   }
 
+  Widget _skeleton() => const MessageListSkeleton();
+
   Widget _body() {
-    if (_loading) {
-      return const Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2.2),
-        ),
-      );
-    }
+    if (_loading) return _skeleton();
     if (_needLogin) return _loginEmpty();
     if (_loadError != null) {
       return Center(
@@ -384,10 +378,17 @@ class _MessagePageState extends State<MessagePage> {
       onTap: onTap,
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpace.gutter, vertical: AppSpace.x3),
-      trailing: unread > 0
-          ? CountBadge(count: unread)
-          : const Icon(Icons.chevron_right_rounded,
-              size: 20, color: Color(AppColors.textTertiary)),
+      trailing: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeIn,
+        child: unread > 0
+            ? CountBadge(key: const ValueKey('badge'), count: unread)
+            : const Icon(Icons.chevron_right_rounded,
+                key: ValueKey('chevron'),
+                size: 20,
+                color: Color(AppColors.textTertiary)),
+      ),
     );
   }
 
@@ -403,18 +404,7 @@ class _MessagePageState extends State<MessagePage> {
       ];
     }
     if (_dmLoading && _dmConvs.isEmpty) {
-      return const [
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: AppSpace.x7),
-          child: Center(
-            child: SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
-      ];
+      return const [MessageListSkeleton()];
     }
     if (_dmConvs.isEmpty) {
       return const [
