@@ -41,10 +41,10 @@ class ImmersivePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark.copyWith(
+      value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
         systemNavigationBarColor: background,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
         backgroundColor: background,
@@ -222,7 +222,7 @@ class GlassTopBar extends StatelessWidget implements PreferredSizeWidget {
                 color: solid
                     ? const Color(AppColors.glass)
                     : (floating
-                        ? const Color(AppColors.glass)
+                        ? Colors.white.withValues(alpha: 0.06)
                         : Colors.transparent),
                 borderRadius:
                     floating ? AppRadius.rPill : BorderRadius.zero,
@@ -351,7 +351,7 @@ class PillButton extends StatelessWidget {
             null
           ),
         PillVariant.tonal => (
-            const Color(AppColors.canvas),
+            Colors.white.withValues(alpha: 0.12),
             const Color(AppColors.textPrimary),
             null
           ),
@@ -398,7 +398,7 @@ class IconCircleButton extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: background ?? const Color(AppColors.canvas),
+        color: background ?? Colors.white.withValues(alpha: 0.08),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
@@ -423,44 +423,89 @@ class IconCircleButton extends StatelessWidget {
 }
 
 /// 数字角标（红点/计数）。
-class CountBadge extends StatelessWidget {
-  const CountBadge({super.key, required this.count, this.color, this.plain = false});
+class CountBadge extends StatefulWidget {
+  const CountBadge({
+    super.key,
+    required this.count,
+    this.color,
+    this.plain = false,
+  });
 
   final int count;
   final Color? color;
   final bool plain;
 
   @override
+  State<CountBadge> createState() => _CountBadgeState();
+}
+
+class _CountBadgeState extends State<CountBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+  );
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(begin: 0.55, end: 1.16)
+          .chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 40,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: 1.16, end: 1.0)
+          .chain(CurveTween(curve: Curves.elasticOut)),
+      weight: 60,
+    ),
+  ]).animate(_c);
+
+  @override
+  void didUpdateWidget(covariant CountBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 未读从无到有、或数字增加时弹一下；减少时不打扰
+    if (widget.count > oldWidget.count) {
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (count <= 0) return const SizedBox.shrink();
-    final text = count > 99 ? '99+' : '$count';
-    return Container(
-      padding: plain
-          ? const EdgeInsets.all(4)
-          : const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      constraints: const BoxConstraints(minWidth: 16),
-      decoration: BoxDecoration(
-        color: color ?? const Color(AppColors.heart),
-        borderRadius: AppRadius.rPill,
-        border: Border.all(color: const Color(AppColors.bg), width: 1.5),
-      ),
-      alignment: Alignment.center,
-      child: plain
-          ? null
-          : Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9.5,
-                height: 1.2,
-                fontWeight: FontWeight.w700,
+    if (widget.count <= 0) return const SizedBox.shrink();
+    final text = widget.count > 99 ? '99+' : '${widget.count}';
+    return ScaleTransition(
+      scale: _scale,
+      child: Container(
+        padding: widget.plain
+            ? const EdgeInsets.all(4)
+            : const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        constraints: const BoxConstraints(minWidth: 16),
+        decoration: BoxDecoration(
+          color: widget.color ?? const Color(AppColors.heart),
+          borderRadius: AppRadius.rPill,
+          border: Border.all(color: const Color(AppColors.bg), width: 1.5),
+        ),
+        alignment: Alignment.center,
+        child: widget.plain
+            ? null
+            : Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9.5,
+                  height: 1.2,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
+      ),
     );
   }
 }
 
-/// 按压缩放反馈（沉浸式交互的基础手感）。
 class PressableScale extends StatefulWidget {
   const PressableScale({
     super.key,
@@ -551,7 +596,7 @@ class TagPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: active
               ? const Color(AppColors.accent).withValues(alpha: 0.16)
-              : const Color(AppColors.canvas),
+              : Colors.white.withValues(alpha: 0.07),
           borderRadius: AppRadius.rPill,
           border: Border.all(
             color: active
@@ -641,59 +686,58 @@ class FeedTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 46,
+      height: 50,
       child: Row(
         children: [
           const SizedBox(width: AppSpace.x3),
-          ...List.generate(labels.length, (i) {
-            final active = i == index;
-            return PressableScale(
-              onTap: () => onChanged(i),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Spacer(),
-                    AnimatedDefaultTextStyle(
-                      duration: AppMotion.base,
-                      style: (active ? AppType.h2 : AppType.title).copyWith(
-                        color: active
-                            ? const Color(AppColors.textPrimary)
-                            : const Color(AppColors.textTertiary),
-                        fontWeight: active ? FontWeight.w800 : FontWeight.w500,
-                      ),
-                      child: Text(labels[i]),
-                    ),
-                    const SizedBox(height: 6),
-                    AnimatedContainer(
+          // 胶囊槽：整组选项包在一个描边胶囊里，选中项填充柔色
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(AppColors.card),
+              borderRadius: AppRadius.rPill,
+              border: Border.all(color: const Color(AppColors.hairline)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < labels.length; i++)
+                  PressableScale(
+                    onTap: () => onChanged(i),
+                    child: AnimatedContainer(
                       duration: AppMotion.base,
                       curve: AppMotion.standard,
-                      height: 3,
-                      width: active ? 18 : 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.x4,
+                        vertical: AppSpace.x2,
+                      ),
                       decoration: BoxDecoration(
-                        color: const Color(AppColors.accent),
+                        color: i == index
+                            ? const Color(AppColors.accentSoft)
+                            : Colors.transparent,
                         borderRadius: AppRadius.rPill,
-                        boxShadow: active
-                            ? [
-                                BoxShadow(
-                                  color: const Color(AppColors.accent)
-                                      .withValues(alpha: 0.5),
-                                  blurRadius: 8,
-                                )
-                              ]
-                            : null,
+                      ),
+                      child: AnimatedDefaultTextStyle(
+                        duration: AppMotion.base,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.1,
+                          fontWeight:
+                              i == index ? FontWeight.w700 : FontWeight.w500,
+                          color: i == index
+                              ? const Color(AppColors.accent)
+                              : const Color(AppColors.textTertiary),
+                        ),
+                        child: Text(labels[i]),
                       ),
                     ),
-                    const SizedBox(height: 7),
-                  ],
-                ),
-              ),
-            );
-          }),
+                  ),
+              ],
+            ),
+          ),
           const Spacer(),
           ?onTrailing,
-          const SizedBox(width: AppSpace.x2),
+          const SizedBox(width: AppSpace.x3),
         ],
       ),
     );
@@ -948,7 +992,7 @@ class EmptyState extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(AppColors.canvas),
+              color: Colors.white.withValues(alpha: 0.05),
             ),
             child: Icon(icon,
                 size: 28, color: const Color(AppColors.textTertiary)),
@@ -1113,7 +1157,7 @@ class SheetShell extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(AppColors.textDisabled),
+                color: Colors.white.withValues(alpha: 0.22),
                 borderRadius: AppRadius.rPill,
               ),
             ),
@@ -1142,7 +1186,7 @@ class SheetShell extends StatelessWidget {
                     icon: Icons.close_rounded,
                     size: 30,
                     iconSize: 16,
-                    background: const Color(AppColors.canvas),
+                    background: Colors.white.withValues(alpha: 0.06),
                     onTap: () => Navigator.of(context).maybePop(),
                   ),
                 ],
@@ -1249,7 +1293,7 @@ class SearchPill extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
         decoration: BoxDecoration(
-          color: const Color(AppColors.canvas),
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: AppRadius.rPill,
           border: Border.all(color: const Color(AppColors.border)),
         ),
@@ -1297,8 +1341,8 @@ class StatTile extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            value,
+          RollingText(
+            text: value,
             style: AppType.h2.copyWith(
               fontSize: 19,
               color: highlight
@@ -1357,7 +1401,7 @@ class ListRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       splashColor: Colors.transparent,
-      highlightColor: const Color(0x08000000),
+      highlightColor: Colors.white.withValues(alpha: 0.03),
       child: Padding(
         padding: padding,
         child: Row(
@@ -1411,7 +1455,7 @@ class DashedActionCard extends StatelessWidget {
       child: Container(
         height: 92,
         decoration: BoxDecoration(
-          color: const Color(AppColors.canvas),
+          color: Colors.white.withValues(alpha: 0.03),
           borderRadius: AppRadius.rMd,
           border: Border.all(color: const Color(AppColors.border)),
         ),
@@ -1436,10 +1480,9 @@ void showAppToast(BuildContext context, String message) {
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(message,
-            style: AppType.bodySm.copyWith(color: const Color(0xFFFAF8F4))),
+        content: Text(message, style: AppType.bodySm.copyWith(color: Colors.white)),
         duration: const Duration(milliseconds: 1800),
-        backgroundColor: const Color(AppColors.textPrimary),
+        backgroundColor: const Color(AppColors.elevated),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.fromLTRB(48, 0, 48, 28),
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.rPill),
@@ -1453,4 +1496,199 @@ String formatCount(num n) {
   if (v < 10000) return '$v';
   final w = v / 10000;
   return '${w.toStringAsFixed(w >= 100 ? 0 : 1)}万';
+}
+
+// ---------------------------------------------------------------------------
+// 动效组件：点击回弹 / 数字滚动 / 进度增长
+// ---------------------------------------------------------------------------
+
+/// 状态变化时的回弹：trigger 变化就弹一下（点赞、收藏、关注）。
+/// 用 1 → 1.28 → 1 的过冲曲线，不改变布局、不影响点击热区。
+class BounceOnChange extends StatefulWidget {
+  const BounceOnChange({
+    super.key,
+    required this.trigger,
+    required this.child,
+    this.peak = 1.28,
+    this.duration = const Duration(milliseconds: 340),
+  });
+
+  final Object? trigger;
+  final Widget child;
+  final double peak;
+  final Duration duration;
+
+  @override
+  State<BounceOnChange> createState() => _BounceOnChangeState();
+}
+
+class _BounceOnChangeState extends State<BounceOnChange>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  );
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(begin: 1.0, end: widget.peak)
+          .chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 32,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: widget.peak, end: 1.0)
+          .chain(CurveTween(curve: Curves.elasticOut)),
+      weight: 68,
+    ),
+  ]).animate(_c);
+
+  @override
+  void didUpdateWidget(BounceOnChange oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.trigger != widget.trigger) {
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ScaleTransition(scale: _scale, child: widget.child);
+}
+
+/// 数字滚动：变化时旧数字上滑淡出、新数字从下滑入。
+/// 计数、粉丝数、经验值都用它，避免数字瞬间跳变。
+class RollingCount extends StatelessWidget {
+  const RollingCount({
+    super.key,
+    required this.value,
+    this.style,
+    this.builder,
+    this.duration = const Duration(milliseconds: 240),
+  });
+
+  final int value;
+  final TextStyle? style;
+
+  /// 自定义格式化（默认千分位以上转「万」）
+  final String Function(int v)? builder;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = builder?.call(value) ?? formatCount(value);
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) {
+        return FadeTransition(
+          opacity: anim,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.38),
+              end: Offset.zero,
+            ).animate(anim),
+            child: child,
+          ),
+        );
+      },
+      child: Text(
+        text,
+        key: ValueKey<String>(text),
+        style: style,
+        maxLines: 1,
+      ),
+    );
+  }
+}
+
+/// 进度增长：首次从 0 长到目标值，后续从旧值过渡到新值。
+class GrowBar extends StatelessWidget {
+  const GrowBar({
+    super.key,
+    required this.value,
+    this.height = 3,
+    this.color = const Color(AppColors.accent),
+    this.background = const Color(AppColors.hairline),
+    this.duration = const Duration(milliseconds: 900),
+    this.curve = Curves.easeOutCubic,
+  });
+
+  final double value;
+  final double height;
+  final Color color;
+  final Color background;
+  final Duration duration;
+  final Curve curve;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: value.clamp(0.0, 1.0)),
+      duration: duration,
+      curve: curve,
+      builder: (_, v, _) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(height),
+          child: LinearProgressIndicator(
+            value: v,
+            minHeight: height,
+            backgroundColor: background,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 数字/文字滚动：值变化时新值自下向上替换旧值，旧值向上淡出。
+/// 用在点赞数、粉丝数、经验这些会跳动的地方，避免数字硬切。
+class RollingText extends StatelessWidget {
+  const RollingText({
+    super.key,
+    required this.text,
+    this.style,
+    this.textAlign,
+  });
+
+  final String text;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, anim) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.42),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
+        return ClipRect(
+          child: SlideTransition(
+            position: slide,
+            child: FadeTransition(opacity: anim, child: child),
+          ),
+        );
+      },
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.center,
+        children: [...previous, ?current],
+      ),
+      child: Text(
+        text,
+        key: ValueKey(text),
+        style: style,
+        textAlign: textAlign,
+      ),
+    );
+  }
 }

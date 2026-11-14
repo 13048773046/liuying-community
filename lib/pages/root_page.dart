@@ -1,9 +1,9 @@
-/// 主容器：沉浸式底部导航（纯黑透明浮层 + 中间凸起短视频/发布按钮）
-/// - 短视频页全屏沉浸，导航栏浮在内容之上（底部渐变遮罩保证可读）
-/// - 其余页面导航栏为半透明玻璃条，顶部 0.5 描边
+/// 主容器：贴底通栏导航（96% 黑 + 顶部发丝线 + 中间圆角矩形发布键）
+/// - 不再使用悬浮岛：左右贴到屏幕边缘、底边压到屏幕最下方，圆角归零
+/// - 中间按钮 74×44、圆角 12、只留「＋」，与四个 tab 同线居中，不上浮
 library;
 
-import 'dart:ui' as ui;
+// 底栏改为贴底通栏后不再需要 BackdropFilter
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -94,6 +94,7 @@ class _RootPageState extends State<RootPage> {
                   MaterialPageRoute(builder: (_) => const PostEditorPage()),
                 );
               },
+              onShorts: () => _onTabChanged(2),
             ),
           ),
         ],
@@ -102,27 +103,28 @@ class _RootPageState extends State<RootPage> {
   }
 }
 
-/// 沉浸式底部导航：非短视频页为毛玻璃条，短视频页全透明只留渐变。
+/// 贴底通栏导航：96% 黑 + 顶部一条发丝线，中间是圆角矩形发布键。
 class _BottomNav extends StatelessWidget {
   const _BottomNav({
     required this.index,
     required this.immersive,
     required this.onChanged,
     required this.onPublish,
+    required this.onShorts,
   });
 
   final int index;
   final bool immersive;
   final ValueChanged<int> onChanged;
   final VoidCallback onPublish;
+  final VoidCallback onShorts;
 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
 
-    final bar = Container(
+    final bar = SizedBox(
       height: kTabBarContentH,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpace.x2),
       child: Row(
         children: [
           _NavItem(
@@ -139,12 +141,10 @@ class _BottomNav extends StatelessWidget {
             active: index == 1,
             onTap: () => onChanged(1),
           ),
-          Expanded(
-            child: Center(
-              child: _CenterButton(
-                active: immersive,
-                onTap: immersive ? onPublish : () => onChanged(2),
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.x2),
+            child: _CenterButton(
+              onTap: () => _openCreateMenu(context),
             ),
           ),
           _NavItem(
@@ -167,28 +167,107 @@ class _BottomNav extends StatelessWidget {
     );
 
     return Container(
-      decoration: BoxDecoration(
-        gradient: immersive
-            ? AppEffects.navScrimDark
-            : const LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [Color(0xF7FAF8F4), Color(0xE6FAF8F4)],
-              ),
-        border: immersive
-            ? null
-            : const Border(top: BorderSide(color: Color(AppColors.hairline))),
+      decoration: const BoxDecoration(
+        color: Color(0xF5000000),
+        border: Border(top: BorderSide(color: Color(AppColors.border), width: 1)),
       ),
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(
-            sigmaX: immersive ? 0.001 : 22,
-            sigmaY: immersive ? 0.001 : 22,
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(bottom: bottom),
-            child: bar,
-          ),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottom),
+        child: bar,
+      ),
+    );
+  }
+
+  /// 「＋」展开创作入口：发一帖 / 刷短视频，避免静默丢掉短视频入口。
+  void _openCreateMenu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(AppColors.canvas),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF313136),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            _CreateEntry(
+              icon: Icons.edit_rounded,
+              title: '发一帖',
+              subtitle: '图文或视频，发布到社区',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                onPublish();
+              },
+            ),
+            const Divider(height: 1, color: Color(AppColors.hairline)),
+            _CreateEntry(
+              icon: Icons.play_circle_outline_rounded,
+              title: '刷短视频',
+              subtitle: '沉浸播放，上滑切换',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                onShorts();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 创作面板里的一行。
+class _CreateEntry extends StatelessWidget {
+  const _CreateEntry({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpace.x5, 14, AppSpace.x5, 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(AppColors.accentSoft),
+                borderRadius: AppRadius.rMd,
+              ),
+              child: Icon(icon, size: 20, color: const Color(AppColors.accent)),
+            ),
+            const SizedBox(width: AppSpace.x3),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppType.body.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(subtitle, style: AppType.micro.copyWith(color: const Color(AppColors.textTertiary))),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -244,9 +323,14 @@ class _NavItem extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedSwitcher(
-                duration: AppMotion.fast,
-                child: iconWidget,
+              AnimatedScale(
+                scale: active ? 1.06 : 1.0,
+                duration: AppMotion.base,
+                curve: AppMotion.emphasized,
+                child: AnimatedSwitcher(
+                  duration: AppMotion.fast,
+                  child: iconWidget,
+                ),
               ),
               const SizedBox(height: 3),
               AnimatedDefaultTextStyle(
@@ -268,36 +352,28 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// 中间按钮：薄荷绿圆钮（短视频入口 / 页内变「发布」）。
+/// 中间按钮：74×44 圆角矩形，只留「＋」，与四个 tab 同线居中、不上浮。
 class _CenterButton extends StatelessWidget {
-  const _CenterButton({required this.active, required this.onTap});
+  const _CenterButton({required this.onTap});
 
-  final bool active;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return PressableScale(
       onTap: onTap,
-      scale: 0.9,
-      child: AnimatedContainer(
-        key: const ValueKey('shortsCenterBtn'),
-        duration: AppMotion.base,
-        width: 52,
-        height: 34,
+      scale: 0.94,
+      child: Container(
+        width: 74,
+        height: 44,
         decoration: BoxDecoration(
           color: const Color(AppColors.accent),
           borderRadius: BorderRadius.circular(12),
-          boxShadow: AppEffects.accentGlow(opacity: 0.35),
         ),
-        child: AnimatedSwitcher(
-          duration: AppMotion.fast,
-          child: Icon(
-            active ? Icons.add_rounded : Icons.play_arrow_rounded,
-            key: ValueKey(active),
-            color: const Color(AppColors.onAccent),
-            size: active ? 22 : 26,
-          ),
+        child: const Icon(
+          Icons.add_rounded,
+          color: Color(AppColors.onAccent),
+          size: 22,
         ),
       ),
     );

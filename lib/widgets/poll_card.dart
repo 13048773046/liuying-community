@@ -147,7 +147,7 @@ class _PollCardState extends State<PollCard> {
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpace.x3, vertical: AppSpace.x3),
           decoration: BoxDecoration(
-            color: const Color(AppColors.canvas),
+            color: Colors.white.withValues(alpha: 0.04),
             borderRadius: AppRadius.rSm,
             border: Border.all(
                 color: voted
@@ -181,7 +181,7 @@ class _PollCardState extends State<PollCard> {
       decoration: BoxDecoration(
         color: voted
             ? const Color(AppColors.accent).withValues(alpha: 0.08)
-            : const Color(AppColors.canvas),
+            : Colors.white.withValues(alpha: 0.04),
         borderRadius: AppRadius.rSm,
         border: Border.all(
             color: voted

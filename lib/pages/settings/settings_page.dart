@@ -93,7 +93,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: const Color(AppColors.border)),
+                      color: Colors.white.withValues(alpha: 0.18)),
                 ),
                 child: const Icon(Icons.add_rounded,
                     size: 20, color: Color(AppColors.textTertiary)),
@@ -151,7 +151,7 @@ class _SettingsPageState extends State<SettingsPage> {
               : Colors.transparent,
           border: isCurrent
               ? null
-              : Border.all(color: const Color(AppColors.border)),
+              : Border.all(color: Colors.white.withValues(alpha: 0.25)),
         ),
         alignment: Alignment.center,
         child: isCurrent

@@ -84,4 +84,4 @@ class AppTheme {
 /// 底部导航栏实际占用高度（不含系统底部安全区的剩余空间）：
 /// 内容区避让导航栏时使用，动态随机型安全区变化（导航内容 60 + safeBottom）
 double tabBarBottomInset(BuildContext context) =>
-    60 + MediaQuery.paddingOf(context).bottom;
+    58 + MediaQuery.paddingOf(context).bottom;

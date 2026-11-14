@@ -224,7 +224,7 @@ class _LoginPageState extends State<LoginPage> {
             borderRadius: BorderRadius.circular(AppRadius.xl),
             boxShadow: [
               BoxShadow(
-                color: const Color(AppColors.accent).withValues(alpha: 0.10),
+                color: const Color(AppColors.accent).withValues(alpha: 0.22),
                 blurRadius: 32,
                 spreadRadius: 1,
               ),
@@ -254,7 +254,7 @@ class _LoginPageState extends State<LoginPage> {
       height: 44,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(AppColors.canvas),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(99),
         border: Border.all(color: const Color(AppColors.border)),
       ),

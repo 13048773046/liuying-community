@@ -410,7 +410,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 icon: Icons.close_rounded,
                 size: 34,
                 iconSize: 18,
-                background: const Color(AppColors.canvas),
+                background: Colors.white.withValues(alpha: 0.06),
                 onTap: () => Navigator.pop(context),
               ),
             ],
@@ -544,7 +544,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
         size: 36,
         iconSize: 19,
         badge: badge,
-        background: const Color(AppColors.canvas),
+        background: Colors.white.withValues(alpha: 0.06),
         color: active
             ? const Color(AppColors.accent)
             : const Color(AppColors.textPrimary),
@@ -1458,7 +1458,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
           vertical: AppSpace.x1,
         ),
         decoration: BoxDecoration(
-          color: const Color(AppColors.canvas),
+          color: Colors.white.withValues(alpha: 0.07),
           borderRadius: AppRadius.rPill,
           border: Border.all(color: const Color(AppColors.border)),
         ),
@@ -1492,7 +1492,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
         decoration: BoxDecoration(
           color: sel
               ? const Color(AppColors.accent).withValues(alpha: 0.14)
-              : const Color(AppColors.canvas),
+              : Colors.white.withValues(alpha: 0.05),
           borderRadius: AppRadius.rPill,
           border: Border.all(
             color: sel

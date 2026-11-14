@@ -25,7 +25,7 @@ import '../user/user_profile.dart';
 /// 命中词高亮色
 const _kHitRed = Color(0xFFFE2C55);
 /// 搜索框底色
-const _kFieldBg = Color(AppColors.canvas);
+const _kFieldBg = Color(0xFF2A2A2E);
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -261,7 +261,7 @@ class _SearchPageState extends State<SearchPage> {
               width: 40,
               height: 40,
               child: Icon(Icons.arrow_back_ios_new_rounded,
-                  size: 19, color: Color(AppColors.textPrimary)),
+                  size: 19, color: Colors.white),
             ),
           ),
           Expanded(
@@ -279,7 +279,7 @@ class _SearchPageState extends State<SearchPage> {
                       controller: _ctrl,
                       focusNode: _focus,
                       style: const TextStyle(
-                          fontSize: 15, color: Color(AppColors.textPrimary), height: 1.3),
+                          fontSize: 15, color: Colors.white, height: 1.3),
                       cursorColor: _kHitRed,
                       textInputAction: TextInputAction.search,
                       onChanged: _onChanged,
@@ -293,7 +293,7 @@ class _SearchPageState extends State<SearchPage> {
                         hintText: '搜你想看的',
                         hintStyle: TextStyle(
                             fontSize: 15,
-                            color: Color(AppColors.textTertiary),
+                            color: Color(0xFF8A8A8E),
                             height: 1.3),
                       ),
                     ),
@@ -308,17 +308,17 @@ class _SearchPageState extends State<SearchPage> {
                             child: const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 6),
                               child: Icon(Icons.cancel_rounded,
-                                  size: 17, color: Color(AppColors.textTertiary)),
+                                  size: 17, color: Color(0xFF8A8A8E)),
                             ),
                           ),
                   ),
                   const Icon(Icons.photo_camera_outlined,
-                      size: 22, color: Color(AppColors.textPrimary)),
+                      size: 22, color: Colors.white),
                   Container(
                     width: 1,
                     height: 18,
                     margin: const EdgeInsets.symmetric(horizontal: 10),
-                    color: const Color(AppColors.border),
+                    color: Colors.white.withValues(alpha: 0.22),
                   ),
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -328,7 +328,7 @@ class _SearchPageState extends State<SearchPage> {
                       child: Text('搜索',
                           style: TextStyle(
                               fontSize: 15,
-                              color: Color(AppColors.textPrimary),
+                              color: Colors.white,
                               fontWeight: FontWeight.w500)),
                     ),
                   ),
@@ -368,7 +368,7 @@ class _SearchPageState extends State<SearchPage> {
                 padding: EdgeInsets.only(top: 60),
                 child: Center(
                   child: Text('还没有内容，稍后再来',
-                      style: TextStyle(color: Color(AppColors.textTertiary), fontSize: 13)),
+                      style: TextStyle(color: Color(0xFF8A8A8E), fontSize: 13)),
                 ),
               ),
             )
@@ -441,7 +441,7 @@ class _SearchPageState extends State<SearchPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 16, color: Color(AppColors.textPrimary), height: 1.2),
+                            fontSize: 16, color: Colors.white, height: 1.2),
                       ),
                     ),
                   ),
@@ -459,14 +459,14 @@ class _SearchPageState extends State<SearchPage> {
                   children: [
                     Text(_historyExpanded ? '收起历史' : '展开更多历史',
                         style: const TextStyle(
-                            fontSize: 13.5, color: Color(AppColors.textTertiary))),
+                            fontSize: 13.5, color: Color(0xFF9A9AA0))),
                     const SizedBox(width: 2),
                     Icon(
                         _historyExpanded
                             ? Icons.keyboard_arrow_up_rounded
                             : Icons.keyboard_arrow_down_rounded,
                         size: 18,
-                        color: const Color(AppColors.textTertiary)),
+                        color: const Color(0xFF9A9AA0)),
                   ],
                 ),
               ),
@@ -475,7 +475,7 @@ class _SearchPageState extends State<SearchPage> {
                   width: 1,
                   height: 14,
                   margin: const EdgeInsets.symmetric(horizontal: 10),
-                  color: const Color(AppColors.border),
+                  color: Colors.white.withValues(alpha: 0.16),
                 ),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -484,7 +484,7 @@ class _SearchPageState extends State<SearchPage> {
                     if (ok == true) await _clearHistory();
                   },
                   child: const Icon(Icons.delete_outline_rounded,
-                      size: 19, color: Color(AppColors.textTertiary)),
+                      size: 19, color: Color(0xFF9A9AA0)),
                 ),
               ],
             ],
@@ -518,7 +518,7 @@ class _SearchPageState extends State<SearchPage> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: Color(AppColors.hairline), width: 1),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.10), width: 1),
         ),
       ),
       child: Column(
@@ -554,7 +554,7 @@ class _SearchPageState extends State<SearchPage> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             text: TextSpan(
-              style: const TextStyle(fontSize: 15.5, color: Color(AppColors.textPrimary)),
+              style: const TextStyle(fontSize: 15.5, color: Colors.white),
               children: _highlight(word, q),
             ),
           ),
@@ -609,9 +609,7 @@ class _SearchPageState extends State<SearchPage> {
                 style: TextStyle(
                   fontSize: on ? 17 : 15,
                   fontWeight: on ? FontWeight.w700 : FontWeight.w400,
-                  color: on
-                      ? const Color(AppColors.accent)
-                      : const Color(AppColors.textTertiary),
+                  color: on ? Colors.white : const Color(0xFF8A8A8E),
                 ),
               ),
             ),
@@ -628,7 +626,7 @@ class _SearchPageState extends State<SearchPage> {
       child: Center(
         child: Text(
           '$label功能建设中',
-          style: const TextStyle(fontSize: 13.5, color: Color(AppColors.textTertiary)),
+          style: const TextStyle(fontSize: 13.5, color: Color(0xFF8A8A8E)),
         ),
       ),
     );
@@ -720,12 +718,12 @@ class _SearchPageState extends State<SearchPage> {
             Text(name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12.5, color: Color(AppColors.textPrimary))),
+                style: const TextStyle(fontSize: 12.5, color: Colors.white)),
             if (followers > 0)
               Text('${formatCount(followers)}粉丝',
                   maxLines: 1,
                   style: const TextStyle(
-                      fontSize: 10.5, color: Color(AppColors.textTertiary))),
+                      fontSize: 10.5, color: Color(0xFF8A8A8E))),
           ],
         ),
       ),
@@ -812,7 +810,7 @@ class _FeedTile extends StatelessWidget {
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 14, height: 1.45, color: Color(AppColors.textPrimary)),
+                        fontSize: 14, height: 1.45, color: Colors.white),
                   ),
                 ),
               _shade(thumb.isEmpty ? 54 : height * 0.55),

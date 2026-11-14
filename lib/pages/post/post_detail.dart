@@ -1001,7 +1001,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     alignment: Alignment.centerLeft,
                     decoration: BoxDecoration(
-                      color: const Color(AppColors.canvas),
+                      color: Colors.white.withValues(alpha: 0.07),
                       borderRadius: AppRadius.rPill,
                       border: Border.all(color: const Color(AppColors.border)),
                     ),
@@ -1022,7 +1022,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
               _miniAction(
                   _liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                   countText(_likeCount),
-                  _liked ? const Color(AppColors.heart) : null, _toggleLike),
+                  _liked ? const Color(AppColors.heart) : null, _toggleLike,
+                  trigger: _liked),
               _miniAction(Icons.mode_comment_outlined, countText(_cCount), null,
                   _openComments),
               _miniAction(
@@ -1054,7 +1055,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   /// 底部单行动作：图标 + 可选数字（激活时高亮）
   Widget _miniAction(
-      IconData icon, String label, Color? active, VoidCallback onTap) {
+      IconData icon, String label, Color? active, VoidCallback onTap,
+      {Object? trigger}) {
     final color = active ?? const Color(AppColors.textSecondary);
     return PressableScale(
       onTap: onTap,
@@ -1064,14 +1066,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 21, color: color),
+            BounceOnChange(
+              trigger: trigger,
+              child: Icon(icon, size: 21, color: color),
+            ),
             if (label.isNotEmpty) ...[
               const SizedBox(width: 3),
-              Text(label,
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600)),
+              RollingText(
+                text: label,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600),
+              ),
             ],
           ],
         ),
@@ -1100,7 +1107,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 alignment: Alignment.centerLeft,
                 decoration: BoxDecoration(
-                  color: const Color(AppColors.canvas),
+                  color: Colors.white.withValues(alpha: 0.07),
                   borderRadius: AppRadius.rPill,
                   border: Border.all(color: const Color(AppColors.border)),
                 ),

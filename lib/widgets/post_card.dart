@@ -562,19 +562,20 @@ class _RailAction extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 26,
-              color: active
-                  ? (activeColor ?? const Color(AppColors.accent))
-                  : Colors.white,
-              shadows: const [Shadow(color: Color(0x99000000), blurRadius: 6)],
+            BounceOnChange(
+              trigger: active,
+              child: Icon(
+                icon,
+                size: 26,
+                color: active
+                    ? (activeColor ?? const Color(AppColors.accent))
+                    : Colors.white,
+                shadows: const [Shadow(color: Color(0x99000000), blurRadius: 6)],
+              ),
             ),
             const SizedBox(height: 3),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.clip,
+            RollingText(
+              text: label,
               style: const TextStyle(
                 fontSize: 10.5,
                 height: 1.1,
@@ -618,10 +619,16 @@ class _InlineAction extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 19, color: color),
+            BounceOnChange(
+              trigger: active,
+              child: Icon(icon, size: 19, color: color),
+            ),
             if (label.isNotEmpty) ...[
               const SizedBox(width: 4),
-              Text(label, style: AppType.caption.copyWith(color: color)),
+              RollingText(
+                text: label,
+                style: AppType.caption.copyWith(color: color),
+              ),
             ],
           ],
         ),

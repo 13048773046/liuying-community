@@ -448,6 +448,8 @@ class _VideoCardState extends State<VideoCard>
           _buildBottomInfo(),
           // 右侧互动列
           _buildActionRail(),
+          // 播放进度：常驻细线，紧贴导航栏上沿
+          _buildSeekLine(context),
           // 隐藏式控制条：进度条 + 播放/暂停 + 时长（仅视频初始化后）
           if (_controls && _video != null && _video!.value.isInitialized)
             Positioned(
@@ -456,13 +458,44 @@ class _VideoCardState extends State<VideoCard>
               bottom: 0,
               child: VideoControlsBar(
                 controller: _video!,
-                bottomInset: _navBarHeight(context) + 8,
+                bottomInset: _navBarHeight(context) + 14,
                 onAutoHide: () {
                   if (mounted) setState(() => _controls = false);
                 },
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  /// 常驻播放进度：2px 细线贴住导航栏上沿（抖音式），不再藏在点击控制条里
+  Widget _buildSeekLine(BuildContext context) {
+    final v = _video;
+    if (!widget.isActive || v == null) return const SizedBox.shrink();
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: _navBarHeight(context),
+      child: ValueListenableBuilder<VideoPlayerValue>(
+        valueListenable: v,
+        builder: (_, value, _) {
+          final total = value.duration.inMilliseconds;
+          final p = total <= 0
+              ? 0.0
+              : (value.position.inMilliseconds / total).clamp(0.0, 1.0);
+          return SizedBox(
+            height: 2,
+            child: LinearProgressIndicator(
+              value: p.toDouble(),
+              minHeight: 2,
+              backgroundColor: Colors.white.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Colors.white.withValues(alpha: 0.92),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -675,23 +708,27 @@ class _VideoCardState extends State<VideoCard>
               asset: 'assets/icons/heart.svg',
               color: _liked ? const Color(AppColors.heart) : Colors.white,
               count: _likeCount,
+              trigger: _liked,
               onTap: _toggleLike,
             ),
             _RailAction(
               asset: 'assets/icons/chatbubble-ellipses.svg',
               count: _commentCount,
+              trigger: _commentCount,
               onTap: _openComments,
+            ),
+            _RailAction(
+              asset: 'assets/icons/star.svg',
+              color: _faved ? const Color(AppColors.accent) : Colors.white,
+              count: 0,
+              trigger: _faved,
+              onTap: _toggleFav,
             ),
             _RailAction(
               asset: 'assets/icons/arrow-redo.svg',
               count: _shareCount,
+              trigger: _shareCount,
               onTap: _share,
-            ),
-            _RailAction(
-              asset: 'assets/icons/star.svg',
-              color: _faved ? const Color(AppColors.warning) : Colors.white,
-              count: 0,
-              onTap: _toggleFav,
             ),
             const SizedBox(height: AppSpace.x3),
             // 静音开关（视频原声 + 配乐）
@@ -925,7 +962,7 @@ class _ImageMediaState extends State<_ImageMedia>
 
 /// 短视频 tab 透明导航栏高度（本体 54 = 6+22+2+14+6+4 与 _AppTabBar 布局同步）
 /// 内容需整体避让，背景（视频画面）可延伸到导航栏区域
-double _navBarHeight(BuildContext c) => 54 + MediaQuery.viewPaddingOf(c).bottom;
+double _navBarHeight(BuildContext c) => 58 + MediaQuery.viewPaddingOf(c).bottom;
 
 class _BottomGradient extends StatelessWidget {
   const _BottomGradient();
@@ -1180,11 +1217,15 @@ class _RailAction extends StatelessWidget {
   final Color color;
   final int count;
   final VoidCallback onTap;
+
+  /// 状态值变化时图标弹一下（点赞、收藏、分享计数）
+  final Object? trigger;
   const _RailAction({
     required this.asset,
     required this.count,
     required this.onTap,
     this.color = Colors.white,
+    this.trigger,
   });
 
   @override
@@ -1197,17 +1238,20 @@ class _RailAction extends StatelessWidget {
         child: Column(
           children: [
             // 无圆形卡片背景：网上下载的开源实心图标（抖音式操作栏）
-            SvgPicture.asset(
-              asset,
-              width: 36,
-              height: 36,
-              colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+            BounceOnChange(
+              trigger: trigger,
+              child: SvgPicture.asset(
+                asset,
+                width: 36,
+                height: 36,
+                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+              ),
             ),
             if (count > 0)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpace.x1),
-                child: Text(
-                  countText(count),
+                child: RollingCount(
+                  value: count,
                   style: AppType.numeric.copyWith(color: Colors.white),
                 ),
               ),

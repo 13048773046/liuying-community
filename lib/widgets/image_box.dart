@@ -23,10 +23,6 @@ class CachedNetworkImageCompat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 按目标尺寸解码：长列表里原图往往 1080p，全尺寸解码会吃满内存并掉帧。
-    // 取目标宽 ×2 作为解码上限，肉眼看不出差别，内存能降一个量级。
-    final targetW = width ?? MediaQuery.sizeOf(context).width;
-    final cacheW = (targetW * 2).round();
     return SizedBox(
       width: width,
       height: height,
@@ -35,7 +31,7 @@ class CachedNetworkImageCompat extends StatelessWidget {
         child: Image.network(
           url,
           fit: fit,
-          cacheWidth: cacheW,
+          cacheWidth: ((width ?? MediaQuery.sizeOf(context).width) * 2).round(),
           loadingBuilder: (_, child, progress) => progress == null
               ? child
               : ImagePlaceholder(radius: borderRadius),

@@ -193,7 +193,7 @@ class _MessagePageState extends State<MessagePage> {
           children: [
             _header(),
             FeedTabs(
-              labels: const ['全部', '私信'],
+              labels: const ['私信', '互动'],
               index: _seg,
               onChanged: _switchSeg,
             ),
@@ -215,14 +215,14 @@ class _MessagePageState extends State<MessagePage> {
           const SizedBox(width: AppSpace.x2),
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpace.x1),
-            child: Text('互动 · 官方 · 私信', style: AppType.micro),
+            child: Text('私信 · 互动 · 官方', style: AppType.micro),
           ),
           const Spacer(),
           IconCircleButton(
             icon: Icons.sync_rounded,
             size: 34,
             iconSize: 17,
-            background: const Color(AppColors.canvas),
+            background: Colors.white.withValues(alpha: 0.06),
             onTap: () {
               _load();
             },
@@ -268,33 +268,51 @@ class _MessagePageState extends State<MessagePage> {
   }
 
   List<Widget> _rows() {
+    // 一级：私信 —— 会话直接平铺
+    if (_seg == 0) return _dmRows();
+    // 一级：互动 —— 四个二级分类，点进去看对应流水
     return [
-      if (_seg == 0) ...[
-        _entry(
-          icon: Icons.favorite_rounded,
-          color: const Color(AppColors.heart),
-          title: '互动通知',
-          subtitle: '点赞、评论、@提及、新增关注',
-          unread: _interactUnread,
-          onTap: () => _open(() => const NotifListPage()),
-        ),
-        const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
-        _entry(
-          icon: Icons.campaign_rounded,
-          color: const Color(AppColors.info),
-          title: '官方通知',
-          subtitle: '官方公告与活动提醒',
-          unread: _officialUnread,
-          onTap: () => _open(() => const OfficialMessagesPage()),
-        ),
-        const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
-      ],
-      const SectionHeader(
-        title: '私信',
-        padding: EdgeInsets.fromLTRB(
-            AppSpace.gutter, AppSpace.x5, AppSpace.gutter, AppSpace.x2),
+      SectionHeader(
+        title: _interactUnread > 0 ? '$_interactUnread 条未读互动' : '最近互动',
+        padding: const EdgeInsets.fromLTRB(
+            AppSpace.gutter, AppSpace.x4, AppSpace.gutter, AppSpace.x2),
       ),
-      ..._dmRows(),
+      _entry(
+        icon: Icons.favorite_rounded,
+        color: const Color(AppColors.heart),
+        title: '赞与收藏',
+        subtitle: '赞过、收藏过你的内容',
+        unread: 0,
+        onTap: () => _open(() => const NotifListPage(kind: 'like')),
+      ),
+      const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
+      _entry(
+        icon: Icons.chat_bubble_rounded,
+        color: const Color(AppColors.info),
+        title: '评论',
+        subtitle: '评论、回复与 @ 提及',
+        unread: 0,
+        onTap: () => _open(() => const NotifListPage(kind: 'comment')),
+      ),
+      const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
+      _entry(
+        icon: Icons.person_add_alt_1_rounded,
+        color: const Color(AppColors.accent),
+        title: '新增粉丝',
+        subtitle: '最近关注你的人',
+        unread: 0,
+        onTap: () => _open(() => const NotifListPage(kind: 'follow')),
+      ),
+      const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
+      _entry(
+        icon: Icons.campaign_rounded,
+        color: const Color(AppColors.lilac),
+        title: '系统通知',
+        subtitle: '官方公告与活动提醒',
+        unread: _officialUnread,
+        onTap: () => _open(() => const OfficialMessagesPage()),
+      ),
+      const Hairline(indent: AppSpace.gutter + 44 + AppSpace.x3),
     ];
   }
 

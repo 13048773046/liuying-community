@@ -1,6 +1,6 @@
 /// 流萤社区 · API 客户端
 /// - 社区接口：Bearer token（与音乐 tokens 表互通）
-/// - 登录：走音乐 /music/api/login（JSON），拿同一份 token
+/// - 登录：走音乐 /music/api/login（multipart），拿同一份 token
 library;
 
 import 'dart:async';

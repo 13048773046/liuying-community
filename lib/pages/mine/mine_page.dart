@@ -307,6 +307,9 @@ class _MinePageState extends State<MinePage> {
     final exp = ((_level['exp'] ?? 0) as num).toInt();
     final progress = (_level['progress'] ?? 0.0) as num;
     final next = _level['nextThreshold'];
+    final likes = ((user['likes'] ?? user['likeCount'] ?? 0) as num).toInt();
+    final favCount =
+        ((user['favCount'] ?? user['favorites'] ?? _favs.length) as num).toInt();
     final today = DateTime.now().toString().split(' ')[0];
     final signedToday = _signins.contains(today);
     return Stack(
@@ -354,6 +357,42 @@ class _MinePageState extends State<MinePage> {
                       progress: progress,
                       next: next,
                       signedToday: signedToday,
+                      likes: likes,
+                      favCount: favCount,
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpace.gutter,
+                        AppSpace.x5,
+                        AppSpace.gutter,
+                        AppSpace.x3,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            _tab == 0
+                                ? '我的作品'
+                                : (_tab == 1 ? '我的收藏' : '稍后看'),
+                            style: AppType.title.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.02,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            _tab == 0
+                                ? '全部 ${formatCount(_postCount)} 篇'
+                                : (_tab == 1
+                                    ? '${formatCount(_favs.length)} 篇'
+                                    : '${formatCount(_laters.length)} 篇'),
+                            style: AppType.micro.copyWith(
+                              color: const Color(AppColors.textTertiary),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -468,6 +507,8 @@ class _MinePageState extends State<MinePage> {
     required num progress,
     required Object? next,
     required bool signedToday,
+    required int likes,
+    required int favCount,
   }) {
     final parts = <String>[];
     final g = (user['gender'] ?? '') as String;
@@ -593,92 +634,63 @@ class _MinePageState extends State<MinePage> {
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.x4),
-          // 快捷操作：签到 / 编辑资料
+          const SizedBox(height: AppSpace.x5),
+          // 数据四项：不套卡片，直接落在画布上
           Row(
             children: [
-              PillButton(
-                label: signedToday ? '已签到' : '每日签到',
-                icon: signedToday
-                    ? Icons.check_circle_rounded
-                    : Icons.calendar_today_rounded,
-                size: PillSize.sm,
-                variant:
-                    signedToday ? PillVariant.tonal : PillVariant.primary,
-                loading: _signing,
-                onTap: signedToday ? null : _signin,
+              Expanded(
+                child: _statCell(
+                  value: formatCount(followings),
+                  label: '关注',
+                  onTap: () {
+                    if (ApiClient.userId == null) return;
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => UserListPage(
+                                uid: ApiClient.userId!,
+                                kind: 'followings',
+                                title: '关注')));
+                  },
+                ),
               ),
-              const SizedBox(width: AppSpace.x3),
-              PillButton(
-                label: '编辑资料',
-                icon: Icons.edit_outlined,
-                size: PillSize.sm,
-                variant: PillVariant.ghost,
-                onTap: _editProfile,
+              Expanded(
+                child: _statCell(
+                  value: formatCount(followers),
+                  label: '粉丝',
+                  onTap: () {
+                    if (ApiClient.userId == null) return;
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => UserListPage(
+                                uid: ApiClient.userId!,
+                                kind: 'followers',
+                                title: '粉丝')));
+                  },
+                ),
+              ),
+              Expanded(
+                child: _statCell(
+                  value: formatCount(likes),
+                  label: '获赞',
+                ),
+              ),
+              Expanded(
+                child: _statCell(
+                  value: formatCount(favCount),
+                  label: '收藏',
+                  onTap: () => setState(() => _tab = 1),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.x5),
-          // 统计行
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: AppSpace.x3),
-            decoration: BoxDecoration(
-              color: const Color(AppColors.card),
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: const Color(AppColors.border)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: StatTile(
-                    value: formatCount(followings),
-                    label: '关注',
-                    onTap: () {
-                      if (ApiClient.userId == null) return;
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => UserListPage(
-                                  uid: ApiClient.userId!,
-                                  kind: 'followings',
-                                  title: '关注')));
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: StatTile(
-                    value: formatCount(followers),
-                    label: '粉丝',
-                    onTap: () {
-                      if (ApiClient.userId == null) return;
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => UserListPage(
-                                  uid: ApiClient.userId!,
-                                  kind: 'followers',
-                                  title: '粉丝')));
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: StatTile(
-                    value: formatCount(_postCount),
-                    label: '作品',
-                    highlight: true,
-                    onTap: () => setState(() => _tab = 0),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpace.x4),
-          // 等级进度
+          const SizedBox(height: AppSpace.x6),
+          // 等级进度：徽章在左，经验在右，条压在文字下
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: const Color(AppColors.accent).withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(AppRadius.xs),
@@ -691,24 +703,126 @@ class _MinePageState extends State<MinePage> {
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpace.x3),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: AppRadius.rPill,
-                  child: LinearProgressIndicator(
-                    value: progress.toDouble().clamp(0.0, 1.0),
-                    minHeight: 4,
-                  ),
+              const Spacer(),
+              RollingText(
+                text: next == null ? '已满级' : '$exp / $next XP',
+                style: AppType.micro.copyWith(
+                  color: const Color(AppColors.textTertiary),
+                  fontVariations: const [FontVariation('wght', 500)],
                 ),
-              ),
-              const SizedBox(width: AppSpace.x3),
-              Text(
-                next == null ? '已满级' : '经验 $exp',
-                style: AppType.micro,
               ),
             ],
           ),
+          const SizedBox(height: AppSpace.x2),
+          GrowBar(
+            value: progress.toDouble().clamp(0.0, 1.0),
+            height: 3,
+          ),
+          const SizedBox(height: AppSpace.x2),
+          Text(
+            next == null
+                ? '已达当前最高等级'
+                : '再获得 ${((next as num) - exp).clamp(0, 1 << 31)} 经验升到 Lv.${level + 1}',
+            style: AppType.micro.copyWith(
+              color: const Color(AppColors.textTertiary),
+            ),
+          ),
+          const SizedBox(height: AppSpace.x4),
+          // 操作：编辑资料（通栏）+ 签到（右侧方块）
+          Row(
+            children: [
+              Expanded(
+                child: PressableScale(
+                  onTap: _editProfile,
+                  scale: 0.98,
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(AppColors.card),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(AppColors.border)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.edit_outlined,
+                            size: 16, color: Color(AppColors.textSecondary)),
+                        const SizedBox(width: 6),
+                        Text(
+                          '编辑资料',
+                          style: AppType.caption.copyWith(
+                            color: const Color(AppColors.textPrimary),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpace.x2),
+              PressableScale(
+                onTap: signedToday || _signing ? null : _signin,
+                scale: 0.96,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.card),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(AppColors.border)),
+                  ),
+                  child: Icon(
+                    signedToday
+                        ? Icons.check_circle_rounded
+                        : Icons.calendar_today_rounded,
+                    size: 18,
+                    color: signedToday
+                        ? const Color(AppColors.accent)
+                        : const Color(AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.x5),
+          Container(height: 1, color: const Color(AppColors.hairline)),
         ],
+      ),
+    );
+  }
+
+  /// 数据格：数字在上、标签在下，左对齐，不套容器
+  Widget _statCell({
+    required String value,
+    required String label,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RollingText(
+              text: value,
+              style: AppType.h2.copyWith(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.02,
+                fontVariations: const [FontVariation('wght', 800)],
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: AppType.micro.copyWith(
+                color: const Color(AppColors.textTertiary),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

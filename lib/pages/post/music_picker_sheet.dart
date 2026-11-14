@@ -355,7 +355,7 @@ class _MusicPickerSheetState extends State<_MusicPickerSheet> {
             color: const Color(AppColors.accent),
             background: playing
                 ? const Color(AppColors.accent).withValues(alpha: 0.16)
-                : const Color(AppColors.canvas),
+                : Colors.white.withValues(alpha: 0.06),
             onTap: () => _toggle(key, url),
           ),
           const SizedBox(width: AppSpace.x2),

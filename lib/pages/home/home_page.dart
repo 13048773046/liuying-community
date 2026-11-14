@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/physics.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/client.dart';
 import '../../config.dart';
@@ -90,6 +91,42 @@ class _HomePageState extends State<HomePage>
   void initState() {
     super.initState();
     _load(refresh: true);
+    _loadRecentTool();
+  }
+
+  // ---------------------------------------------------------- 最近使用的工具
+  String? _recentTool;
+  DateTime? _recentAt;
+
+  Future<void> _loadRecentTool() async {
+    final sp = await SharedPreferences.getInstance();
+    final k = sp.getString('floor_recent_tool');
+    final t = sp.getInt('floor_recent_at');
+    if (!mounted) return;
+    setState(() {
+      _recentTool = k;
+      _recentAt = t == null ? null : DateTime.fromMillisecondsSinceEpoch(t);
+    });
+  }
+
+  Future<void> _markRecentTool(String label) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString('floor_recent_tool', label);
+    await sp.setInt('floor_recent_at', DateTime.now().millisecondsSinceEpoch);
+    if (!mounted) return;
+    setState(() {
+      _recentTool = label;
+      _recentAt = DateTime.now();
+    });
+  }
+
+  String _agoLabel(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return '刚刚';
+    if (d.inMinutes < 60) return '${d.inMinutes} 分钟前';
+    if (d.inHours < 24) return '${d.inHours} 小时前';
+    if (d.inDays == 1) return '昨天';
+    return '${d.inDays} 天前';
   }
 
   void _measureSeam() {
@@ -400,18 +437,6 @@ class _HomePageState extends State<HomePage>
   }
 
   // ---------------------------------------------------------------- 二楼
-  Widget _floorMiniIcon({required IconData icon, required List<Color> colors}) {
-    return Container(
-      width: 30,
-      height: 30,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colors),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Icon(icon, size: 16, color: const Color(AppColors.textPrimary)),
-    );
-  }
-
   Widget _floorPanel() {
     return Listener(
       onPointerDown: _onPanelDown,
@@ -426,7 +451,7 @@ class _HomePageState extends State<HomePage>
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFFF0ECE4), Color(AppColors.bg)],
+              colors: [Color(0xFF0B0D10), Color(AppColors.bg)],
             ),
           ),
           child: SafeArea(
@@ -435,156 +460,144 @@ class _HomePageState extends State<HomePage>
               controller: _panelScroll,
               physics: const ClampingScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(
-                  AppSpace.gutter, AppSpace.x4, AppSpace.gutter, 96),
+                  AppSpace.gutter, AppSpace.x2, AppSpace.gutter, 96),
               children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0x2AFFFFFF),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpace.x4),
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 9, vertical: 4),
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(AppColors.elevated),
-                        borderRadius: AppRadius.rXs,
+                        border: Border.all(color: const Color(0x4245E0AE)),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text('二楼 · 小程序',
-                          style: AppType.micro.copyWith(fontSize: 10.5)),
+                      child: Text(
+                        '二楼',
+                        style: AppType.micro.copyWith(
+                          color: const Color(AppColors.accent),
+                          letterSpacing: 1.6,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     const Spacer(),
                     GestureDetector(
                       onTap: _closeFloor,
                       child: Row(
                         children: [
-                          Text('上滑收起',
-                              style: AppType.micro.copyWith(fontSize: 11)),
-                          const Icon(Icons.keyboard_arrow_up_rounded,
-                              size: 16, color: Color(AppColors.textTertiary)),
+                          Text(
+                            '上滑收起',
+                            style: AppType.micro.copyWith(
+                              color: const Color(AppColors.textTertiary),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            size: 15,
+                            color: Color(AppColors.textTertiary),
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpace.x4),
-                const Text('常用的小工具',
-                    style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        color: Color(AppColors.textPrimary))),
                 const SizedBox(height: AppSpace.x5),
-                GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: AppSpace.x4,
-                  crossAxisSpacing: AppSpace.x2,
-                  childAspectRatio: 0.78,
-                  children: [
-                    _floorApp(
-                      label: '流萤航线',
-                      icon: Icons.flight_takeoff_rounded,
-                      colors: const [Color(0xFFD6F0E5), Color(0xFFB7E6D3)],
-                      onTap: () {
-                        _closeFloor();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const PetalwakePage()),
-                        );
-                      },
-                    ),
-                    _floorApp(
-                      label: '发一帖',
-                      icon: Icons.add_rounded,
-                      colors: const [Color(0xFFF1E9DF), Color(0xFFE4D6C6)],
-                      onTap: () {
-                        _closeFloor();
-                        _openEditor();
-                      },
-                    ),
-                    _floorApp(
-                      label: '任务中心',
-                      icon: Icons.emoji_events_outlined,
-                      colors: const [Color(0xFFF6EED6), Color(0xFFEBDCB1)],
-                      onTap: () {
-                        _closeFloor();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const TaskCenterPage()),
-                        );
-                      },
-                    ),
-                    _floorApp(
-                      label: '排行榜',
-                      icon: Icons.leaderboard_outlined,
-                      colors: const [Color(0xFFE2E8F5), Color(0xFFCBD7EC)],
-                      onTap: () {
-                        _closeFloor();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const RankingPage()),
-                        );
-                      },
-                    ),
-                  ],
+                const Text(
+                  '这一层，\n是你的工具台',
+                  style: TextStyle(
+                    fontSize: 26,
+                    height: 1.26,
+                    letterSpacing: -0.8,
+                    fontWeight: FontWeight.w800,
+                    color: Color(AppColors.textPrimary),
+                  ),
                 ),
-                const SizedBox(height: AppSpace.x6),
-                Text('最近使用',
-                    style: AppType.micro.copyWith(fontSize: 11.5)),
-                const SizedBox(height: AppSpace.x3),
-                GestureDetector(
-                  onTap: () {
-                    _closeFloor();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PetalwakePage()),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpace.x3),
-                    decoration: BoxDecoration(
-                      color: const Color(AppColors.card),
-                      borderRadius: AppRadius.rMd,
-                      border: Border.all(color: const Color(AppColors.border)),
-                    ),
-                    child: Row(
-                      children: [
-                        _floorMiniIcon(
-                          icon: Icons.flight_takeoff_rounded,
-                          colors: const [
-                            Color(0xFFD6F0E5),
-                            Color(0xFFB7E6D3)
-                          ],
-                        ),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('流萤航线',
-                                  style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(AppColors.textPrimary))),
-                              SizedBox(height: 2),
-                              Text('骑上扫帚，飞过花甸',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(AppColors.textTertiary))),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right_rounded,
-                            size: 18, color: Color(AppColors.textTertiary)),
-                      ],
-                    ),
+                const SizedBox(height: 10),
+                const Text(
+                  '常用入口都收在这里。要用时往下拉，用完上滑就回一楼。',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.7,
+                    color: Color(AppColors.textSecondary),
                   ),
                 ),
                 const SizedBox(height: AppSpace.x6),
+                _floorGrid(),
+                if (_recentTool != null) ...[
+                  const SizedBox(height: AppSpace.x6),
+                  Row(
+                    children: [
+                      Text(
+                        '最近用过',
+                        style: AppType.micro.copyWith(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(AppColors.textSecondary),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _recentAt == null ? '' : _agoLabel(_recentAt!),
+                        style: AppType.micro,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.x1),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: Color(AppColors.hairline)),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0x0FFFFFFF),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.history_rounded,
+                            size: 17,
+                            color: Color(AppColors.textSecondary),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpace.x3),
+                        Text(
+                          _recentTool!,
+                          style: AppType.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          _recentAt == null ? '' : _agoLabel(_recentAt!),
+                          style: AppType.micro,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpace.x6),
                 Center(
-                  child: Text('点空白处或上滑收起二楼',
-                      style: AppType.micro.copyWith(fontSize: 11)),
+                  child: Text(
+                    '点空白处或上滑收起二楼',
+                    style: AppType.micro.copyWith(fontSize: 11),
+                  ),
                 ),
               ],
             ),
@@ -594,38 +607,152 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _floorApp({
+  /// 四个工具：2×2，共用一条发丝线切开，不叠卡片
+  Widget _floorGrid() {
+    final cells = <Widget>[
+      _floorCell(
+        label: '流萤航线',
+        sub: '沉浸式航线创作',
+        icon: Icons.flight_takeoff_rounded,
+        accent: true,
+        onTap: () {
+          _markRecentTool('流萤航线');
+          _closeFloor();
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PetalwakePage()),
+          );
+        },
+      ),
+      _floorCell(
+        label: '发一帖',
+        sub: '写点什么，直接发',
+        icon: Icons.add_rounded,
+        onTap: () {
+          _markRecentTool('发一帖');
+          _closeFloor();
+          _openEditor();
+        },
+      ),
+      _floorCell(
+        label: '任务中心',
+        sub: '签到、任务与经验',
+        icon: Icons.emoji_events_outlined,
+        amber: true,
+        onTap: () {
+          _markRecentTool('任务中心');
+          _closeFloor();
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TaskCenterPage()),
+          );
+        },
+      ),
+      _floorCell(
+        label: '排行榜',
+        sub: '本周活跃榜',
+        icon: Icons.leaderboard_outlined,
+        onTap: () {
+          _markRecentTool('排行榜');
+          _closeFloor();
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RankingPage()),
+          );
+        },
+      ),
+    ];
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Color(AppColors.hairline)),
+          left: BorderSide(color: Color(AppColors.hairline)),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: cells[0]),
+              Expanded(child: cells[1]),
+            ],
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: cells[2]),
+              Expanded(child: cells[3]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _floorCell({
     required String label,
+    required String sub,
     required IconData icon,
-    required List<Color> colors,
     required VoidCallback onTap,
+    bool accent = false,
+    bool amber = false,
   }) {
+    final bg = amber ? const Color(0x22FFB020) : const Color(0x0FFFFFFF);
+    final fg = accent
+        ? const Color(AppColors.onAccent)
+        : amber
+            ? const Color(AppColors.warning)
+            : const Color(AppColors.textPrimary);
     return PressableScale(
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: colors,
-              ),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: const Color(0x14000000)),
-            ),
-            child: Icon(icon, size: 26, color: const Color(AppColors.textPrimary)),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(15, 16, 15, 17),
+        decoration: const BoxDecoration(
+          border: Border(
+            right: BorderSide(color: Color(AppColors.hairline)),
+            bottom: BorderSide(color: Color(AppColors.hairline)),
           ),
-          const SizedBox(height: 7),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: accent ? null : bg,
+                gradient: accent
+                    ? const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF1B6B52), Color(0xFF3DDC97)],
+                      )
+                    : null,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 20, color: fg),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              label,
               style: const TextStyle(
-                  fontSize: 11.5, color: Color(AppColors.textSecondary))),
-        ],
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+                color: Color(AppColors.textPrimary),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              sub,
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: Color(AppColors.textTertiary),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

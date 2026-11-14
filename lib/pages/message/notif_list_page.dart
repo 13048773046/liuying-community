@@ -11,7 +11,10 @@ import '../../services/notify_bus.dart';
 import '../mine/login_page.dart';
 
 class NotifListPage extends StatefulWidget {
-  const NotifListPage({super.key});
+  const NotifListPage({super.key, this.kind});
+
+  /// 二级分类过滤：like / comment / follow；为空时显示全部互动
+  final String? kind;
 
   @override
   State<NotifListPage> createState() => _NotifListPageState();
@@ -25,6 +28,27 @@ class _NotifListPageState extends State<NotifListPage> {
   bool _listLoading = false;
   bool _needLogin = false;
   String? _loadError;
+
+  /// 按分类过滤后的可见条目（不改变原始列表，删除/恢复仍按 _items 处理）
+  List<Map<String, dynamic>> get _visible {
+    final k = widget.kind;
+    if (k == null) return _items;
+    return _items.where((n) {
+      final t = _strOf(n['type']).toLowerCase();
+      switch (k) {
+        case 'like':
+          return t.contains('like') || t.contains('interact');
+        case 'comment':
+          return t.contains('comment') ||
+              t.contains('reply') ||
+              t.contains('mention');
+        case 'follow':
+          return t.contains('follow');
+        default:
+          return true;
+      }
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -166,7 +190,15 @@ class _NotifListPageState extends State<NotifListPage> {
     return ImmersivePage(
       child: Column(
         children: [
-          const GlassTopBar(title: '互动通知', solid: true),
+          GlassTopBar(
+            title: switch (widget.kind) {
+              'like' => '赞与收藏',
+              'comment' => '评论',
+              'follow' => '新增粉丝',
+              _ => '互动通知',
+            },
+            solid: true,
+          ),
           Expanded(child: _body()),
         ],
       ),
@@ -195,7 +227,7 @@ class _NotifListPageState extends State<NotifListPage> {
       color: const Color(AppColors.accent),
       backgroundColor: const Color(AppColors.elevated),
       onRefresh: () => _load(refresh: true),
-      child: _items.isEmpty
+      child: _visible.isEmpty
           ? ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.only(
@@ -212,12 +244,12 @@ class _NotifListPageState extends State<NotifListPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.only(
                   bottom: MediaQuery.paddingOf(context).bottom + AppSpace.x4),
-              itemCount: _items.length + (showFooter ? 1 : 0),
+              itemCount: _visible.length + (showFooter ? 1 : 0),
               separatorBuilder: (_, _) => const Hairline(
                 indent: AppSpace.gutter + 40 + AppSpace.x3,
               ),
               itemBuilder: (_, i) {
-                if (i == _items.length) {
+                if (i == _visible.length) {
                   return LoadMoreFooter(
                     loading: _listLoading,
                     hasMore: _hasMore,
@@ -226,7 +258,7 @@ class _NotifListPageState extends State<NotifListPage> {
                     },
                   );
                 }
-                final item = _items[i];
+                final item = _visible[i];
                 final id = _strOf(item['id']);
                 return RepaintBoundary(
                   child: Dismissible(
