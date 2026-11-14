@@ -162,7 +162,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
     const reasons = ['垃圾广告', '色情低俗', '不实信息', '人身攻击', '违法违规', '其他'];
     final picked = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(AppTheme.card),
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            backgroundColor: const Color(AppTheme.card),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) => SafeArea(
@@ -220,7 +225,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (_post == null) return;
     await showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SheetShell(
         title: '收藏内容',
@@ -792,7 +802,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (p == null) return;
     showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SheetShell(
         title: '分享帖子',
@@ -986,7 +1001,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     alignment: Alignment.centerLeft,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.07),
+                      color: const Color(AppColors.canvas),
                       borderRadius: AppRadius.rPill,
                       border: Border.all(color: const Color(AppColors.border)),
                     ),
@@ -1085,7 +1100,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 alignment: Alignment.centerLeft,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.07),
+                  color: const Color(AppColors.canvas),
                   borderRadius: AppRadius.rPill,
                   border: Border.all(color: const Color(AppColors.border)),
                 ),

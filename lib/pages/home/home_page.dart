@@ -239,8 +239,8 @@ class _HomePageState extends State<HomePage>
                           width: 30 + 26 * p,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.white
-                                .withValues(alpha: 0.20 + 0.35 * (1 - p)),
+                            color: const Color(AppColors.textPrimary)
+                                .withValues(alpha: 0.18 + 0.22 * (1 - p)),
                             borderRadius: BorderRadius.circular(99),
                           ),
                         ),
@@ -408,7 +408,7 @@ class _HomePageState extends State<HomePage>
         gradient: LinearGradient(colors: colors),
         borderRadius: BorderRadius.circular(9),
       ),
-      child: Icon(icon, size: 16, color: Colors.white),
+      child: Icon(icon, size: 16, color: const Color(AppColors.textPrimary)),
     );
   }
 
@@ -426,7 +426,7 @@ class _HomePageState extends State<HomePage>
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF0B0D10), Color(AppColors.bg)],
+              colors: [Color(0xFFF0ECE4), Color(AppColors.bg)],
             ),
           ),
           child: SafeArea(
@@ -464,14 +464,11 @@ class _HomePageState extends State<HomePage>
                   ],
                 ),
                 const SizedBox(height: AppSpace.x4),
-                const Text('常用的小工具，都在这一层',
+                const Text('常用的小工具',
                     style: TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w800,
                         color: Color(AppColors.textPrimary))),
-                const SizedBox(height: 4),
-                Text('在首页往下拉，就能从这条缝进来',
-                    style: AppType.micro.copyWith(fontSize: 11.5)),
                 const SizedBox(height: AppSpace.x5),
                 GridView.count(
                   crossAxisCount: 4,
@@ -484,7 +481,7 @@ class _HomePageState extends State<HomePage>
                     _floorApp(
                       label: '流萤航线',
                       icon: Icons.flight_takeoff_rounded,
-                      colors: const [Color(0xFF1B6B52), Color(0xFF3DDC97)],
+                      colors: const [Color(0xFFD6F0E5), Color(0xFFB7E6D3)],
                       onTap: () {
                         _closeFloor();
                         Navigator.push(
@@ -497,7 +494,7 @@ class _HomePageState extends State<HomePage>
                     _floorApp(
                       label: '发一帖',
                       icon: Icons.add_rounded,
-                      colors: const [Color(0xFF2A2A33), Color(0xFF4B3B2E)],
+                      colors: const [Color(0xFFF1E9DF), Color(0xFFE4D6C6)],
                       onTap: () {
                         _closeFloor();
                         _openEditor();
@@ -506,7 +503,7 @@ class _HomePageState extends State<HomePage>
                     _floorApp(
                       label: '任务中心',
                       icon: Icons.emoji_events_outlined,
-                      colors: const [Color(0xFF2B2A20), Color(0xFF6A5A22)],
+                      colors: const [Color(0xFFF6EED6), Color(0xFFEBDCB1)],
                       onTap: () {
                         _closeFloor();
                         Navigator.push(
@@ -519,7 +516,7 @@ class _HomePageState extends State<HomePage>
                     _floorApp(
                       label: '排行榜',
                       icon: Icons.leaderboard_outlined,
-                      colors: const [Color(0xFF20222E), Color(0xFF343A5A)],
+                      colors: const [Color(0xFFE2E8F5), Color(0xFFCBD7EC)],
                       onTap: () {
                         _closeFloor();
                         Navigator.push(
@@ -556,8 +553,8 @@ class _HomePageState extends State<HomePage>
                         _floorMiniIcon(
                           icon: Icons.flight_takeoff_rounded,
                           colors: const [
-                            Color(0xFF1B6B52),
-                            Color(0xFF3DDC97)
+                            Color(0xFFD6F0E5),
+                            Color(0xFFB7E6D3)
                           ],
                         ),
                         const SizedBox(width: 10),
@@ -618,9 +615,9 @@ class _HomePageState extends State<HomePage>
                 colors: colors,
               ),
               borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
+              border: Border.all(color: const Color(0x14000000)),
             ),
-            child: Icon(icon, size: 26, color: Colors.white),
+            child: Icon(icon, size: 26, color: const Color(AppColors.textPrimary)),
           ),
           const SizedBox(height: 7),
           Text(label,
@@ -654,8 +651,7 @@ class _HomePageState extends State<HomePage>
                   color: Color(AppColors.textPrimary),
                 ),
               ),
-              const SizedBox(height: 3),
-              Text('发现此刻的好内容', style: AppType.micro),
+
             ],
           ),
           const Spacer(),
@@ -663,7 +659,7 @@ class _HomePageState extends State<HomePage>
             icon: Icons.emoji_events_outlined,
             size: 36,
             iconSize: 18,
-            background: Colors.white.withValues(alpha: 0.06),
+            background: const Color(AppColors.canvas),
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const TaskCenterPage())),
           ),
@@ -672,7 +668,7 @@ class _HomePageState extends State<HomePage>
             icon: Icons.search_rounded,
             size: 36,
             iconSize: 19,
-            background: Colors.white.withValues(alpha: 0.06),
+            background: const Color(AppColors.canvas),
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const SearchPage())),
           ),

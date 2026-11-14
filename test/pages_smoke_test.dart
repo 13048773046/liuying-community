@@ -62,7 +62,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(MaterialApp(
-        theme: buildImmersiveTheme(),
+        theme: buildWarmTheme(),
         home: build(),
       ));
 

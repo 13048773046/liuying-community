@@ -222,7 +222,7 @@ class _MessagePageState extends State<MessagePage> {
             icon: Icons.sync_rounded,
             size: 34,
             iconSize: 17,
-            background: Colors.white.withValues(alpha: 0.06),
+            background: const Color(AppColors.canvas),
             onTap: () {
               _load();
             },

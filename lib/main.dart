@@ -118,7 +118,7 @@ class CommunityApp extends StatelessWidget {
     return MaterialApp(
       title: '流萤社区',
       debugShowCheckedModeBanner: false,
-      theme: buildImmersiveTheme(),
+      theme: buildWarmTheme(),
       // 路由观察者：短视频页被详情页盖住时暂停播放/配音（见 VideoCard）
       navigatorObservers: [appRouteObserver],
       builder: (ctx, child) {

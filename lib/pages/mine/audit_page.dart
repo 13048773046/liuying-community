@@ -88,7 +88,12 @@ class _AuditPageState extends State<AuditPage> {
     final ctrl = TextEditingController();
     final reason = await showModalBottomSheet<String>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SheetShell(
         title: '拒绝理由',

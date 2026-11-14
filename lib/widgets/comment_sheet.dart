@@ -470,7 +470,7 @@ class _CommentSheetState extends State<CommentSheet> {
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 38),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.07),
+                    color: const Color(AppColors.canvas),
                     borderRadius: AppRadius.rPill,
                     border: Border.all(color: const Color(AppColors.border)),
                   ),
@@ -584,7 +584,7 @@ class _CommentSheetState extends State<CommentSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
                 alignment: Alignment.centerLeft,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.07),
+                  color: const Color(AppColors.canvas),
                   borderRadius: AppRadius.rPill,
                   border: Border.all(color: const Color(AppColors.border)),
                 ),

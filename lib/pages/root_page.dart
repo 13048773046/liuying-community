@@ -169,11 +169,11 @@ class _BottomNav extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: immersive
-            ? AppEffects.navScrim
+            ? AppEffects.navScrimDark
             : const LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
-                colors: [Color(0xF7000000), Color(0xC9000000)],
+                colors: [Color(0xF7FAF8F4), Color(0xE6FAF8F4)],
               ),
         border: immersive
             ? null

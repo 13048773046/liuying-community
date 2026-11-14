@@ -41,10 +41,10 @@ class ImmersivePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
+      value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
         systemNavigationBarColor: background,
-        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: background,
@@ -222,7 +222,7 @@ class GlassTopBar extends StatelessWidget implements PreferredSizeWidget {
                 color: solid
                     ? const Color(AppColors.glass)
                     : (floating
-                        ? Colors.white.withValues(alpha: 0.06)
+                        ? const Color(AppColors.glass)
                         : Colors.transparent),
                 borderRadius:
                     floating ? AppRadius.rPill : BorderRadius.zero,
@@ -351,7 +351,7 @@ class PillButton extends StatelessWidget {
             null
           ),
         PillVariant.tonal => (
-            Colors.white.withValues(alpha: 0.12),
+            const Color(AppColors.canvas),
             const Color(AppColors.textPrimary),
             null
           ),
@@ -398,7 +398,7 @@ class IconCircleButton extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: background ?? Colors.white.withValues(alpha: 0.08),
+        color: background ?? const Color(AppColors.canvas),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
@@ -551,7 +551,7 @@ class TagPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: active
               ? const Color(AppColors.accent).withValues(alpha: 0.16)
-              : Colors.white.withValues(alpha: 0.07),
+              : const Color(AppColors.canvas),
           borderRadius: AppRadius.rPill,
           border: Border.all(
             color: active
@@ -948,7 +948,7 @@ class EmptyState extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.05),
+              color: const Color(AppColors.canvas),
             ),
             child: Icon(icon,
                 size: 28, color: const Color(AppColors.textTertiary)),
@@ -1113,7 +1113,7 @@ class SheetShell extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.22),
+                color: const Color(AppColors.textDisabled),
                 borderRadius: AppRadius.rPill,
               ),
             ),
@@ -1142,7 +1142,7 @@ class SheetShell extends StatelessWidget {
                     icon: Icons.close_rounded,
                     size: 30,
                     iconSize: 16,
-                    background: Colors.white.withValues(alpha: 0.06),
+                    background: const Color(AppColors.canvas),
                     onTap: () => Navigator.of(context).maybePop(),
                   ),
                 ],
@@ -1249,7 +1249,7 @@ class SearchPill extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: const Color(AppColors.canvas),
           borderRadius: AppRadius.rPill,
           border: Border.all(color: const Color(AppColors.border)),
         ),
@@ -1357,7 +1357,7 @@ class ListRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       splashColor: Colors.transparent,
-      highlightColor: Colors.white.withValues(alpha: 0.03),
+      highlightColor: const Color(0x08000000),
       child: Padding(
         padding: padding,
         child: Row(
@@ -1411,7 +1411,7 @@ class DashedActionCard extends StatelessWidget {
       child: Container(
         height: 92,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
+          color: const Color(AppColors.canvas),
           borderRadius: AppRadius.rMd,
           border: Border.all(color: const Color(AppColors.border)),
         ),
@@ -1436,9 +1436,10 @@ void showAppToast(BuildContext context, String message) {
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(message, style: AppType.bodySm.copyWith(color: Colors.white)),
+        content: Text(message,
+            style: AppType.bodySm.copyWith(color: const Color(0xFFFAF8F4))),
         duration: const Duration(milliseconds: 1800),
-        backgroundColor: const Color(AppColors.elevated),
+        backgroundColor: const Color(AppColors.textPrimary),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.fromLTRB(48, 0, 48, 28),
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.rPill),

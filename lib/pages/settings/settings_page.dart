@@ -55,7 +55,12 @@ class _SettingsPageState extends State<SettingsPage> {
     var switched = false;
     await showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SheetShell(
         title: '切换账号',
@@ -88,7 +93,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.18)),
+                      color: const Color(AppColors.border)),
                 ),
                 child: const Icon(Icons.add_rounded,
                     size: 20, color: Color(AppColors.textTertiary)),
@@ -146,7 +151,7 @@ class _SettingsPageState extends State<SettingsPage> {
               : Colors.transparent,
           border: isCurrent
               ? null
-              : Border.all(color: Colors.white.withValues(alpha: 0.25)),
+              : Border.all(color: const Color(AppColors.border)),
         ),
         alignment: Alignment.center,
         child: isCurrent

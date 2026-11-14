@@ -126,14 +126,14 @@ class _BoardsPageState extends State<BoardsPage> {
               gradient: const LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [Color(0xFF112B23), Color(0xFF0B1116)],
+                colors: [Color(0xFFE3F5EE), Color(0xFFD2EEE3)],
               ),
-              border: Border.all(color: const Color(0x444CD9A5)),
+              border: Border.all(color: const Color(0x330E9F76)),
             ),
             child: Row(
               children: [
                 const Icon(Icons.flight_takeoff,
-                    size: 22, color: Color(0xFF4CD9A5)),
+                    size: 22, color: Color(AppColors.accent)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -144,13 +144,14 @@ class _BoardsPageState extends State<BoardsPage> {
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white)),
+                              color: Color(AppColors.textPrimary))),
                       SizedBox(height: 3),
                       Text('骑上扫帚飞过花甸 · 首次进入需下载',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              fontSize: 11, color: Color(0xFF8E97A5))),
+                              fontSize: 11,
+                              color: Color(AppColors.textTertiary))),
                     ],
                   ),
                 ),
@@ -159,14 +160,14 @@ class _BoardsPageState extends State<BoardsPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0x1F4CD9A5),
+                    color: const Color(AppColors.accentSoft),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text('进入',
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF4CD9A5))),
+                          color: Color(AppColors.accent))),
                 ),
               ],
             ),

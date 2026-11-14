@@ -17,6 +17,8 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../design/tokens.dart';
+
 /// 站点根（nginx 上已配好限速，不抢占社区接口带宽）
 const String kFlightSite = 'https://www.dbmt999.asia/petalwake';
 
@@ -1208,7 +1210,12 @@ class _PetalwakePageState extends State<PetalwakePage> {
   Future<void> _gameMenu() async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF12161C),
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            backgroundColor: const Color(0xFF12161C),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (c) => SafeArea(

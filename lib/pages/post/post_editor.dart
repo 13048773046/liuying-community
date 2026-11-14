@@ -410,7 +410,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
                 icon: Icons.close_rounded,
                 size: 34,
                 iconSize: 18,
-                background: Colors.white.withValues(alpha: 0.06),
+                background: const Color(AppColors.canvas),
                 onTap: () => Navigator.pop(context),
               ),
             ],
@@ -544,7 +544,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
         size: 36,
         iconSize: 19,
         badge: badge,
-        background: Colors.white.withValues(alpha: 0.06),
+        background: const Color(AppColors.canvas),
         color: active
             ? const Color(AppColors.accent)
             : const Color(AppColors.textPrimary),
@@ -619,7 +619,12 @@ class _PostEditorPageState extends State<PostEditorPage> {
   Future<void> _openBoardSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (bc) => SheetShell(
         title: '选择版块',
@@ -1008,7 +1013,12 @@ class _PostEditorPageState extends State<PostEditorPage> {
     if (!mounted) return;
     final picked = await showModalBottomSheet<String>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (bc) => SheetShell(
         title: '选择话题',
@@ -1066,7 +1076,12 @@ class _PostEditorPageState extends State<PostEditorPage> {
     final optCtrls = [for (final o in opts) TextEditingController(text: o)];
     final saved = await showModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: AppMotion.page,
+        curve: AppMotion.standard,
+        reverseCurve: AppMotion.exit,
+      ),
+            isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (bc) => SheetShell(
         title: '发起投票',
@@ -1443,7 +1458,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
           vertical: AppSpace.x1,
         ),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.07),
+          color: const Color(AppColors.canvas),
           borderRadius: AppRadius.rPill,
           border: Border.all(color: const Color(AppColors.border)),
         ),
@@ -1477,7 +1492,7 @@ class _PostEditorPageState extends State<PostEditorPage> {
         decoration: BoxDecoration(
           color: sel
               ? const Color(AppColors.accent).withValues(alpha: 0.14)
-              : Colors.white.withValues(alpha: 0.05),
+              : const Color(AppColors.canvas),
           borderRadius: AppRadius.rPill,
           border: Border.all(
             color: sel
