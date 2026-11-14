@@ -233,7 +233,10 @@ class _HomePageState extends State<HomePage>
                       clipper: _SeamClipper(seam: seam, px: px, height: h),
                       child: IgnorePointer(
                         ignoring: !_floorOpen,
-                        child: _floorPanel(),
+                        child: Transform.translate(
+                          offset: Offset(0, seam),
+                          child: _floorPanel(),
+                        ),
                       ),
                     ),
                   ),
@@ -467,8 +470,8 @@ class _HomePageState extends State<HomePage>
             child: ListView(
               controller: _panelScroll,
               physics: const ClampingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                  AppSpace.gutter, _seamY + AppSpace.x2, AppSpace.gutter, 96),
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpace.gutter, AppSpace.x2, AppSpace.gutter, 96),
               children: [
                 Center(
                   child: Container(
@@ -989,8 +992,7 @@ class _SeamClipper extends CustomClipper<Rect> {
   @override
   Rect getClip(Size size) {
     final down = px.clamp(0.0, (height - seam).clamp(0.0, double.infinity));
-    final up = (px * 0.30).clamp(0.0, seam);
-    return Rect.fromLTRB(0, seam - up, size.width, seam + down);
+    return Rect.fromLTRB(0, seam, size.width, seam + down);
   }
 
   @override
