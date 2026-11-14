@@ -15,6 +15,8 @@ import '../../widgets/post_card.dart';
 import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../settings/settings_page.dart';
+import '../game/petalwake_page.dart';
+import '../feedback/feedback_page.dart';
 import 'audit_page.dart';
 import 'edit_profile_page.dart';
 import 'login_page.dart';
@@ -407,6 +409,40 @@ class _MinePageState extends State<MinePage> {
                   ),
                   if (_tab == 0) _mineSliver() else _favSliver(later: _tab == 2),
                   SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                          AppSpace.gutter, AppSpace.x6, AppSpace.gutter, 0),
+                      child: Column(
+                        children: [
+                          _settingRow(
+                            icon: Icons.sports_esports_outlined,
+                            label: '小游戏',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const PetalwakePage()),
+                            ),
+                          ),
+                          _settingRow(
+                            icon: Icons.chat_bubble_outline_rounded,
+                            label: '意见反馈',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const FeedbackPage()),
+                            ),
+                          ),
+                          _settingRow(
+                            icon: Icons.info_outline_rounded,
+                            label: '关于流萤',
+                            tail: '0.5.1',
+                            onTap: _showAbout,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
                     child: SizedBox(height: tabBarBottomInset(context)),
                   ),
                 ],
@@ -629,6 +665,16 @@ class _MinePageState extends State<MinePage> {
                       const SizedBox(height: 4),
                       Text(metaLine, style: AppType.micro),
                     ],
+                    if ((user['id'] ?? '').toString().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'ID ${user['id']}',
+                        style: AppType.micro.copyWith(
+                          color: const Color(AppColors.textTertiary),
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -719,13 +765,38 @@ class _MinePageState extends State<MinePage> {
             height: 3,
           ),
           const SizedBox(height: AppSpace.x2),
-          Text(
-            next == null
-                ? '已达当前最高等级'
-                : '再获得 ${((next as num) - exp).clamp(0, 1 << 31)} 经验升到 Lv.${level + 1}',
-            style: AppType.micro.copyWith(
-              color: const Color(AppColors.textTertiary),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  next == null
+                      ? '已达当前最高等级'
+                      : '再获得 ${((next as num) - exp).clamp(0, 1 << 31)} 经验升到 Lv.${level + 1}',
+                  style: AppType.micro.copyWith(
+                    color: const Color(AppColors.textTertiary),
+                  ),
+                ),
+              ),
+              if (next != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.accent).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    '升级加速中',
+                    style: AppType.micro.copyWith(
+                      fontSize: 10,
+                      color: const Color(AppColors.accent),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: AppSpace.x4),
           // 操作：编辑资料（通栏）+ 签到（右侧方块）
@@ -843,6 +914,61 @@ class _MinePageState extends State<MinePage> {
           color: const Color(AppColors.onAccent),
           fontWeight: FontWeight.w800,
         ),
+      ),
+    );
+  }
+
+  Widget _settingRow({
+    required IconData icon,
+    required String label,
+    String? tail,
+    VoidCallback? onTap,
+  }) {
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        height: 52,
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Color(AppColors.hairline)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: const Color(AppColors.textSecondary)),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(AppColors.textPrimary),
+              ),
+            ),
+            const Spacer(),
+            if (tail != null)
+              Text(tail, style: AppType.micro.copyWith(fontSize: 11.5)),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded,
+                size: 18, color: Color(AppColors.textTertiary)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAbout() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(AppColors.card),
+        title: const Text('关于流萤'),
+        content: const Text('流萤社区 0.5.1\n一个安静的写作与分享社区。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('知道了'),
+          ),
+        ],
       ),
     );
   }

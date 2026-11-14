@@ -169,66 +169,60 @@ class _PostCardState extends State<PostCard> {
   bool get _hasMedia =>
       widget.item.isVideo || widget.item.images.isNotEmpty;
 
-  double _heightFor(BuildContext context) {
-    if (widget.mediaHeight != null) return widget.mediaHeight!;
-    final w = MediaQuery.sizeOf(context).width - AppSpace.gutter * 2;
-    return (w * 1.12).clamp(320.0, 520.0).toDouble();
-  }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final radius = widget.rounded ? AppRadius.lg : 0.0;
+    final radius = widget.rounded ? 16.0 : 0.0;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.x5),
+      padding: const EdgeInsets.only(bottom: 14),
       child: PressableScale(
         onTap: widget.onTap,
         scale: 0.985,
         haptic: false,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(radius),
-          child: _hasMedia ? _buildMediaCard(context, item) : _buildTextCard(item),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(AppColors.card),
+            borderRadius: BorderRadius.circular(radius),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_hasMedia) _mediaBlock(item),
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, _hasMedia ? 15 : 17, 16, 0),
+                child: _textBlock(item),
+              ),
+              if (widget.showAuthor)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: _authorRow(item.author, item.created),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 13, 16, 14),
+                child: _actsRow(item),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ---------------------------------------------------------------- 媒体卡
-  Widget _buildMediaCard(BuildContext context, FeedItem item) {
-    final h = _heightFor(context);
+  // ------------------------------------------------------------------ 媒体块
+  Widget _mediaBlock(FeedItem item) {
+    final h = widget.mediaHeight ?? 206.0;
     return SizedBox(
       height: h,
       child: Stack(
         fit: StackFit.expand,
         children: [
           _media(item),
-          // 上部/下部渐变
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x66000000), Color(0x00000000), Color(0x00000000)],
-                stops: [0, 0.28, 0.55],
-              ),
-            ),
-          ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [Color(0xF2000000), Color(0x00000000)],
-                stops: [0, 0.62],
-              ),
-            ),
-          ),
-          // 顶栏角标
           Positioned(
-            left: AppSpace.x3,
-            top: AppSpace.x3,
-            right: AppSpace.x3,
+            left: 12,
+            top: 12,
             child: Row(
               children: [
                 if (item.sticky)
@@ -236,36 +230,192 @@ class _PostCardState extends State<PostCard> {
                 if (item.sticky) const SizedBox(width: 6),
                 if (item.featured)
                   _Badge(label: '精华', color: const Color(AppColors.warning)),
-                const Spacer(),
-                if (item.isVideo) _DurationChip(seconds: item.duration),
+                if (!item.sticky &&
+                    !item.featured &&
+                    item.topic.isNotEmpty)
+                  _Badge(
+                    label: item.topic.first,
+                    color: const Color(0x99000000),
+                  ),
               ],
             ),
           ),
-          // 多图指示
+          if (item.isVideo)
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: _DurationChip(seconds: item.duration),
+            ),
           if (!item.isVideo && item.images.length > 1)
             Positioned(
-              top: AppSpace.x3 + 28,
               left: 0,
               right: 0,
-              child: Center(child: _Dots(count: item.images.length, index: _imgIndex)),
+              bottom: 10,
+              child: Center(
+                child: _Dots(count: item.images.length, index: _imgIndex),
+              ),
             ),
-          // 底部信息 + 右侧操作栏
-          Positioned(
-            left: AppSpace.x3,
-            right: 56,
-            bottom: AppSpace.x3,
-            child: _bottomInfo(item),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------------ 文字块
+  Widget _textBlock(FeedItem item) {
+    final c = item.content.trim();
+    if (c.isEmpty) return const SizedBox.shrink();
+    final title = _titleOf(c);
+    final rest = c.length > title.length
+        ? c
+            .substring(title.length)
+            .replaceFirst(RegExp(r'^[。，、\n\s]+'), '')
+            .trim()
+        : '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 16.5,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.25,
+            color: Color(AppColors.textPrimary),
           ),
-          Positioned(
-            right: AppSpace.x2,
-            bottom: AppSpace.x3,
-            child: _actionRail(item),
+        ),
+        if (rest.isNotEmpty) ...[
+          const SizedBox(height: 7),
+          Text(
+            rest,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.7,
+              color: Color(AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 取首句作标题：优先换行，其次句号，最多 30 字
+  String _titleOf(String c) {
+    final nl = c.indexOf('\n');
+    final dot = c.indexOf('。');
+    var cut = -1;
+    if (nl > 0 && nl <= 30) cut = nl;
+    if (dot > 0 && dot <= 30 && (cut < 0 || dot < cut)) cut = dot + 1;
+    if (cut > 0) return c.substring(0, cut);
+    if (c.length <= 30) return c;
+    return c.substring(0, 30);
+  }
+
+  // ------------------------------------------------------------------ 作者行
+  Widget _authorRow(Author a, int created) {
+    return GestureDetector(
+      onTap: widget.onAuthorTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          AppAvatar(
+            url: avatarUrlOf(a.id),
+            size: 24,
+            name: a.name,
+            ring: a.isAdmin,
+          ),
+          const SizedBox(width: 9),
+          Flexible(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    a.name.isEmpty ? '匿名用户' : a.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Color(AppColors.textSecondary),
+                    ),
+                  ),
+                ),
+                if (a.isAdmin || a.level > 0) ...[
+                  const SizedBox(width: 6),
+                  _LevelChip(
+                    level: a.level,
+                    adminName: a.isAdmin ? a.adminName : null,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Spacer(),
+          Text(
+            _ago(created),
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: Color(AppColors.textTertiary),
+            ),
           ),
         ],
       ),
     );
   }
 
+  String _ago(int sec) {
+    if (sec <= 0) return '';
+    final t = DateTime.fromMillisecondsSinceEpoch(sec * 1000);
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return '刚刚';
+    if (d.inMinutes < 60) return '${d.inMinutes} 分钟前';
+    if (d.inHours < 24) return '${d.inHours} 小时前';
+    if (d.inDays < 30) return '${d.inDays} 天前';
+    final mm = t.month.toString().padLeft(2, '0');
+    final dd = t.day.toString().padLeft(2, '0');
+    return '${t.year}-$mm-$dd';
+  }
+
+  // ------------------------------------------------------------------ 互动行
+  Widget _actsRow(FeedItem item) {
+    return Row(
+      children: [
+        _InlineAction(
+          icon: _liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          active: _liked,
+          activeColor: const Color(AppColors.heart),
+          label: formatCount(_likeCount),
+          onTap: _toggleLike,
+        ),
+        _InlineAction(
+          icon: Icons.mode_comment_outlined,
+          label: formatCount(item.commentCount),
+          onTap: widget.onComment ?? widget.onTap,
+        ),
+        _InlineAction(
+          icon: _faved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+          active: _faved,
+          activeColor: const Color(AppColors.accent),
+          label: '',
+          onTap: _toggleFav,
+        ),
+        const Spacer(),
+        _InlineAction(
+          icon: Icons.ios_share_rounded,
+          label: '',
+          onTap: _share,
+        ),
+      ],
+    );
+  }
+
+
+  // ---------------------------------------------------------------- 媒体卡
   Widget _media(FeedItem item) {
     if (item.isVideo) {
       final cover = item.cover.isNotEmpty ? item.cover : '';
@@ -302,293 +452,6 @@ class _PostCardState extends State<PostCard> {
       itemBuilder: (_, i) => _PostImage(url: mediaUrl(item.images[i])),
     );
   }
-
-  Widget _bottomInfo(FeedItem item) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.showAuthor) _authorRow(item.author),
-        if (item.content.trim().isNotEmpty) ...[
-          const SizedBox(height: AppSpace.x2),
-          Text(
-            item.content.trim(),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 14.5,
-              height: 1.38,
-              fontWeight: FontWeight.w500,
-              color: Colors.white,
-              shadows: [Shadow(color: Color(0x99000000), blurRadius: 6)],
-            ),
-          ),
-        ],
-        if (item.topic.isNotEmpty) ...[
-          const SizedBox(height: AppSpace.x2),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: item.topic
-                .take(3)
-                .map((t) => _TopicChip(name: t))
-                .toList(),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _authorRow(Author a) {
-    return GestureDetector(
-      onTap: widget.onAuthorTap,
-      behavior: HitTestBehavior.opaque,
-      child: Row(
-        children: [
-          AppAvatar(
-            url: avatarUrlOf(a.id),
-            size: 26,
-            name: a.name,
-            ring: a.isAdmin,
-          ),
-          const SizedBox(width: AppSpace.x2),
-          Flexible(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    a.name.isEmpty ? '匿名用户' : a.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      shadows: [Shadow(color: Color(0x99000000), blurRadius: 4)],
-                    ),
-                  ),
-                ),
-                if (a.isAdmin || a.level > 0) ...[
-                  const SizedBox(width: 6),
-                  _LevelChip(
-                    level: a.level,
-                    adminName: a.isAdmin ? a.adminName : null,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionRail(FeedItem item) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _RailAction(
-          icon: _liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          active: _liked,
-          activeColor: const Color(AppColors.heart),
-          label: formatCount(_likeCount),
-          onTap: _toggleLike,
-        ),
-        const SizedBox(height: AppSpace.x4),
-        _RailAction(
-          icon: Icons.mode_comment_outlined,
-          label: formatCount(item.commentCount),
-          onTap: widget.onComment ?? widget.onTap,
-        ),
-        const SizedBox(height: AppSpace.x4),
-        _RailAction(
-          icon: Icons.ios_share_rounded,
-          label: item.shareCount > 0 ? formatCount(item.shareCount) : '分享',
-          onTap: _share,
-        ),
-        const SizedBox(height: AppSpace.x4),
-        _RailAction(
-          icon: _faved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-          active: _faved,
-          activeColor: const Color(AppColors.warning),
-          label: '收藏',
-          onTap: _toggleFav,
-        ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------- 纯文字卡
-  Widget _buildTextCard(FeedItem item) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpace.x4, AppSpace.x4, AppSpace.x4, AppSpace.x3),
-      decoration: BoxDecoration(
-        color: const Color(AppColors.card),
-        border: Border.all(color: const Color(AppColors.border)),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.showAuthor) _authorRowOnDark(item.author),
-          if (widget.showAuthor && item.content.trim().isNotEmpty)
-            const SizedBox(height: AppSpace.x3),
-          if (item.content.trim().isNotEmpty)
-            Text(
-              item.content.trim(),
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-              style: AppType.body.copyWith(height: 1.5),
-            ),
-          if (item.topic.isNotEmpty) ...[
-            const SizedBox(height: AppSpace.x3),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: item.topic.take(3).map((t) => _TopicChip(name: t)).toList(),
-            ),
-          ],
-          const SizedBox(height: AppSpace.x3),
-          Row(
-            children: [
-              _InlineAction(
-                icon: _liked
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                active: _liked,
-                activeColor: const Color(AppColors.heart),
-                label: formatCount(_likeCount),
-                onTap: _toggleLike,
-              ),
-              _InlineAction(
-                icon: Icons.mode_comment_outlined,
-                label: formatCount(item.commentCount),
-                onTap: widget.onComment ?? widget.onTap,
-              ),
-              _InlineAction(
-                icon: Icons.ios_share_rounded,
-                label: formatCount(item.shareCount),
-                onTap: _share,
-              ),
-              const Spacer(),
-              _InlineAction(
-                icon: _faved
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded,
-                active: _faved,
-                activeColor: const Color(AppColors.warning),
-                label: '',
-                onTap: _toggleFav,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _authorRowOnDark(Author a) {
-    return Row(
-      children: [
-        AppAvatar(
-          url: avatarUrlOf(a.id),
-          size: 34,
-          name: a.name,
-          ring: a.isAdmin,
-          onTap: widget.onAuthorTap,
-        ),
-        const SizedBox(width: AppSpace.x3),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(a.name.isEmpty ? '匿名用户' : a.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppType.label),
-              const SizedBox(height: 1),
-              Row(
-                children: [
-                  if (a.isAdmin || a.level > 0)
-                    _LevelChip(
-                        level: a.level,
-                        adminName: a.isAdmin ? a.adminName : null),
-                  if (a.isAdmin || a.level > 0) const SizedBox(width: 6),
-                  Text(timeAgo(widget.item.created), style: AppType.micro),
-                ],
-              ),
-            ],
-          ),
-        ),
-        if (itemIsPoll(widget.item))
-          const Icon(Icons.poll_outlined,
-              size: 18, color: Color(AppColors.textTertiary)),
-      ],
-    );
-  }
-}
-
-bool itemIsPoll(FeedItem item) => item.type == 'poll' && item.poll != null;
-
-// ============================================================================
-// 小零件
-// ============================================================================
-
-class _RailAction extends StatelessWidget {
-  const _RailAction({
-    required this.icon,
-    required this.label,
-    this.onTap,
-    this.active = false,
-    this.activeColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-  final bool active;
-  final Color? activeColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: onTap,
-      scale: 0.86,
-      child: SizedBox(
-        width: 44,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            BounceOnChange(
-              trigger: active,
-              child: Icon(
-                icon,
-                size: 26,
-                color: active
-                    ? (activeColor ?? const Color(AppColors.accent))
-                    : Colors.white,
-                shadows: const [Shadow(color: Color(0x99000000), blurRadius: 6)],
-              ),
-            ),
-            const SizedBox(height: 3),
-            RollingText(
-              text: label,
-              style: const TextStyle(
-                fontSize: 10.5,
-                height: 1.1,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                shadows: [Shadow(color: Color(0x99000000), blurRadius: 4)],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _InlineAction extends StatelessWidget {
@@ -615,19 +478,19 @@ class _InlineAction extends StatelessWidget {
       onTap: onTap,
       scale: 0.9,
       child: Padding(
-        padding: const EdgeInsets.only(right: AppSpace.x5),
+        padding: const EdgeInsets.only(right: 20),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             BounceOnChange(
               trigger: active,
-              child: Icon(icon, size: 19, color: color),
+              child: Icon(icon, size: 18, color: color),
             ),
             if (label.isNotEmpty) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 5),
               RollingText(
                 text: label,
-                style: AppType.caption.copyWith(color: color),
+                style: TextStyle(fontSize: 11.5, color: color),
               ),
             ],
           ],
@@ -729,26 +592,6 @@ class _Dots extends StatelessWidget {
             ),
           );
         }),
-      ),
-    );
-  }
-}
-
-class _TopicChip extends StatelessWidget {
-  const _TopicChip({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      '#$name',
-      style: const TextStyle(
-        fontSize: 12,
-        height: 1.2,
-        fontWeight: FontWeight.w600,
-        color: Color(AppColors.accent),
-        shadows: [Shadow(color: Color(0x99000000), blurRadius: 4)],
       ),
     );
   }

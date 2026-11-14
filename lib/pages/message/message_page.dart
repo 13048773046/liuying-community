@@ -18,6 +18,7 @@ import '../mine/login_page.dart';
 import 'dm_chat_page.dart';
 import 'dm_conversations_page.dart';
 import 'notif_list_page.dart';
+import '../search/search_page.dart';
 import 'official_messages_page.dart';
 
 class MessagePage extends StatefulWidget {
@@ -175,6 +176,18 @@ class _MessagePageState extends State<MessagePage> {
     if (mounted) _load();
   }
 
+  Future<void> _markAllRead() async {
+    try {
+      await ApiClient.markNotificationsRead();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _interactUnread = 0;
+      _officialUnread = 0;
+    });
+    showAppToast(context, '已全部标为已读');
+  }
+
   void _switchSeg(int i) {
     if (_seg == i) return;
     setState(() => _seg = i);
@@ -196,6 +209,15 @@ class _MessagePageState extends State<MessagePage> {
               labels: const ['私信', '互动'],
               index: _seg,
               onChanged: _switchSeg,
+              onTrailing: (_interactUnread + _officialUnread) > 0
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 6, bottom: 2),
+                      child: Text(
+                        '${_interactUnread + _officialUnread} 条未读',
+                        style: AppType.micro.copyWith(fontSize: 11.5),
+                      ),
+                    )
+                  : null,
             ),
             Expanded(child: _body()),
           ],
@@ -218,6 +240,27 @@ class _MessagePageState extends State<MessagePage> {
             child: Text('私信 · 互动 · 官方', style: AppType.micro),
           ),
           const Spacer(),
+          PressableScale(
+            onTap: _markAllRead,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 14, bottom: 4),
+              child: Text(
+                '全部已读',
+                style: AppType.caption.copyWith(
+                  color: const Color(AppColors.textSecondary),
+                ),
+              ),
+            ),
+          ),
+          IconCircleButton(
+            icon: Icons.search_rounded,
+            size: 34,
+            iconSize: 17,
+            background: Colors.white.withValues(alpha: 0.06),
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SearchPage())),
+          ),
+          const SizedBox(width: AppSpace.x2),
           IconCircleButton(
             icon: Icons.sync_rounded,
             size: 34,

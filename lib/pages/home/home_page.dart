@@ -19,13 +19,13 @@ import '../../widgets/banner_carousel.dart';
 import '../../widgets/post_card.dart';
 import '../game/petalwake_page.dart';
 import '../discover/ranking_page.dart';
-import '../discover/topic_page.dart';
 import '../mine/login_page.dart';
 import '../mine/task_center_page.dart';
 import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../search/search_page.dart';
 import '../user/user_profile.dart';
+import '../message/notif_list_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -313,7 +313,6 @@ class _HomePageState extends State<HomePage>
           physics: const AlwaysScrollableScrollPhysics(
               parent: ClampingScrollPhysics()),
           slivers: [
-            SliverToBoxAdapter(child: _opsRail()),
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -760,119 +759,150 @@ class _HomePageState extends State<HomePage>
   // ------------------------------------------------------------------ 顶部
   Widget _header() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpace.gutter, AppSpace.x3, AppSpace.x3, 0),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Row(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '流萤社区',
-                style: TextStyle(
-                  fontSize: 24,
-                  height: 1.1,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
-                  color: Color(AppColors.textPrimary),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0x1F45E0AE),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(Icons.flare_rounded,
+                size: 17, color: Color(AppColors.accent)),
+          ),
+          const SizedBox(width: 9),
+          const Text(
+            '流萤社区',
+            style: TextStyle(
+              fontSize: 17,
+              height: 1.1,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.34,
+              color: Color(AppColors.textPrimary),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: PressableScale(
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const SearchPage())),
+              child: Container(
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                decoration: BoxDecoration(
+                  color: const Color(AppColors.card),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(AppColors.hairline)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search_rounded,
+                        size: 15, color: Color(AppColors.textTertiary)),
+                    const SizedBox(width: 7),
+                    const Flexible(
+                      child: Text(
+                        '搜帖子、话题、用户',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(AppColors.textTertiary),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-
-            ],
+            ),
           ),
-          const Spacer(),
-          IconCircleButton(
-            icon: Icons.emoji_events_outlined,
-            size: 36,
-            iconSize: 18,
-            background: const Color(AppColors.canvas),
+          const SizedBox(width: 12),
+          PressableScale(
             onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TaskCenterPage())),
-          ),
-          const SizedBox(width: AppSpace.x2),
-          IconCircleButton(
-            icon: Icons.search_rounded,
-            size: 36,
-            iconSize: 19,
-            background: const Color(AppColors.canvas),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SearchPage())),
-          ),
-          const SizedBox(width: AppSpace.x2),
-          IconCircleButton(
-            icon: Icons.add_rounded,
-            size: 36,
-            iconSize: 20,
-            background: const Color(AppColors.accent),
-            color: const Color(AppColors.onAccent),
-            onTap: _openEditor,
+                MaterialPageRoute(builder: (_) => const NotifListPage())),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(AppColors.card),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(AppColors.hairline)),
+              ),
+              child: Stack(
+                children: [
+                  const Center(
+                    child: Icon(Icons.notifications_none_rounded,
+                        size: 19, color: Color(AppColors.textPrimary)),
+                  ),
+                  Positioned(
+                    right: 9,
+                    top: 8,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(AppColors.heart),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ------------------------------------------------------------------ 分段
   Widget _tabs() {
-    return FeedTabs(
-      labels: const ['关注', '推荐'],
-      index: _tab,
-      onChanged: _switchTab,
-      onTrailing: PressableScale(
-        onTap: () => _load(refresh: true),
-        child: Row(
-          children: [
-            const Icon(Icons.sync_rounded,
-                size: 15, color: Color(AppColors.textTertiary)),
-            const SizedBox(width: 3),
-            Text('换一批', style: AppType.micro),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------- 运营入口
-  Widget _opsRail() {
-    return SizedBox(
-      height: 52,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
+    const labels = ['关注', '推荐'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
+      child: Row(
         children: [
-          Center(
-            child: TagPill(
-              label: '热门话题',
-              icon: Icons.local_fire_department_rounded,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const TopicPage())),
+          for (var i = 0; i < labels.length; i++)
+            PressableScale(
+              onTap: () => _switchTab(i),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 26),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedDefaultTextStyle(
+                      duration: AppMotion.base,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.2,
+                        fontWeight:
+                            i == _tab ? FontWeight.w700 : FontWeight.w500,
+                        color: i == _tab
+                            ? const Color(AppColors.textPrimary)
+                            : const Color(AppColors.textTertiary),
+                      ),
+                      child: Text(labels[i]),
+                    ),
+                    const SizedBox(height: 6),
+                    AnimatedContainer(
+                      duration: AppMotion.base,
+                      curve: AppMotion.standard,
+                      width: i == _tab ? 18 : 0,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: const Color(AppColors.accent),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: AppSpace.x2),
-          Center(
-            child: TagPill(
-              label: '排行榜',
-              icon: Icons.leaderboard_rounded,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const RankingPage())),
-            ),
-          ),
-          const SizedBox(width: AppSpace.x2),
-          Center(
-            child: TagPill(
-              label: '签到任务',
-              icon: Icons.task_alt_rounded,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const TaskCenterPage())),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  // ------------------------------------------------------------------ 列表
   Widget _feedSliver() {
     if (!_loaded) return const SliverToBoxAdapter(child: FeedSkeleton());
     if (_error != null && _items.isEmpty) {

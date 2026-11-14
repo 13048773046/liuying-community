@@ -588,7 +588,7 @@ class _VideoCardState extends State<VideoCard>
                 children: [
                   Flexible(
                     child: Text(
-                      a.name,
+                      '@${a.name}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.body.copyWith(
@@ -611,7 +611,7 @@ class _VideoCardState extends State<VideoCard>
                   text: f.content,
                   topics: f.topic,
                   mentions: f.mentions,
-                  maxLines: widget.item.isVideo ? null : 2,
+                  maxLines: 3,
                 ),
               if (!widget.item.isVideo && f.content.isNotEmpty) ...[
                 const SizedBox(height: AppSpace.x1),
@@ -630,6 +630,36 @@ class _VideoCardState extends State<VideoCard>
                 ),
               ],
               const SizedBox(height: AppSpace.x2),
+              // 原声行：唱片图标 + 原声名（设计稿 capbar 第三行）
+              if (f.music != null && (f.music!['name'] ?? '') != '') ...[
+                const SizedBox(height: AppSpace.x2),
+                Row(
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: Colors.white12,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.play_arrow_rounded,
+                          size: 11, color: Colors.white),
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        '原声 · ${f.music!['name']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.micro.copyWith(
+                          fontSize: 11.5,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               // 话题 tag 行
               if (f.topic.isNotEmpty)
                 Wrap(
