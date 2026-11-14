@@ -1,0 +1,43 @@
+name: apply-ui-patch
+
+# 一次性应用助手：把本地构建好的 UI 改造包应用到工作分支，并手动触发构建。
+# 只在本分支被 push 时运行，避免污染主工作分支的提交历史。
+on:
+  push:
+    branches: [ci/apply-ui]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/immersive-black
+          fetch-depth: 1
+
+      - name: Apply patch
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 "https://aka.doubaocdn.com/s/qKOyxLhJ78" -o /tmp/ui.tgz
+          tar -xzf /tmp/ui.tgz -C .
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to apply"
+          else
+            git commit -m "ui(0.4.9): 温润米白设计系统全量改造"
+            git push origin HEAD:ui/immersive-black
+          fi
+
+      - name: Trigger build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build.yml --ref ui/immersive-black
+          sleep 5
+          gh run list --workflow build.yml --limit 3 || true
