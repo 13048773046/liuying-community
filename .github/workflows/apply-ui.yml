@@ -2,6 +2,7 @@ name: apply-ui-patch
 
 # 一次性应用助手：把本地构建好的 UI 改造包应用到工作分支，并手动触发构建。
 # 只在本分支被 push 时运行，避免污染主工作分支的提交历史。
+# retry: 2026-11-14T08:52Z
 on:
   push:
     branches: [ci/apply-ui]
@@ -23,10 +24,13 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL --retry 3 "https://aka.doubaocdn.com/s/qKOyxLhJ78" -o /tmp/ui.tgz
+          ls -lh /tmp/ui.tgz
+          tar -tzf /tmp/ui.tgz | head -25
           tar -xzf /tmp/ui.tgz -C .
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
           git add -A
+          git status --short
           if git diff --cached --quiet; then
             echo "nothing to apply"
           else
@@ -39,5 +43,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run build.yml --ref ui/immersive-black
-          sleep 5
+          sleep 8
           gh run list --workflow build.yml --limit 3 || true
