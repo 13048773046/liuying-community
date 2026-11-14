@@ -435,7 +435,7 @@ class _MinePageState extends State<MinePage> {
                           _settingRow(
                             icon: Icons.info_outline_rounded,
                             label: '关于流萤',
-                            tail: '0.5.1',
+                            tail: '0.5.2',
                             onTap: _showAbout,
                           ),
                         ],
@@ -668,7 +668,7 @@ class _MinePageState extends State<MinePage> {
                     if ((user['id'] ?? '').toString().isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Text(
-                        'ID ${user['id']}',
+                        'ID ${_publicId((user['id'] ?? '').toString())}',
                         style: AppType.micro.copyWith(
                           color: const Color(AppColors.textTertiary),
                           fontFeatures: const [FontFeature.tabularFigures()],
@@ -918,6 +918,19 @@ class _MinePageState extends State<MinePage> {
     );
   }
 
+  /// 对外展示的 ID：纯数字 uid 原样使用；其它内部标识做稳定不可逆散列成 10 位数字，
+  /// 避免把账号内部 uid / token 形态的字符串暴露在界面上。
+  String _publicId(String raw) {
+    if (raw.isEmpty) return '';
+    if (RegExp(r'^[0-9]{5,12}$').hasMatch(raw)) return raw;
+    var h = 0x811c9dc5;
+    for (final c in raw.codeUnits) {
+      h ^= c;
+      h = (h * 0x01000193) & 0xFFFFFFFF;
+    }
+    return (1000000000 + (h % 8000000000)).toString();
+  }
+
   Widget _settingRow({
     required IconData icon,
     required String label,
@@ -962,7 +975,7 @@ class _MinePageState extends State<MinePage> {
       builder: (_) => AlertDialog(
         backgroundColor: const Color(AppColors.card),
         title: const Text('关于流萤'),
-        content: const Text('流萤社区 0.5.1\n一个安静的写作与分享社区。'),
+        content: const Text('流萤社区 0.5.2\n一个安静的写作与分享社区。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
