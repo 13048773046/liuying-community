@@ -1,0 +1,276 @@
+Resolving dependencies...
+Downloading packages...
+  archive 3.6.1 (4.7.1 available)
+  audio_session 0.1.25 (0.2.4 available)
+  cached_network_image 3.4.1 (4.0.7 available)
+  cached_network_image_platform_interface 4.1.1 (5.0.4 available)
+  cached_network_image_web 1.3.1 (2.0.5 available)
+  code_assets 1.2.1 (2.2.0 available)
+  cross_file 0.3.5+5 (0.4.0 available)
+  crypto 3.0.7 (3.0.8 available)
+  flutter_cache_manager 3.4.5 (3.5.0 available)
+  flutter_map 7.0.2 (8.3.2 available)
+  hooks 2.0.2 (2.2.0 available)
+  image_picker_ios 0.8.13+13 (0.8.13+15 available)
+  jni 1.1.0 (1.1.2 available)
+  just_audio 0.9.46 (0.10.6 available)
+  latlong2 0.9.1 (0.10.1 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.3 (1.19.0 available)
+  mgrs_dart 2.0.0 (3.0.0 available)
+  objective_c 9.5.0 (9.6.4 available)
+  octo_image 2.1.2 (2.1.5 available)
+  petitparser 7.0.2 (7.1.0 available)
+  proj4dart 2.1.0 (3.0.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  share_plus 10.1.4 (13.3.1 available)
+  share_plus_platform_interface 5.0.2 (7.2.0 available)
+  shared_preferences_android 2.5.3 (2.5.5 available)
+  shared_preferences_foundation 2.5.7 (2.6.2 available)
+  sqflite 2.4.5 (2.4.6 available)
+  sqflite_android 2.4.5 (2.4.6 available)
+  sqflite_common 2.5.14 (2.5.17 available)
+  sqflite_darwin 2.4.4+1 (2.4.6 available)
+  sqflite_platform_interface 2.4.3 (2.4.4 available)
+  synchronized 3.5.0 (3.6.1+1 available)
+  test_api 0.7.12 (0.7.15 available)
+  unicode 0.3.1 (1.1.9 available)
+  vector_math 2.4.0 (2.4.4 available)
+  video_player_android 2.12.2 (2.12.4 available)
+! video_player_avfoundation 2.11.1 (overridden) (2.12.4 available)
+  win32 5.15.0 (6.4.0 available)
+  xml 7.0.1 (7.1.0 available)
+Got dependencies!
+40 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+== xcode ==
+Xcode_26.0.1.app
+Xcode_26.0.app
+Xcode_26.1.1.app
+Xcode_26.1.app
+Xcode_26.2.0.app
+Xcode_26.2.app
+Xcode_26.3.0.app
+Xcode_26.3.app
+Xcode_26.4.1.app
+Xcode_26.4.app
+Xcode_26.5.0.app
+Xcode_26.5.app
+Xcode_26.6.0.app
+Xcode_26.6.app
+Xcode.app
+Using /Applications/Xcode_26.6.0.app
+Xcode 26.6
+Build version 17F113
+== build ios ==
+Resolving dependencies...
+Downloading packages...
+  archive 3.6.1 (4.7.1 available)
+  audio_session 0.1.25 (0.2.4 available)
+  cached_network_image 3.4.1 (4.0.7 available)
+  cached_network_image_platform_interface 4.1.1 (5.0.4 available)
+  cached_network_image_web 1.3.1 (2.0.5 available)
+  code_assets 1.2.1 (2.2.0 available)
+  cross_file 0.3.5+5 (0.4.0 available)
+  crypto 3.0.7 (3.0.8 available)
+  flutter_cache_manager 3.4.5 (3.5.0 available)
+  flutter_map 7.0.2 (8.3.2 available)
+  hooks 2.0.2 (2.2.0 available)
+  image_picker_ios 0.8.13+13 (0.8.13+15 available)
+  jni 1.1.0 (1.1.2 available)
+  just_audio 0.9.46 (0.10.6 available)
+  latlong2 0.9.1 (0.10.1 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.3 (1.19.0 available)
+  mgrs_dart 2.0.0 (3.0.0 available)
+  objective_c 9.5.0 (9.6.4 available)
+  octo_image 2.1.2 (2.1.5 available)
+  petitparser 7.0.2 (7.1.0 available)
+  proj4dart 2.1.0 (3.0.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  share_plus 10.1.4 (13.3.1 available)
+  share_plus_platform_interface 5.0.2 (7.2.0 available)
+  shared_preferences_android 2.5.3 (2.5.5 available)
+  shared_preferences_foundation 2.5.7 (2.6.2 available)
+  sqflite 2.4.5 (2.4.6 available)
+  sqflite_android 2.4.5 (2.4.6 available)
+  sqflite_common 2.5.14 (2.5.17 available)
+  sqflite_darwin 2.4.4+1 (2.4.6 available)
+  sqflite_platform_interface 2.4.3 (2.4.4 available)
+  synchronized 3.5.0 (3.6.1+1 available)
+  test_api 0.7.12 (0.7.15 available)
+  unicode 0.3.1 (1.1.9 available)
+  vector_math 2.4.0 (2.4.4 available)
+  video_player_android 2.12.2 (2.12.4 available)
+! video_player_avfoundation 2.11.1 (overridden) (2.12.4 available)
+  win32 5.15.0 (6.4.0 available)
+  xml 7.0.1 (7.1.0 available)
+Got dependencies!
+40 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Warning: Building for device with codesigning disabled. You will have to manually codesign before deploying to device.
+Building com.community.communityApp for device (ios-release)...
+Running Xcode build...                                          
+Xcode build done.                                           197.5s
+✓ Built build/ios/iphoneos/Runner.app (24.1MB)
+== verify assets ==
+App: build/ios/iphoneos/Runner.app
+total 6512
+drwxr-xr-x  18 runner  staff      576 Nov 14 15:31 .
+drwxr-xr-x   3 runner  staff       96 Nov 14 15:31 ..
+-rw-r--r--   1 runner  staff      347 Nov 14 15:30 AppFrameworkInfo.plist
+-rw-r--r--   1 runner  staff    11195 Nov 14 15:30 AppIcon60x60@2x.png
+-rw-r--r--   1 runner  staff    17065 Nov 14 15:30 AppIcon76x76@2x~ipad.png
+-rw-r--r--   1 runner  staff  1042120 Nov 14 15:31 Assets.car
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:30 Base.lproj
+drwxr-xr-x   5 runner  staff      160 Nov 14 15:31 Frameworks
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:29 image_picker_ios_image_picker_ios.bundle
+-rw-r--r--   1 runner  staff     1902 Nov 14 15:31 Info.plist
+-rw-r--r--   1 runner  staff        8 Nov 14 15:31 PkgInfo
+-rwxr-xr-x   1 runner  staff  2243288 Nov 14 15:31 Runner
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:29 share_plus_share_plus.bundle
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:29 shared_preferences_foundation_shared_preferences_foundation.bundle
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:29 sqflite_darwin_sqflite_darwin.bundle
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:29 url_launcher_ios_url_launcher_ios.bundle
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:29 video_player_avfoundation_video_player_avfoundation.bundle
+drwxr-xr-x   4 runner  staff      128 Nov 14 15:29 webview_flutter_wkwebview_webview_flutter_wkwebview.bundle
+== package ==
+  adding: Payload/ (stored 0%)
+  adding: Payload/Runner.app/ (stored 0%)
+  adding: Payload/Runner.app/AppIcon60x60@2x.png (stored 0%)
+  adding: Payload/Runner.app/Runner (deflated 76%)
+  adding: Payload/Runner.app/video_player_avfoundation_video_player_avfoundation.bundle/ (stored 0%)
+  adding: Payload/Runner.app/video_player_avfoundation_video_player_avfoundation.bundle/PrivacyInfo.xcprivacy (deflated 40%)
+  adding: Payload/Runner.app/video_player_avfoundation_video_player_avfoundation.bundle/Info.plist (deflated 31%)
+  adding: Payload/Runner.app/share_plus_share_plus.bundle/ (stored 0%)
+  adding: Payload/Runner.app/share_plus_share_plus.bundle/PrivacyInfo.xcprivacy (deflated 40%)
+  adding: Payload/Runner.app/share_plus_share_plus.bundle/Info.plist (deflated 26%)
+  adding: Payload/Runner.app/webview_flutter_wkwebview_webview_flutter_wkwebview.bundle/ (stored 0%)
+  adding: Payload/Runner.app/webview_flutter_wkwebview_webview_flutter_wkwebview.bundle/PrivacyInfo.xcprivacy (deflated 40%)
+  adding: Payload/Runner.app/webview_flutter_wkwebview_webview_flutter_wkwebview.bundle/Info.plist (deflated 31%)
+  adding: Payload/Runner.app/Base.lproj/ (stored 0%)
+  adding: Payload/Runner.app/Base.lproj/Main.storyboardc/ (stored 0%)
+  adding: Payload/Runner.app/Base.lproj/Main.storyboardc/UIViewController-BYZ-38-t0r.nib (deflated 35%)
+  adding: Payload/Runner.app/Base.lproj/Main.storyboardc/BYZ-38-t0r-view-8bC-Xf-vdC.nib (deflated 42%)
+  adding: Payload/Runner.app/Base.lproj/Main.storyboardc/Info.plist (deflated 42%)
+  adding: Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/ (stored 0%)
+  adding: Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/01J-lp-oVM-view-Ze5-6b-2t3.nib (deflated 42%)
+  adding: Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/UIViewController-01J-lp-oVM.nib (deflated 35%)
+  adding: Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/Info.plist (deflated 42%)
+  adding: Payload/Runner.app/shared_preferences_foundation_shared_preferences_foundation.bundle/ (stored 0%)
+  adding: Payload/Runner.app/shared_preferences_foundation_shared_preferences_foundation.bundle/PrivacyInfo.xcprivacy (deflated 51%)
+  adding: Payload/Runner.app/shared_preferences_foundation_shared_preferences_foundation.bundle/Info.plist (deflated 32%)
+  adding: Payload/Runner.app/Assets.car (deflated 4%)
+  adding: Payload/Runner.app/AppFrameworkInfo.plist (deflated 28%)
+  adding: Payload/Runner.app/AppIcon76x76@2x~ipad.png (stored 0%)
+  adding: Payload/Runner.app/url_launcher_ios_url_launcher_ios.bundle/ (stored 0%)
+  adding: Payload/Runner.app/url_launcher_ios_url_launcher_ios.bundle/PrivacyInfo.xcprivacy (deflated 40%)
+  adding: Payload/Runner.app/url_launcher_ios_url_launcher_ios.bundle/Info.plist (deflated 28%)
+  adding: Payload/Runner.app/sqflite_darwin_sqflite_darwin.bundle/ (stored 0%)
+  adding: Payload/Runner.app/sqflite_darwin_sqflite_darwin.bundle/PrivacyInfo.xcprivacy (deflated 40%)
+  adding: Payload/Runner.app/sqflite_darwin_sqflite_darwin.bundle/Info.plist (deflated 28%)
+  adding: Payload/Runner.app/Frameworks/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/objective_c.framework/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/objective_c.framework/_CodeSignature/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/objective_c.framework/_CodeSignature/CodeResources (deflated 77%)
+  adding: Payload/Runner.app/Frameworks/objective_c.framework/objective_c (deflated 84%)
+  adding: Payload/Runner.app/Frameworks/objective_c.framework/Info.plist (deflated 58%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/_CodeSignature/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/_CodeSignature/CodeResources (deflated 70%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/icudtl.dat (deflated 47%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Flutter (deflated 57%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterSceneDelegate.h (deflated 48%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterEngine.h (deflated 79%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterChannels.h (deflated 85%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterPlugin.h (deflated 75%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterAppDelegate.h (deflated 53%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterTexture.h (deflated 58%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterEngineGroup.h (deflated 71%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterPlatformViews.h (deflated 57%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterHeadlessDartRunner.h (deflated 73%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterCodecs.h (deflated 75%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/Flutter.h (deflated 60%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterViewController.h (deflated 67%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterMacros.h (deflated 58%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterDartProject.h (deflated 67%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterHourFormat.h (deflated 45%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterPluginAppLifeCycleDelegate.h (deflated 78%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterBinaryMessenger.h (deflated 67%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterCallbackCache.h (deflated 60%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Headers/FlutterSceneLifeCycle.h (deflated 73%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/PrivacyInfo.xcprivacy (deflated 62%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Modules/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Modules/module.modulemap (deflated 20%)
+  adding: Payload/Runner.app/Frameworks/Flutter.framework/Info.plist (deflated 57%)
+  adding: Payload/Runner.app/Frameworks/App.framework/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/_CodeSignature/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/_CodeSignature/CodeResources (deflated 72%)
+  adding: Payload/Runner.app/Frameworks/App.framework/App (deflated 60%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/NOTICES.Z (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/NativeAssetsManifest.json (deflated 25%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/FontManifest.json (deflated 16%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/packages/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/packages/flutter_map/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/packages/flutter_map/lib/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/packages/flutter_map/lib/assets/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/packages/flutter_map/lib/assets/flutter_map_logo.png (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/shaders/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/shaders/ink_sparkle.frag (deflated 66%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/shaders/stretch_effect.frag (deflated 77%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/AssetManifest.bin (deflated 76%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/fonts/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/fonts/MaterialIcons-Regular.otf (deflated 38%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/logo.png (deflated 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/ (stored 0%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/play-circle.svg (deflated 36%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/person.svg (deflated 39%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/home.svg (deflated 47%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/add.svg (deflated 52%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/chatbubble-ellipses.svg (deflated 46%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/play.svg (deflated 32%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/star.svg (deflated 36%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/arrow-redo.svg (deflated 36%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/chatbubbles.svg (deflated 48%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/compass.svg (deflated 42%)
+  adding: Payload/Runner.app/Frameworks/App.framework/flutter_assets/assets/icons/heart.svg (deflated 36%)
+  adding: Payload/Runner.app/Frameworks/App.framework/Info.plist (deflated 58%)
+  adding: Payload/Runner.app/image_picker_ios_image_picker_ios.bundle/ (stored 0%)
+  adding: Payload/Runner.app/image_picker_ios_image_picker_ios.bundle/PrivacyInfo.xcprivacy (deflated 40%)
+  adding: Payload/Runner.app/image_picker_ios_image_picker_ios.bundle/Info.plist (deflated 28%)
+  adding: Payload/Runner.app/Info.plist (deflated 37%)
+  adding: Payload/Runner.app/PkgInfo (stored 0%)
+-rw-r--r--  1 runner  staff  10719072 Nov 14 15:31 community-unsigned.ipa
+Archive:  community-unsigned.ipa
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+        0  11-14-2026 15:31   Payload/
+        0  11-14-2026 15:31   Payload/Runner.app/
+    11195  11-14-2026 15:31   Payload/Runner.app/AppIcon60x60@2x.png
+  2243288  11-14-2026 15:31   Payload/Runner.app/Runner
+        0  11-14-2026 15:31   Payload/Runner.app/video_player_avfoundation_video_player_avfoundation.bundle/
+      373  11-14-2026 15:31   Payload/Runner.app/video_player_avfoundation_video_player_avfoundation.bundle/PrivacyInfo.xcprivacy
+      755  11-14-2026 15:31   Payload/Runner.app/video_player_avfoundation_video_player_avfoundation.bundle/Info.plist
+        0  11-14-2026 15:31   Payload/Runner.app/share_plus_share_plus.bundle/
+      373  11-14-2026 15:31   Payload/Runner.app/share_plus_share_plus.bundle/PrivacyInfo.xcprivacy
+      695  11-14-2026 15:31   Payload/Runner.app/share_plus_share_plus.bundle/Info.plist
+        0  11-14-2026 15:31   Payload/Runner.app/webview_flutter_wkwebview_webview_flutter_wkwebview.bundle/
+      373  11-14-2026 15:31   Payload/Runner.app/webview_flutter_wkwebview_webview_flutter_wkwebview.bundle/PrivacyInfo.xcprivacy
+      755  11-14-2026 15:31   Payload/Runner.app/webview_flutter_wkwebview_webview_flutter_wkwebview.bundle/Info.plist
+        0  11-14-2026 15:31   Payload/Runner.app/Base.lproj/
+        0  11-14-2026 15:31   Payload/Runner.app/Base.lproj/Main.storyboardc/
+      951  11-14-2026 15:31   Payload/Runner.app/Base.lproj/Main.storyboardc/UIViewController-BYZ-38-t0r.nib
+     1835  11-14-2026 15:31   Payload/Runner.app/Base.lproj/Main.storyboardc/BYZ-38-t0r-view-8bC-Xf-vdC.nib
+      258  11-14-2026 15:31   Payload/Runner.app/Base.lproj/Main.storyboardc/Info.plist
+        0  11-14-2026 15:31   Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/
+     2281  11-14-2026 15:31   Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/01J-lp-oVM-view-Ze5-6b-2t3.nib
+      924  11-14-2026 15:31   Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/UIViewController-01J-lp-oVM.nib
+      258  11-14-2026 15:31   Payload/Runner.app/Base.lproj/LaunchScreen.storyboardc/Info.plist
+        0  11-14-2026 15:31   Payload/Runner.app/shared_preferences_foundation_shared_preferences_foundation.bundle/
+      598  11-14-2026 15:31   Payload/Runner.app/shared_preferences_foundation_shared_preferences_foundation.bundle/PrivacyInfo.xcprivacy
+      770  11-14-2026 15:31   Payload/Runner.app/shared_preferences_foundation_shared_preferences_foundation.bundle/Info.plist
+  1042120  11-14-2026 15:31   Payload/Runner.app/Assets.car
+      347  11-14-2026 15:31   Payload/Runner.app/AppFrameworkInfo.plist
