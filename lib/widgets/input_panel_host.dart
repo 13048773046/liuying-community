@@ -59,9 +59,16 @@ class _InputPanelHostState extends State<InputPanelHost> {
           insets > 80 ? insets : (_lockedHeight ?? widget.fallbackHeight);
       unawaited(SystemChannels.textInput.invokeMethod('TextInput.hide'));
     } else if (newPanel == null && oldPanel != null) {
-      // 面板态 → 键盘态：清除锁定，占位交给键盘 inset；唤回键盘
+      // 面板态 → 键盘态：清除锁定，占位交给键盘 inset
       _lockedHeight = null;
-      unawaited(SystemChannels.textInput.invokeMethod('TextInput.show'));
+      // 仅当输入框仍持有焦点才唤回键盘：点消息区/空白收起面板时不该再弹键盘
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final focus = FocusManager.instance.primaryFocus;
+        if (focus != null && focus.hasFocus) {
+          unawaited(SystemChannels.textInput.invokeMethod('TextInput.show'));
+        }
+      });
     }
   }
 
