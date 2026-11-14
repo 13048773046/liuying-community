@@ -73,6 +73,7 @@ class _MessagePageState extends State<MessagePage> {
   void _onDmUnread() {
     if (!mounted) return;
     setState(() {});
+    _loadDm(refresh: true);
   }
 
   Future<void> _load() async {

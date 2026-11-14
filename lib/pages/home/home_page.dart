@@ -25,6 +25,7 @@ import '../post/post_detail.dart';
 import '../post/post_editor.dart';
 import '../search/search_page.dart';
 import '../user/user_profile.dart';
+import '../../services/notify_bus.dart';
 import '../message/notif_list_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -222,6 +223,7 @@ class _HomePageState extends State<HomePage>
             // 满开时下半部分正好退出屏幕；手指移动多少像素，画面就移动多少
             _maxOpen = (h - seam + 24).clamp(1.0, h + 24);
             final px = p * _maxOpen;
+            final floorTop = seam * (1 - p); // 展开中分界线从 seam 上移到 0
             final push = px;
             final lift = px * 0.10;
             final body = Stack(
@@ -230,11 +232,11 @@ class _HomePageState extends State<HomePage>
                 if (p > 0.0001)
                   Positioned.fill(
                     child: ClipRect(
-                      clipper: _SeamClipper(seam: seam, px: px, height: h),
+                      clipper: _SeamClipper(top: floorTop, px: px, height: h),
                       child: IgnorePointer(
                         ignoring: !_floorOpen,
                         child: Transform.translate(
-                          offset: Offset(0, seam),
+                          offset: Offset(0, floorTop),
                           child: _floorPanel(),
                         ),
                       ),
@@ -836,25 +838,29 @@ class _HomePageState extends State<HomePage>
                 shape: BoxShape.circle,
                 border: Border.all(color: const Color(AppColors.hairline)),
               ),
-              child: Stack(
-                children: [
-                  const Center(
-                    child: Icon(Icons.notifications_none_rounded,
-                        size: 19, color: Color(AppColors.textPrimary)),
-                  ),
-                  Positioned(
-                    right: 9,
-                    top: 8,
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(AppColors.heart),
-                        shape: BoxShape.circle,
-                      ),
+              child: ValueListenableBuilder<int>(
+                valueListenable: NotifyBus.shared.unread,
+                builder: (_, n, _) => Stack(
+                  children: [
+                    const Center(
+                      child: Icon(Icons.notifications_none_rounded,
+                          size: 19, color: Color(AppColors.textPrimary)),
                     ),
-                  ),
-                ],
+                    if (n > 0)
+                      Positioned(
+                        right: 9,
+                        top: 8,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(AppColors.heart),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -976,21 +982,21 @@ class _HomePageState extends State<HomePage>
 /// 二楼的露出区域：以分开口为中心，随进度同时向上、向下撑开。
 /// 这样视觉上是「缝隙被拉开」，而不是一页从旁边滑过来。
 class _SeamClipper extends CustomClipper<Rect> {
-  _SeamClipper({required this.seam, required this.px, required this.height});
+  _SeamClipper({required this.top, required this.px, required this.height});
 
-  final double seam;
-
-  /// 二楼已经露出来的像素高度（1:1 跟手）：向下全量展开，向上只掀开三成
+  /// 当前分界线（展开过程中从 header 高度上移到 0）
+  final double top;
   final double px;
   final double height;
 
   @override
   Rect getClip(Size size) {
-    final down = px.clamp(0.0, (height - seam).clamp(0.0, double.infinity));
-    return Rect.fromLTRB(0, seam, size.width, seam + down);
+    final t = top.clamp(0.0, size.height);
+    final b = (top + px).clamp(0.0, size.height);
+    return Rect.fromLTRB(0, t, size.width, b);
   }
 
   @override
   bool shouldReclip(_SeamClipper old) =>
-      old.seam != seam || old.px != px || old.height != height;
+      old.top != top || old.px != px || old.height != height;
 }

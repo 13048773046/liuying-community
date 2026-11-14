@@ -126,9 +126,15 @@ class _DmChatPageState extends State<DmChatPage> {
       try {
         ApiClient.dmRead(widget.peerId);
       } catch (_) {}
-      // 通知未读清零（全局）
-      NotifyBus.shared.dmUnread.value = 0;
+      _refreshDmUnread();
     }
+  }
+
+  Future<void> _refreshDmUnread() async {
+    try {
+      final j = await ApiClient.dmUnread();
+      NotifyBus.shared.dmUnread.value = ((j['unread'] ?? 0) as num).toInt();
+    } catch (_) {}
   }
 
   Future<void> _loadHistory() async {
