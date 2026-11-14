@@ -35,10 +35,18 @@ Future<Map<String, dynamic>?> showEmojiPanel(BuildContext context) {
 
 /// 内嵌表情面板：官方分类 + 我的收藏 + 上传。选中时回调 [onPick]
 class EmojiPanel extends StatefulWidget {
-  const EmojiPanel({super.key, this.onPick, this.initialFav = false});
+  const EmojiPanel({
+    super.key,
+    this.onPick,
+    this.initialFav = false,
+    this.compact = false,
+  });
 
   final ValueChanged<Map<String, dynamic>>? onPick;
   final bool initialFav;
+
+  /// 紧凑内嵌形态：无大标题，分类行右侧留上传小按钮，网格更密（私信底栏用）
+  final bool compact;
 
   @override
   State<EmojiPanel> createState() => _EmojiPanelState();
@@ -85,6 +93,11 @@ class _EmojiPanelState extends State<EmojiPanel> {
         _emojis = list;
         _favs = favs;
         _cats = cats;
+        // 内嵌私信面板：收藏为空时默认落到官方第一类，别让用户开门见到空态
+        if (widget.compact && _favTab && favs.isEmpty && cats.isNotEmpty) {
+          _favTab = false;
+          _cat = cats.first;
+        }
         if (!_favTab) {
           _cat = _cats.contains(_cat) ? _cat : (cats.isNotEmpty ? cats.first : '');
         }
@@ -143,9 +156,84 @@ class _EmojiPanelState extends State<EmojiPanel> {
     return i < 0 ? 0 : i + 1;
   }
 
+  void _onCatChanged(int i) {
+    if (i == 0) {
+      setState(() => _favTab = true);
+      return;
+    }
+    setState(() {
+      _favTab = false;
+      _cat = _cats[i - 1];
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final labels = <String>['我的收藏', ..._cats];
+    if (widget.compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 44,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TagRail(
+                    labels: labels,
+                    index: _catIndex,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.x4),
+                    onChanged: _onCatChanged,
+                  ),
+                ),
+                PressableScale(
+                  onTap: _upload,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(AppColors.elevated),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(AppColors.border)),
+                    ),
+                    child: _uploading
+                        ? const Center(
+                            child: SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(AppColors.accent),
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.add_rounded,
+                            size: 17, color: Color(AppColors.accent)),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.x3),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(AppColors.accent),
+                      ),
+                    ),
+                  )
+                : _buildGrid(),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -175,16 +263,7 @@ class _EmojiPanelState extends State<EmojiPanel> {
           labels: labels,
           index: _catIndex,
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.x4),
-          onChanged: (i) {
-            if (i == 0) {
-              setState(() => _favTab = true);
-              return;
-            }
-            setState(() {
-              _favTab = false;
-              _cat = _cats[i - 1];
-            });
-          },
+          onChanged: _onCatChanged,
         ),
         const SizedBox(height: AppSpace.x2),
         // 网格
@@ -213,15 +292,17 @@ class _EmojiPanelState extends State<EmojiPanel> {
           compact: true,
           icon: Icons.emoji_emotions_outlined,
           title: _favTab ? '还没有收藏表情' : '暂无表情包',
-          message: _favTab ? '点右上角上传你自己的表情' : null,
+          message: widget.compact
+              ? '点右上角 + 添加你自己的表情'
+              : (_favTab ? '点右上角上传你自己的表情' : null),
         ),
       );
     }
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpace.x4, AppSpace.x1, AppSpace.x4, AppSpace.x4),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+      padding: EdgeInsets.fromLTRB(widget.compact ? 12 : AppSpace.x4,
+          AppSpace.x1, widget.compact ? 12 : AppSpace.x4, AppSpace.x4),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: widget.compact ? 5 : 4,
         mainAxisSpacing: AppSpace.x2,
         crossAxisSpacing: AppSpace.x2,
       ),

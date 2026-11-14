@@ -2,7 +2,7 @@
 /// - 进入标记已读；WS onDm 实时追加对方消息并刷新未读
 /// - 上滑加载历史（before 最早 created 分页）
 /// - 消息类型：text / image / video / location / card
-/// - 输入框胶囊 + 加号弹出 QQ 式发送面板（相册/拍照/位置）
+/// - 底栏：加号功能面板 / 表情面板内嵌（与键盘同区，微信抖音式互斥切换）
 library;
 
 import 'dart:async';
@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -38,6 +39,9 @@ String _fullUrl(String content) {
   if (s.startsWith('/')) return 'https://www.dbmt999.asia$s';
   return mediaUrl(s);
 }
+
+/// 私信底栏面板：与键盘同一块空间，加号/表情互斥切换
+enum _PanelMode { none, more, emoji }
 
 /// 上传结果 → 消息里应存的相对路径（统一「存相对路径，渲染时 _fullUrl」）
 String _uploadPath(Map<String, dynamic> j) {
@@ -77,7 +81,8 @@ class _DmChatPageState extends State<DmChatPage> {
   final List<Map<String, dynamic>> _msgs = [];
   final TextEditingController _input = TextEditingController();
   final FocusNode _inputFocus = FocusNode();
-  bool _panelOpen = false; // QQ 式占位面板（收起输入法后占住输入法位置）
+  _PanelMode _panel = _PanelMode.none; // 底栏面板：更多功能 / 表情
+  bool get _panelOpen => _panel != _PanelMode.none;
 
   final ScrollController _scroll = ScrollController();
   bool _loading = true;
@@ -91,6 +96,7 @@ class _DmChatPageState extends State<DmChatPage> {
   void initState() {
     super.initState();
     _myId = ApiClient.userId;
+    _inputFocus.addListener(_onFocusChanged);
     _loadHistory();
     // 实时接收对方消息
     _dmSub = NotifyBus.shared.onDm.stream.listen(_onDm);
@@ -103,9 +109,14 @@ class _DmChatPageState extends State<DmChatPage> {
     });
   }
 
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _dmSub?.cancel();
+    _inputFocus.removeListener(_onFocusChanged);
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -243,61 +254,93 @@ class _DmChatPageState extends State<DmChatPage> {
 
   // ---------- QQ 式占位面板（非弹窗：收起输入法，面板占住输入法位置） ----------
 
-  void _togglePanel() {
-    setState(() {
-      if (_panelOpen) {
-        _panelOpen = false;
-      } else {
-        // 收起输入法：面板平滑占据原输入法位置
-        FocusScope.of(context).unfocus();
-        _panelOpen = true;
-      }
-    });
+  /// 互斥切换面板（更多功能 / 表情），收起输入法让面板占住键盘位置
+  void _switchPanel(_PanelMode mode) {
+    if (_panel == mode) {
+      _closePanel();
+      return;
+    }
+    // 保留输入框焦点：面板收起时 InputPanelHost 会把键盘唤回
+    _inputFocus.requestFocus();
+    unawaited(SystemChannels.textInput.invokeMethod('TextInput.hide'));
+    setState(() => _panel = mode);
+    _scrollToBottom();
   }
+
+  void _togglePanel() => _switchPanel(_PanelMode.more);
+
+  void _toggleEmoji() => _switchPanel(_PanelMode.emoji);
 
   void _closePanel() {
     if (_panelOpen) {
-      setState(() => _panelOpen = false);
+      setState(() => _panel = _PanelMode.none);
     }
   }
 
-  /// 占位面板（加号 → 收起输入法，面板占住原输入法位置，丝滑切换）
-  Widget _sendPanel() {
-    if (!_panelOpen) return const SizedBox.shrink();
+  /// 当前面板：表情内嵌（与键盘同区）或功能网格
+  Widget _panelContent() {
+    switch (_panel) {
+      case _PanelMode.emoji:
+        return Container(
+          color: const Color(AppColors.bg),
+          child: EmojiPanel(compact: true, onPick: _onPickEmoji),
+        );
+      case _PanelMode.more:
+        return _morePanel();
+      case _PanelMode.none:
+        return const SizedBox.shrink();
+    }
+  }
+
+  /// 选中表情即发（与图片消息同路径），面板保持打开可连发
+  void _onPickEmoji(Map<String, dynamic> e) {
+    final img = ((e['image'] ?? '') as String).trim();
+    if (img.isEmpty) return;
+    HapticFeedback.lightImpact();
+    _sendMedia('image', img);
+  }
+
+  Widget _morePanel() {
     final items = <(IconData, String, VoidCallback)>[
       (Icons.photo_library_rounded, '图片', () {
         _closePanel();
         _pickImage(ImageSource.gallery);
       }),
-      (Icons.emoji_emotions_outlined, '表情', () {
-        _closePanel();
-        _pickSticker();
-      }),
       (Icons.photo_camera_rounded, '拍照', () {
         _closePanel();
         _pickImage(ImageSource.camera);
       }),
-      (Icons.location_on_rounded, '发送定位', () {
+      (Icons.videocam_rounded, '视频', () {
+        _closePanel();
+        _pickVideo();
+      }),
+      (Icons.location_on_rounded, '位置', () {
         _closePanel();
         _sendLocation();
       }),
+      (Icons.emoji_emotions_rounded, '表情', _toggleEmoji),
+      (Icons.badge_rounded, '名片', () {
+        _closePanel();
+        _sendCard();
+      }),
     ];
     return Container(
-      color: const Color(AppColors.bg),
+      decoration: const BoxDecoration(
+        color: Color(AppColors.bg),
+        border: Border(top: BorderSide(color: Color(AppColors.hairline))),
+      ),
       padding: const EdgeInsets.fromLTRB(
           AppSpace.x4, AppSpace.x3, AppSpace.x4, AppSpace.x2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('发送', style: AppType.caption),
-          const SizedBox(height: AppSpace.x3),
           Expanded(
             child: GridView.count(
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 3,
-              mainAxisSpacing: AppSpace.x3,
-              crossAxisSpacing: AppSpace.x2,
-              childAspectRatio: 1.1,
+              mainAxisSpacing: AppSpace.x2,
+              crossAxisSpacing: AppSpace.x3,
+              childAspectRatio: 1.0,
               children: [
                 for (final (icon, label, onTap) in items)
                   PressableScale(
@@ -306,8 +349,8 @@ class _DmChatPageState extends State<DmChatPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          width: 52,
-                          height: 52,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
                             color: const Color(AppColors.card),
                             borderRadius: AppRadius.rMd,
@@ -315,7 +358,7 @@ class _DmChatPageState extends State<DmChatPage> {
                                 color: const Color(AppColors.border)),
                           ),
                           child: Icon(icon,
-                              size: 23, color: const Color(AppColors.accent)),
+                              size: 24, color: const Color(AppColors.accent)),
                         ),
                         const SizedBox(height: AppSpace.x2),
                         Text(label, style: AppType.micro),
@@ -343,15 +386,6 @@ class _DmChatPageState extends State<DmChatPage> {
       if (!mounted) return;
       showAppToast(context, e is ApiException ? e.message : '图片发送失败');
     }
-  }
-
-  /// 表情包：选中的表情作为图片消息发送（与相册图片同一存储与渲染路径）
-  Future<void> _pickSticker() async {
-    final e = await showEmojiPanel(context);
-    if (e == null || !mounted) return;
-    final img = ((e['image'] ?? '') as String).trim();
-    if (img.isEmpty) return;
-    await _sendMedia('image', img);
   }
 
   // ignore: unused_element
@@ -409,7 +443,7 @@ class _DmChatPageState extends State<DmChatPage> {
                   surfaceColor: const Color(AppColors.bg),
                   fallbackHeight: 272,
                   inputBar: _inputBar(),
-                  panel: _panelOpen ? _sendPanel() : null,
+                  panel: _panelOpen ? _panelContent() : null,
                 ),
               ],
             ),
@@ -419,7 +453,18 @@ class _DmChatPageState extends State<DmChatPage> {
             top: 0,
             left: 0,
             right: 0,
-            child: GlassTopBar(title: widget.peerName, floating: true),
+            child: GlassTopBar(
+              title: widget.peerName,
+              floating: true,
+              leading: Padding(
+                padding: const EdgeInsets.only(right: AppSpace.x2),
+                child: AppAvatar(
+                  url: avatarUrl(widget.peerAvatar),
+                  name: widget.peerName,
+                  size: 26,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -443,6 +488,16 @@ class _DmChatPageState extends State<DmChatPage> {
           onRetry: () {
             _loadHistory();
           },
+        ),
+      );
+    }
+    if (_msgs.isEmpty) {
+      return Center(
+        child: EmptyState(
+          compact: true,
+          icon: Icons.waving_hand_rounded,
+          title: '还没有聊天记录',
+          message: '发个表情或说说近况，先打个招呼吧',
         ),
       );
     }
@@ -793,6 +848,7 @@ class _DmChatPageState extends State<DmChatPage> {
 
   /// 输入栏：胶囊输入框 + 加号（QQ 式面板）+ 薄荷发送钮
   Widget _inputBar() {
+    final emojiOpen = _panel == _PanelMode.emoji;
     return SafeArea(
       top: false,
       child: Container(
@@ -805,29 +861,45 @@ class _DmChatPageState extends State<DmChatPage> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // 加号：弹出 QQ 式发送面板
+            // 更多功能：打开时旋转成 ×
             PressableScale(
               onTap: _togglePanel,
               child: Container(
-                width: 38,
-                height: 38,
-                decoration: const BoxDecoration(
-                  color: Color(AppColors.elevated),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(AppColors.elevated),
                   shape: BoxShape.circle,
+                  border: Border.all(color: const Color(AppColors.border)),
                 ),
-                child: const Icon(Icons.add_rounded,
-                    color: Color(AppColors.accent), size: 22),
+                child: AnimatedRotation(
+                  turns: _panel == _PanelMode.more ? 0.125 : 0,
+                  duration: AppMotion.base,
+                  curve: AppMotion.standard,
+                  child: Icon(Icons.add_rounded,
+                      size: 20,
+                      color: _panel == _PanelMode.more
+                          ? const Color(AppColors.textPrimary)
+                          : const Color(AppColors.accent)),
+                ),
               ),
             ),
             const SizedBox(width: AppSpace.x2),
             Expanded(
-              child: Container(
+              child: AnimatedContainer(
+                duration: AppMotion.base,
+                curve: AppMotion.standard,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.x4, vertical: AppSpace.x2),
+                    horizontal: AppSpace.x4, vertical: AppSpace.x2 + 1),
                 decoration: BoxDecoration(
                   color: const Color(AppColors.elevated),
                   borderRadius: AppRadius.rPill,
-                  border: Border.all(color: const Color(AppColors.border)),
+                  border: Border.all(
+                    color: _inputFocus.hasFocus
+                        ? const Color(AppColors.accent)
+                            .withValues(alpha: 0.32)
+                        : const Color(AppColors.border),
+                  ),
                 ),
                 child: TextField(
                   controller: _input,
@@ -847,25 +919,64 @@ class _DmChatPageState extends State<DmChatPage> {
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                   ),
+                  onChanged: (_) => setState(() {}),
                   onTap: _closePanel,
                   onSubmitted: (_) => _send(),
                 ),
               ),
             ),
-            const SizedBox(width: AppSpace.x2),
+            const SizedBox(width: 2),
+            // 表情：内嵌面板开关，打开时切换成键盘图标
             PressableScale(
-              onTap: _send,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.accent),
-                  shape: BoxShape.circle,
-                  boxShadow: AppEffects.accentGlow(opacity: 0.3),
+              onTap: _toggleEmoji,
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: Icon(
+                  emojiOpen
+                      ? Icons.keyboard_alt_outlined
+                      : Icons.emoji_emotions_outlined,
+                  size: 22,
+                  color: emojiOpen
+                      ? const Color(AppColors.accent)
+                      : const Color(AppColors.textSecondary),
                 ),
-                child: const Icon(Icons.send_rounded,
-                    color: Color(AppColors.onAccent), size: 18),
               ),
+            ),
+            const SizedBox(width: AppSpace.x1),
+            // 发送：有内容才亮起
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _input,
+              builder: (_, v, child) {
+                final on = v.text.trim().isNotEmpty;
+                return PressableScale(
+                  onTap: _send,
+                  child: AnimatedContainer(
+                    duration: AppMotion.base,
+                    curve: AppMotion.standard,
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: on
+                          ? const Color(AppColors.accent)
+                          : const Color(AppColors.elevated),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: on
+                            ? const Color(AppColors.accent)
+                            : const Color(AppColors.border),
+                      ),
+                      boxShadow:
+                          AppEffects.accentGlow(opacity: on ? 0.28 : 0),
+                    ),
+                    child: Icon(Icons.send_rounded,
+                        size: 17,
+                        color: on
+                            ? const Color(AppColors.onAccent)
+                            : const Color(AppColors.textTertiary)),
+                  ),
+                );
+              },
             ),
           ],
         ),
