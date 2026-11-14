@@ -379,12 +379,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const SizedBox(height: 16),
+                    _authorRow(),
                     const SizedBox(height: 14),
-                    _topicBar(),
-                    const SizedBox(height: 12),
                     _contentBlock(),
-                    _statsRow(),
-                    _relatedSearch(),
                     if (_post!.topic.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Wrap(
@@ -407,15 +405,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
                             .toList(),
                       ),
                     ],
+                    _statsRow(),
+                    const SizedBox(height: 12),
+                    _topicBar(),
                     if (_hasMusic) ...[
                       const SizedBox(height: 12),
                       _musicStrip(),
                     ],
-                    const SizedBox(height: 12),
-                    Text(dateText(_post!.created),
-                        style: const TextStyle(
-                            color: Color(AppTheme.textTertiary),
-                            fontSize: 11.5)),
                     if (_post!.poll != null) ...[
                       const SizedBox(height: 12),
                       PollCard(
@@ -519,61 +515,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   _roundIconBtn(Icons.arrow_back_rounded,
                       onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
-                  // 用户名（点击进主页）
-                  if (_post != null)
-                    GestureDetector(
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) =>
-                                  UserProfilePage(uid: _post!.author.id))),
-                      child: Row(
-                        children: [
-                          // 作者头像（用户名左侧）
-                          AppAvatar(
-                            url: avatarUrlOf(_post!.author.id),
-                            size: 28,
-                            name: _post!.author.name,
-                            ring: _post!.author.isAdmin,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(_post!.author.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w700)),
-                          ),
-                          if (_post!.author.isAdmin) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 5, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: const Color(AppColors.accent)
-                                    .withValues(alpha: 0.18),
-                                borderRadius: AppRadius.rXs,
-                                border: Border.all(
-                                    color: const Color(AppColors.accent)
-                                        .withValues(alpha: 0.5)),
-                              ),
-                              child: Text(
-                                  _post!.author.adminName.isEmpty
-                                      ? '认证'
-                                      : _post!.author.adminName,
-                                  style: const TextStyle(
-                                      color: Color(AppColors.accent),
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w700)),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  const Spacer(),
-                  if (_post != null && _post!.author.id != ApiClient.userId)
+
                     _followPill(),
                   const SizedBox(width: 12),
                 ],
@@ -633,52 +575,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   /// 相关搜索（抖音"看后搜"点位，用热门话题替代，点击进话题页）
-  Widget _relatedSearch() {
-    final hot = _hotTopicCounts.keys.take(3).toList();
-    if (hot.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('相关搜索',
-              style: TextStyle(
-                  color: Color(AppTheme.textTertiary), fontSize: 12)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final t in hot)
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => TopicDetailPage(
-                              topic: t, count: _hotTopicCounts[t] ?? 0))),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(AppTheme.card),
-                      borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: const Color(AppTheme.border)),
-                    ),
-                    child: Text('#$t',
-                        style: const TextStyle(
-                            color: Color(AppTheme.textPrimary),
-                            fontSize: 12.5)),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 媒体块（列表第一项）：视频帖=全宽视频；文图帖=首图大图
   Widget _mediaBlock() {
     final p = _post!;
     if (p.isVideo) {
@@ -934,6 +830,59 @@ class _PostDetailPageState extends State<PostDetailPage> {
             mentions: p.mentions,
           ),
         ],
+      ],
+    );
+  }
+
+  /// 作者行（V16）：封面下方第一行，头像 26 + 昵称 + 时间·话题 + 关注
+  Widget _authorRow() {
+    final a = _post!.author;
+    final meta = _post!.topic.isEmpty
+        ? dateText(_post!.created)
+        : '${dateText(_post!.created)} · ${_post!.topic.first}';
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => UserProfilePage(uid: a.id)),
+          ),
+          child: AppAvatar(
+            url: avatarUrlOf(a.id),
+            size: 26,
+            name: a.name,
+            ring: a.isAdmin,
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => UserProfilePage(uid: a.id)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(a.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(AppColors.textPrimary))),
+                const SizedBox(height: 2),
+                Text(meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 10.5,
+                        color: Color(AppColors.textTertiary))),
+              ],
+            ),
+          ),
+        ),
+        if (a.id != ApiClient.userId) _followPill(),
       ],
     );
   }

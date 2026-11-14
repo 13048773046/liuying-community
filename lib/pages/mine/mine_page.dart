@@ -435,7 +435,7 @@ class _MinePageState extends State<MinePage> {
                           _settingRow(
                             icon: Icons.info_outline_rounded,
                             label: '关于流萤',
-                            tail: '0.5.3',
+                            tail: '0.5.4',
                             onTap: _showAbout,
                           ),
                         ],
@@ -975,7 +975,7 @@ class _MinePageState extends State<MinePage> {
       builder: (_) => AlertDialog(
         backgroundColor: const Color(AppColors.card),
         title: const Text('关于流萤'),
-        content: const Text('流萤社区 0.5.3\n一个安静的写作与分享社区。'),
+        content: const Text('流萤社区 0.5.4\n一个安静的写作与分享社区。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
