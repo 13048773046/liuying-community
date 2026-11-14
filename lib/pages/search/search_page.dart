@@ -23,9 +23,9 @@ import '../post/post_detail.dart';
 import '../user/user_profile.dart';
 
 /// 命中词高亮色
-const _kHitRed = Color(0xFFFE2C55);
+const _kHitRed = Color(AppColors.accent);
 /// 搜索框底色
-const _kFieldBg = Color(0xFF2A2A2E);
+const _kFieldBg = Color(AppColors.card);
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -293,7 +293,7 @@ class _SearchPageState extends State<SearchPage> {
                         hintText: '搜你想看的',
                         hintStyle: TextStyle(
                             fontSize: 15,
-                            color: Color(0xFF8A8A8E),
+                            color: Color(AppColors.textTertiary),
                             height: 1.3),
                       ),
                     ),
@@ -308,7 +308,7 @@ class _SearchPageState extends State<SearchPage> {
                             child: const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 6),
                               child: Icon(Icons.cancel_rounded,
-                                  size: 17, color: Color(0xFF8A8A8E)),
+                                  size: 17, color: Color(AppColors.textTertiary)),
                             ),
                           ),
                   ),
@@ -368,7 +368,7 @@ class _SearchPageState extends State<SearchPage> {
                 padding: EdgeInsets.only(top: 60),
                 child: Center(
                   child: Text('还没有内容，稍后再来',
-                      style: TextStyle(color: Color(0xFF8A8A8E), fontSize: 13)),
+                      style: TextStyle(color: Color(AppColors.textTertiary), fontSize: 13)),
                 ),
               ),
             )
@@ -459,14 +459,14 @@ class _SearchPageState extends State<SearchPage> {
                   children: [
                     Text(_historyExpanded ? '收起历史' : '展开更多历史',
                         style: const TextStyle(
-                            fontSize: 13.5, color: Color(0xFF9A9AA0))),
+                            fontSize: 13.5, color: Color(AppColors.textSecondary))),
                     const SizedBox(width: 2),
                     Icon(
                         _historyExpanded
                             ? Icons.keyboard_arrow_up_rounded
                             : Icons.keyboard_arrow_down_rounded,
                         size: 18,
-                        color: const Color(0xFF9A9AA0)),
+                        color: const Color(AppColors.textSecondary)),
                   ],
                 ),
               ),
@@ -484,7 +484,7 @@ class _SearchPageState extends State<SearchPage> {
                     if (ok == true) await _clearHistory();
                   },
                   child: const Icon(Icons.delete_outline_rounded,
-                      size: 19, color: Color(0xFF9A9AA0)),
+                      size: 19, color: Color(AppColors.textSecondary)),
                 ),
               ],
             ],
@@ -609,7 +609,7 @@ class _SearchPageState extends State<SearchPage> {
                 style: TextStyle(
                   fontSize: on ? 17 : 15,
                   fontWeight: on ? FontWeight.w700 : FontWeight.w400,
-                  color: on ? Colors.white : const Color(0xFF8A8A8E),
+                  color: on ? Colors.white : const Color(AppColors.textTertiary),
                 ),
               ),
             ),
@@ -626,7 +626,7 @@ class _SearchPageState extends State<SearchPage> {
       child: Center(
         child: Text(
           '$label功能建设中',
-          style: const TextStyle(fontSize: 13.5, color: Color(0xFF8A8A8E)),
+          style: const TextStyle(fontSize: 13.5, color: Color(AppColors.textTertiary)),
         ),
       ),
     );
@@ -723,7 +723,7 @@ class _SearchPageState extends State<SearchPage> {
               Text('${formatCount(followers)}粉丝',
                   maxLines: 1,
                   style: const TextStyle(
-                      fontSize: 10.5, color: Color(0xFF8A8A8E))),
+                      fontSize: 10.5, color: Color(AppColors.textTertiary))),
           ],
         ),
       ),

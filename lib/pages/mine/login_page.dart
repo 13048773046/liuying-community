@@ -159,136 +159,101 @@ class _LoginPageState extends State<LoginPage> {
   // ---------------------------------------------------------------- UI
   @override
   Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
     return ImmersivePage(
-      child: Column(
-        children: [
-          const GlassTopBar(title: '登录 / 注册', solid: true),
-          Expanded(
-            child: SingleChildScrollView(
+      child: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                AppSpace.gutter,
-                AppSpace.x5,
-                AppSpace.gutter,
-                AppSpace.x7 + MediaQuery.paddingOf(context).bottom,
-              ),
+              padding: EdgeInsets.fromLTRB(24, 76, 24, 24 + bottom),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _brand(),
-                  const SizedBox(height: AppSpace.x6),
+                  const SizedBox(height: 40),
                   _modeSwitch(),
-                  const SizedBox(height: AppSpace.x5),
+                  const SizedBox(height: 24),
                   ...(_mode == 0 ? _passwordFields() : _codeFields()),
-                  const SizedBox(height: AppSpace.x3),
+                  const SizedBox(height: 12),
                   _agreement(),
                   if (_error != null) ...[
                     const SizedBox(height: AppSpace.x3),
                     _errorBox(_error!),
                   ],
-                  const SizedBox(height: AppSpace.x6),
-                  PillButton(
-                    label: _mode == 0 ? '登录' : '登录 / 注册',
-                    size: PillSize.lg,
-                    expand: true,
-                    glow: _canSubmit,
-                    loading: _submitting,
-                    enabled: _canSubmit,
-                    onTap: _submit,
-                  ),
-                  const SizedBox(height: AppSpace.x4),
-                  Center(
-                    child: Text(
-                      _mode == 0
-                          ? '用流萤音乐账号 + 密码登录 · 没设过密码就用验证码登录'
-                          : '验证码将发送至邮箱，新用户自动注册 · 账号与流萤音乐互通',
-                      textAlign: TextAlign.center,
-                      style: AppType.micro,
-                    ),
+                  const SizedBox(height: 24),
+                  _cta(),
+                  const SizedBox(height: 14),
+                  _helperRow(),
+                  const SizedBox(height: 22),
+                  Text(
+                    '继续即表示同意《用户协议》与《隐私政策》',
+                    textAlign: TextAlign.center,
+                    style: AppType.micro.copyWith(fontSize: 11),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            Positioned(
+              left: 6,
+              top: 6,
+              child: IconCircleButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                size: 34,
+                iconSize: 16,
+                onTap: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _brand() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.xl),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(AppColors.accent).withValues(alpha: 0.22),
-                blurRadius: 32,
-                spreadRadius: 1,
-              ),
-            ],
+            color: const Color(AppColors.accent).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.xl),
-            child: Image.asset(
-              'assets/logo.png',
-              width: 72,
-              height: 72,
-              fit: BoxFit.cover,
-            ),
+          child: const Icon(Icons.flare_rounded,
+              size: 22, color: Color(AppColors.accent)),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          '流萤社区',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.44,
+            color: Color(AppColors.textPrimary),
           ),
         ),
-        const SizedBox(height: AppSpace.x4),
-        const Text('流萤社区', style: AppType.display),
-        const SizedBox(height: AppSpace.x2),
-        Text('账号与流萤音乐互通', style: AppType.bodySm),
+        const SizedBox(height: 8),
+        Text(
+          '和兴趣相同的人，在黑夜里发光。',
+          style: TextStyle(
+            fontSize: 13,
+            color: const Color(AppColors.textTertiary),
+          ),
+        ),
       ],
     );
   }
 
-  /// 两种登录方式的分段切换（带滑块，点击即切）
+  /// 文字级登录方式切换（V16：选中项带薄荷下划线）
   Widget _modeSwitch() {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: const Color(AppColors.border)),
-      ),
-      child: Stack(
-        children: [
-          AnimatedAlign(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            alignment:
-                _mode == 0 ? Alignment.centerLeft : Alignment.centerRight,
-            child: FractionallySizedBox(
-              widthFactor: 0.5,
-              heightFactor: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  color:
-                      const Color(AppColors.accent).withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(99),
-                  border: Border.all(
-                    color: const Color(AppColors.accent)
-                        .withValues(alpha: 0.45),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              Expanded(child: _modeTab('账号密码登录', 0)),
-              Expanded(child: _modeTab('邮箱验证码登录', 1)),
-            ],
-          ),
-        ],
-      ),
+    return Row(
+      children: [
+        _modeTab('密码登录', 0),
+        const SizedBox(width: 26),
+        _modeTab('验证码登录', 1),
+      ],
     );
   }
 
@@ -296,18 +261,32 @@ class _LoginPageState extends State<LoginPage> {
     final on = _mode == idx;
     return PressableScale(
       onTap: () => _switchMode(idx),
-      child: Center(
-        child: Text(
-          label,
-          maxLines: 1,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: on ? FontWeight.w700 : FontWeight.w500,
-            color: on
-                ? const Color(AppColors.textPrimary)
-                : const Color(AppColors.textTertiary),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              height: 1.2,
+              fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+              color: on
+                  ? const Color(AppColors.textPrimary)
+                  : const Color(AppColors.textTertiary),
+            ),
           ),
-        ),
+          const SizedBox(height: 6),
+          AnimatedContainer(
+            duration: AppMotion.base,
+            curve: AppMotion.standard,
+            width: on ? 18 : 0,
+            height: 2,
+            decoration: BoxDecoration(
+              color: const Color(AppColors.accent),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -473,13 +452,69 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   InputDecoration _input(String hint, IconData icon) {
+    const side = BorderSide(color: Color(AppColors.hairline));
     return InputDecoration(
       hintText: hint,
       hintStyle:
           AppType.bodySm.copyWith(color: const Color(AppColors.textTertiary)),
-      prefixIcon:
-          Icon(icon, size: 20, color: const Color(AppColors.textTertiary)),
+      prefixIcon: Icon(icon, size: 18, color: const Color(AppColors.textTertiary)),
+      prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 0),
       counterText: '',
+      filled: false,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(vertical: 13),
+      border: const UnderlineInputBorder(borderSide: side),
+      enabledBorder: const UnderlineInputBorder(borderSide: side),
+      focusedBorder: const UnderlineInputBorder(
+        borderSide: BorderSide(color: Color(AppColors.accent), width: 1.4),
+      ),
+    );
+  }
+
+  Widget _cta() {
+    return PressableScale(
+      onTap: _canSubmit ? _submit : null,
+      scale: 0.985,
+      child: Container(
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(AppColors.accent)
+              .withValues(alpha: _canSubmit ? 1 : 0.35),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: _submitting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Color(AppColors.onAccent)),
+              )
+            : Text(
+                _mode == 0 ? '登录' : '登录 / 注册',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(AppColors.onAccent),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _helperRow() {
+    return Row(
+      children: [
+        Text('忘记密码',
+            style: TextStyle(
+                fontSize: 13, color: const Color(AppColors.textTertiary))),
+        const Spacer(),
+        Text('注册新账号',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(AppColors.accent))),
+      ],
     );
   }
 }

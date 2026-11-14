@@ -383,6 +383,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     _topicBar(),
                     const SizedBox(height: 12),
                     _contentBlock(),
+                    _statsRow(),
                     _relatedSearch(),
                     if (_post!.topic.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -394,12 +395,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: const Color(AppTheme.accentSoft),
-                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: const Color(AppTheme.border)),
+                                    borderRadius: BorderRadius.circular(99),
                                   ),
                                   child: Text('#$t',
                                       style: const TextStyle(
-                                          color: Color(AppTheme.accent),
+                                          color: Color(AppTheme.textSecondary),
                                           fontSize: 12)),
                                 ))
                             .toList(),
@@ -431,20 +433,33 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        Text('共$_cCount条评论',
-                            style: const TextStyle(
+                        const Text('评论',
+                            style: TextStyle(
                                 color: Color(AppTheme.textPrimary),
                                 fontSize: 15,
-                                fontWeight: FontWeight.w600)),
-                        const Spacer(),
-                        if (_cHasMore)
+                                fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 6),
+                        Text('$_cCount',
+                            style: const TextStyle(
+                                color: Color(AppTheme.textTertiary),
+                                fontSize: 11.5)),
+                        if (_cHasMore) ...[
+                          const SizedBox(width: 10),
                           GestureDetector(
                             onTap: () => _loadComments(),
                             child: const Text('加载更多',
                                 style: TextStyle(
                                     color: Color(AppTheme.textSecondary),
-                                    fontSize: 12)),
+                                    fontSize: 11.5)),
                           ),
+                        ],
+                        const Spacer(),
+                        const Text('最热',
+                            style: TextStyle(
+                                color: Color(AppTheme.textTertiary),
+                                fontSize: 11.5)),
+                        const Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 14, color: Color(AppTheme.textTertiary)),
                       ],
                     ),
                     // 有爱评论引导条（对齐抖音）
@@ -682,32 +697,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
     if (p.images.isNotEmpty) {
       if (p.images.length == 1) {
-        // 单图：16 边距 + 20 圆角，点击进全屏查看
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
-          child: GestureDetector(
-            onTap: () => _openGallery(0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
-                child: CachedNetworkImageCompat(
-                  url: mediaUrl(p.images[0]),
-                  fit: BoxFit.cover,
-                ),
-              ),
+        // 单图：出血铺满、无圆角（V16 详情封面）
+        return GestureDetector(
+          onTap: () => _openGallery(0),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: CachedNetworkImageCompat(
+              url: mediaUrl(p.images[0]),
+              fit: BoxFit.cover,
             ),
           ),
         );
       }
       // 多图：同一位置图集式（PageView 左右滑动切换）+ 指示点
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: AspectRatio(
-            aspectRatio: 1,
-            child: Stack(
+      return AspectRatio(
+        aspectRatio: 1,
+        child: Stack(
               fit: StackFit.expand,
               children: [
                 PageView.builder(
@@ -748,8 +753,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 ),
               ],
             ),
-          ),
-        ),
       );
     }
     return const SizedBox.shrink();
@@ -902,16 +905,63 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Widget _contentBlock() {
     final p = _post!;
+    final content = p.content.trim();
+    // 首句作为标题（≤40 字，遇到句末标点或换行截断），其余作为正文
+    final m = RegExp(r'^(.{0,40}?)([。！？\n]|$)').firstMatch(content);
+    final title = (m?.group(1) ?? content).trim();
+    final rest = (m != null && m.end < content.length)
+        ? content.substring(m.end).trim()
+        : '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _HighlightContent(
-          text: p.content,
-          topics: p.topic,
-          mentions: p.mentions,
-        ),
-        // 图片只在顶部媒体区单位置展示（多图为滑动图集），正文不再重复渲染
+        if (title.isNotEmpty)
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.4,
+              color: Color(AppColors.textPrimary),
+            ),
+          ),
+        if (rest.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _HighlightContent(
+            text: rest,
+            topics: p.topic,
+            mentions: p.mentions,
+          ),
+        ],
       ],
+    );
+  }
+
+  /// 数据行：点赞 / 评论 / 收藏（V16 dstats）
+  Widget _statsRow() {
+    final items = <String>[
+      '${formatCount(_likeCount)} 点赞',
+      '${formatCount(_cCount)} 评论',
+      if (_faved || _latered) '已收藏' else '收藏',
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(
+        children: [
+          for (final t in items)
+            Padding(
+              padding: const EdgeInsets.only(right: 18),
+              child: Text(
+                t,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(AppColors.textTertiary),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1017,15 +1067,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 ),
               ),
               const SizedBox(width: 6),
-              _miniIcon(Icons.emoji_emotions_outlined, _openComments),
-              _miniIcon(Icons.image_outlined, _openComments),
               _miniAction(
                   _liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  countText(_likeCount),
+                  '',
                   _liked ? const Color(AppColors.heart) : null, _toggleLike,
                   trigger: _liked),
-              _miniAction(Icons.mode_comment_outlined, countText(_cCount), null,
-                  _openComments),
               _miniAction(
                   _faved || _latered
                       ? Icons.bookmark_rounded
@@ -1276,8 +1322,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         children: [
                           Icon(
                             (c['liked'] ?? false) == true
-                                ? Icons.thumb_up_rounded
-                                : Icons.thumb_up_alt_outlined,
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
                             size: 12,
                             color: (c['liked'] ?? false) == true
                                 ? const Color(AppTheme.accent)

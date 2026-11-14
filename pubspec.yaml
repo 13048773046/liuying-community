@@ -1,7 +1,7 @@
 name: community_app
 description: "流萤社区 · 短视频+图文混合社区（Android/iOS 单代码库，与流萤音乐账号互通）"
 publish_to: 'none'
-version: 0.5.2+26
+version: 0.5.3+27
 
 environment:
   sdk: ^3.13.5
