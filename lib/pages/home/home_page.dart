@@ -682,20 +682,14 @@ class _HomePageState extends State<HomePage>
       ),
       child: Column(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: cells[0]),
-              Expanded(child: cells[1]),
-            ],
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: cells[2]),
-              Expanded(child: cells[3]),
-            ],
-          ),
+          Row(children: [
+            Expanded(child: cells[0]),
+            Expanded(child: cells[1]),
+          ]),
+          Row(children: [
+            Expanded(child: cells[2]),
+            Expanded(child: cells[3]),
+          ]),
         ],
       ),
     );
@@ -726,6 +720,7 @@ class _HomePageState extends State<HomePage>
           ),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
