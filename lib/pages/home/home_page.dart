@@ -28,7 +28,10 @@ import '../user/user_profile.dart';
 import '../message/notif_list_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.onFloorOpenChanged});
+
+  /// 二楼展开/收起时通知外层（用于隐藏底部导航，避免中心发布键抢点击）
+  final ValueChanged<bool>? onFloorOpenChanged;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -374,7 +377,10 @@ class _HomePageState extends State<HomePage>
   void _springTo(double target, {double velocity = 0}) {
     if (target == 1.0) {
       HapticFeedback.mediumImpact();
-      if (!_floorOpen) setState(() => _floorOpen = true);
+      if (!_floorOpen) {
+        setState(() => _floorOpen = true);
+        widget.onFloorOpenChanged?.call(true);
+      }
     }
     final f = _pullCtl.animateWith(SpringSimulation(
       const SpringDescription(mass: 1, stiffness: 210, damping: 26),
@@ -389,7 +395,10 @@ class _HomePageState extends State<HomePage>
         if (!mounted) return;
         if (_pullCtl.value <= 0.02) {
           _pullCtl.value = 0;
-          if (_floorOpen) setState(() => _floorOpen = false);
+          if (_floorOpen) {
+            setState(() => _floorOpen = false);
+            widget.onFloorOpenChanged?.call(false);
+          }
         }
       });
     }
@@ -458,8 +467,8 @@ class _HomePageState extends State<HomePage>
             child: ListView(
               controller: _panelScroll,
               physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpace.gutter, AppSpace.x2, AppSpace.gutter, 96),
+              padding: EdgeInsets.fromLTRB(
+                  AppSpace.gutter, _seamY + AppSpace.x2, AppSpace.gutter, 96),
               children: [
                 Center(
                   child: Container(

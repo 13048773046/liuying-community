@@ -31,6 +31,7 @@ class RootPage extends StatefulWidget {
 
 class _RootPageState extends State<RootPage> {
   int _tab = 0; // 0 首页 | 1 版块 | 2 短视频 | 3 消息 | 4 我的
+  bool _floorOpen = false; // 首页二楼是否展开（展开时隐藏底栏）
 
   void _onTabChanged(int i) {
     if (i == _tab) return;
@@ -39,12 +40,14 @@ class _RootPageState extends State<RootPage> {
     setState(() => _tab = i);
   }
 
-  static const _pages = <Widget>[
-    HomePage(),
-    BoardsPage(),
-    ShortsPage(),
-    MessagePage(),
-    MinePage(),
+  late final List<Widget> _pages = <Widget>[
+    HomePage(onFloorOpenChanged: (v) {
+      if (mounted && _floorOpen != v) setState(() => _floorOpen = v);
+    }),
+    const BoardsPage(),
+    const ShortsPage(),
+    const MessagePage(),
+    const MinePage(),
   ];
 
   @override
@@ -86,6 +89,7 @@ class _RootPageState extends State<RootPage> {
             right: 0,
             bottom: 0,
             child: _BottomNav(
+              hidden: _floorOpen,
               index: _tab,
               immersive: isShorts,
               onChanged: _onTabChanged,
@@ -106,6 +110,7 @@ class _RootPageState extends State<RootPage> {
 /// 贴底通栏导航：96% 黑 + 顶部一条发丝线，中间是圆角矩形发布键。
 class _BottomNav extends StatelessWidget {
   const _BottomNav({
+    this.hidden = false,
     required this.index,
     required this.immersive,
     required this.onChanged,
@@ -113,6 +118,7 @@ class _BottomNav extends StatelessWidget {
     required this.onShorts,
   });
 
+  final bool hidden;
   final int index;
   final bool immersive;
   final ValueChanged<int> onChanged;
@@ -166,14 +172,22 @@ class _BottomNav extends StatelessWidget {
       ),
     );
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xF5000000),
-        border: Border(top: BorderSide(color: Color(AppColors.border), width: 1)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottom),
-        child: bar,
+    return IgnorePointer(
+      ignoring: hidden,
+      child: AnimatedOpacity(
+        duration: AppMotion.base,
+        opacity: hidden ? 0 : 1,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xF5000000),
+            border: Border(
+                top: BorderSide(color: Color(AppColors.border), width: 1)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottom),
+            child: bar,
+          ),
+        ),
       ),
     );
   }
