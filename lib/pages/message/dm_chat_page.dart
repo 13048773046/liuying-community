@@ -93,10 +93,11 @@ class _DmChatPageState extends State<DmChatPage> {
     _loadHistory();
     // 实时接收对方消息
     _dmSub = NotifyBus.shared.onDm.stream.listen(_onDm);
-    // 进入即标记已读
-    Future.delayed(const Duration(milliseconds: 300), () {
+    // 进入即标记已读，随后按服务端真实未读刷新（避免竞态）
+    Future.delayed(const Duration(milliseconds: 300), () async {
       try {
-        ApiClient.dmRead(widget.peerId);
+        await ApiClient.dmRead(widget.peerId);
+        await _refreshDmUnread();
       } catch (_) {}
     });
   }
@@ -123,17 +124,20 @@ class _DmChatPageState extends State<DmChatPage> {
         });
       });
       _scrollToBottom();
-      try {
-        ApiClient.dmRead(widget.peerId);
-      } catch (_) {}
-      _refreshDmUnread();
+      Future(() async {
+        try {
+          await ApiClient.dmRead(widget.peerId);
+          await _refreshDmUnread();
+        } catch (_) {}
+      });
     }
   }
 
   Future<void> _refreshDmUnread() async {
     try {
       final j = await ApiClient.dmUnread();
-      NotifyBus.shared.dmUnread.value = ((j['unread'] ?? 0) as num).toInt();
+      final n = j['unread'] ?? j['count'] ?? 0;
+      NotifyBus.shared.dmUnread.value = (n as num).toInt();
     } catch (_) {}
   }
 

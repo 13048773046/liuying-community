@@ -848,8 +848,8 @@ class _HomePageState extends State<HomePage>
                     ),
                     if (n > 0)
                       Positioned(
-                        right: 9,
-                        top: 8,
+                        right: 7,
+                        top: 6,
                         child: Container(
                           width: 6,
                           height: 6,
