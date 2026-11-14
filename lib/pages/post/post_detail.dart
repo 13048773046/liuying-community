@@ -91,6 +91,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       // 配乐：打开图文/视频详情自动播放所选 BGM
       final m = _post!.music;
       if (m != null && m['url'] is String && (m['url'] as String).isNotEmpty) {
+        MusicBgm.I.setVolume(_post!.musicVolume / 100.0);
         MusicBgm.I.play(m['url'] as String);
       }
       await _loadComments(refresh: true);
@@ -514,10 +515,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   const SizedBox(width: 6),
                   _roundIconBtn(Icons.arrow_back_rounded,
                       onTap: () => Navigator.of(context).maybePop()),
-                  const SizedBox(width: 12),
-
-                    _followPill(),
-                  const SizedBox(width: 12),
+                  const Spacer(),
                 ],
               ),
             ),
@@ -587,6 +585,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
             coverUrl: mediaUrl(
                 p.cover == 'auto' ? '${p.video}.jpg' : p.cover),
             borderRadius: 0,
+            audioVolume: p.audioVolume,
           ),
         ),
       );
@@ -665,7 +664,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  /// 关注胶囊（顶部栏右侧）
+  /// 关注胶囊（作者行右侧）
   Widget _followPill() {
     final a = _post!.author;
     return PillButton(
@@ -1370,8 +1369,12 @@ class _InlineVideo extends StatefulWidget {
   final String url;
   final String coverUrl;
   final double borderRadius;
+  final int audioVolume;
   const _InlineVideo(
-      {required this.url, required this.coverUrl, this.borderRadius = 12});
+      {required this.url,
+      required this.coverUrl,
+      this.borderRadius = 12,
+      this.audioVolume = 100});
 
   @override
   State<_InlineVideo> createState() => _InlineVideoState();
@@ -1438,7 +1441,7 @@ class _InlineVideoState extends State<_InlineVideo>
   void _apply() {
     final v = _vc;
     if (v == null || !v.value.isInitialized) return;
-    v.setVolume(1);
+    v.setVolume(widget.audioVolume / 100.0);
     if (_wantPlay) {
       v.setLooping(true);
       v.play();

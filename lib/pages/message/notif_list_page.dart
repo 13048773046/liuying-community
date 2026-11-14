@@ -37,7 +37,7 @@ class _NotifListPageState extends State<NotifListPage> {
       final t = _strOf(n['type']).toLowerCase();
       switch (k) {
         case 'like':
-          return t.contains('like') || t.contains('interact');
+          return t.contains('like');
         case 'comment':
           return t.contains('comment') ||
               t.contains('reply') ||
