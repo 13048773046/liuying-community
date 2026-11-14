@@ -22,6 +22,7 @@ import '../../config.dart';
 import '../../design/components.dart';
 import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
+import '../../widgets/emoji_panel.dart';
 import '../../widgets/input_panel_host.dart';
 import '../user/user_profile.dart';
 import 'location_picker_page.dart';
@@ -268,6 +269,10 @@ class _DmChatPageState extends State<DmChatPage> {
         _closePanel();
         _pickImage(ImageSource.gallery);
       }),
+      (Icons.emoji_emotions_outlined, '表情', () {
+        _closePanel();
+        _pickSticker();
+      }),
       (Icons.photo_camera_rounded, '拍照', () {
         _closePanel();
         _pickImage(ImageSource.camera);
@@ -340,6 +345,15 @@ class _DmChatPageState extends State<DmChatPage> {
     }
   }
 
+  /// 表情包：选中的表情作为图片消息发送（与相册图片同一存储与渲染路径）
+  Future<void> _pickSticker() async {
+    final e = await showEmojiPanel(context);
+    if (e == null || !mounted) return;
+    final img = ((e['image'] ?? '') as String).trim();
+    if (img.isEmpty) return;
+    await _sendMedia('image', img);
+  }
+
   // ignore: unused_element
   Future<void> _pickVideo() async {
     try {
@@ -393,7 +407,7 @@ class _DmChatPageState extends State<DmChatPage> {
                 InputPanelHost(
                   absorbInsets: false,
                   surfaceColor: const Color(AppColors.bg),
-                  fallbackHeight: 232,
+                  fallbackHeight: 272,
                   inputBar: _inputBar(),
                   panel: _panelOpen ? _sendPanel() : null,
                 ),

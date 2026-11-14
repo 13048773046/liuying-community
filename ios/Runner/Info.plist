@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>需要使用相机拍摄照片，发送给私信好友或发布到社区。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册，以选择图片发送给好友或发布到社区。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>需要把拍摄或编辑后的照片保存到相册。</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
