@@ -945,30 +945,11 @@ class _ImageMediaState extends State<_ImageMedia>
           onPageChanged: _onManual,
           itemBuilder: (_, i) => _image(imgs[i]),
         ),
-        // 顶部轻微暗化：保证白色分段条在任何颜色图片上都清晰（抖音式）
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          height: MediaQuery.viewPaddingOf(context).top + 26,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.45),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ),
-        // 抖音式顶部分段进度条（状态栏下方，已看段数即当前位置）
+        // 分段进度条：贴底栏上沿，与视频进度条同一水平线
         Positioned(
           left: 12,
           right: 12,
-          top: MediaQuery.viewPaddingOf(context).top + 8,
+          bottom: _navBarHeight(context) + 8,
           child: Row(
             children: List.generate(imgs.length, (i) {
               return Expanded(
