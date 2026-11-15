@@ -1,0 +1,52 @@
+name: member-ios-ipa
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ios-ipa:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply member UI patch
+        run: |
+          set -e
+          curl -fsSL "https://aka.doubaocdn.com/s/Q7MYOuSdKF" -o /tmp/patch.zip
+          unzip -oq /tmp/patch.zip -d "$GITHUB_WORKSPACE"
+          rm -f lib/pages/shorts/comment_sheet.dart
+          grep -m1 version: pubspec.yaml
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+      - name: Build iOS
+        run: |
+          set -e
+          flutter pub get
+          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          flutter build ios --release --no-codesign
+          APP=$(find build/ios/iphoneos -name "*.app" | head -1)
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r community-unsigned.ipa Payload
+          ls -la community-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: member-ipa
+          path: build/ios/ipa/community-unsigned.ipa
+      - name: Publish to dist-ios
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/pub && cd /tmp/pub
+          git init -q -b dist-ios
+          git config user.name ci
+          git config user.email ci@users.noreply.github.com
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned.ipa" .
+          git add -A
+          git commit -q -m "publish ios"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios
