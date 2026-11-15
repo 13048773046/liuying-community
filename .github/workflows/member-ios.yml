@@ -13,9 +13,8 @@ jobs:
       - name: Apply source patch
         run: |
           set -e
-          curl -fsSL "https://aka.doubaocdn.com/s/WykxdGvyKy" -o /tmp/patch.zip
+          curl -fsSL "https://aka.doubaocdn.com/s/N07DkCUJE3" -o /tmp/patch.zip
           unzip -oq /tmp/patch.zip -d "$GITHUB_WORKSPACE"
-          rm -f lib/pages/shorts/comment_sheet.dart
           grep -m1 version: pubspec.yaml
           ls assets/frames | wc -l
       - uses: subosito/flutter-action@v2
