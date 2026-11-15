@@ -23,12 +23,12 @@ jobs:
             | while read id; do [ -n "$id" ] && gh run cancel "$id" || true; done
       - name: Apply patch
         run: |
-          curl -fsSL "https://aka.doubaocdn.com/s/8W02VBR6IP" -o /tmp/p.zip
+          curl -fsSL "https://aka.doubaocdn.com/s/P58ehWuVyO" -o /tmp/p.zip
           unzip -o /tmp/p.zip -d .
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           git add -A
-          git commit -m "apply ui v33 0.6.7 (flat dm top bar)" || echo "no changes"
+          git commit -m "apply ui v34 0.6.8 (floor top matches status bar)" || echo "no changes"
           git push origin HEAD:ui/immersive-black
       - name: Trigger build
         env:
