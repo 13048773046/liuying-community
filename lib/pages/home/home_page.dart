@@ -87,6 +87,9 @@ class _HomePageState extends State<HomePage>
   final GlobalKey _topKey = GlobalKey();
   double _seamY = 132;
 
+  /// 二楼面板顶部色（背景渐变起点），状态栏区也用它，保证连成一片
+  static const Color kFloorTop = Color(0xFF0B0D10);
+
   /// 二楼满开所需的手指行程 = 分开口到屏幕底部的距离。
   /// 位移按像素 1:1 映射到手指，拖多少画面就走多少，手感才跟得住。
   double _maxOpen = 700;
@@ -213,9 +216,13 @@ class _HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureSeam());
     return ImmersivePage(
-      child: SafeArea(
-        bottom: false,
-        child: LayoutBuilder(
+      // 二楼展开时，状态栏区域也要铺二楼顶色，不能露出一楼纯黑
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          SafeArea(
+            bottom: false,
+            child: LayoutBuilder(
           builder: (context, box) {
             final h = box.maxHeight;
             final p = _pullCtl.value.clamp(0.0, 1.0);
@@ -302,7 +309,29 @@ class _HomePageState extends State<HomePage>
               child: body,
             );
           },
-        ),
+            ),
+          ),
+          // 状态栏区底色：跟二楼顶部同色，随展开进度淡入
+          Builder(
+            builder: (context) {
+              final p = _pullCtl.value.clamp(0.0, 1.0);
+              if (p <= 0.001) return const SizedBox.shrink();
+              final top = MediaQuery.paddingOf(context).top;
+              return Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: top,
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: p,
+                    child: const ColoredBox(color: kFloorTop),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -464,7 +493,7 @@ class _HomePageState extends State<HomePage>
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF0B0D10), Color(AppColors.bg)],
+              colors: [kFloorTop, Color(AppColors.bg)],
             ),
           ),
           child: SafeArea(
