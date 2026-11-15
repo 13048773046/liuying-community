@@ -492,21 +492,40 @@ class _DmChatPageState extends State<DmChatPage> {
               ],
             ),
           ),
-          // 悬浮顶栏：标题 + 返回
+          // 顶部：平面黑色标题栏（返回 + 头像 + 昵称），不做胶囊悬浮
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: GlassTopBar(
-              title: widget.peerName,
-              floating: true,
-              leading: Padding(
-                padding: const EdgeInsets.only(right: AppSpace.x2),
-                child: AppAvatar(
-                  url: avatarUrl(widget.peerAvatar),
-                  name: widget.peerName,
-                  size: 26,
-                ),
+            child: Container(
+              height: top + 52,
+              padding: EdgeInsets.only(
+                  top: top, left: AppSpace.x2, right: AppSpace.x3),
+              color: const Color(AppColors.bg),
+              child: Row(
+                children: [
+                  IconCircleButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    size: 36,
+                    iconSize: 17,
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: AppSpace.x1),
+                  AppAvatar(
+                    url: avatarUrl(widget.peerAvatar),
+                    name: widget.peerName,
+                    size: 30,
+                  ),
+                  const SizedBox(width: AppSpace.x3),
+                  Expanded(
+                    child: Text(
+                      widget.peerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.title.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
