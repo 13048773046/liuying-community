@@ -20,11 +20,11 @@ jobs:
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL "https://aka.doubaocdn.com/s/V83hJgiu33" -o /tmp/ai.zip
+          curl -fsSL "https://aka.doubaocdn.com/s/ngf89OmOSq" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
           grep -m1 version: pubspec.yaml
           grep -n 'ai workshop' lib/pages/home/home_page.dart | head -3 || true
-          grep -n 'AI 工坊 v2' lib/pages/home/af_workbench_page.dart | head -3
+          grep -n 'AI 工坊 v9' lib/pages/home/af_workbench_page.dart | head -3
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
