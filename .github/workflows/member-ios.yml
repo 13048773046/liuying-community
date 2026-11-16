@@ -19,13 +19,14 @@ jobs:
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/1qbA9aGFeO" -o /tmp/ai.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/VYPvVfNhpQ" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
-          grep -q 'AI 工坊 v17' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
+          grep -q 'AI 工坊 v18' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
           grep -q 'TickerProviderStateMixin' "$GITHUB_WORKSPACE/lib/pages/home/af_effort_card.dart"
+          grep -q 'PopScope' "$GITHUB_WORKSPACE/lib/pages/home/af_effort_card.dart"
           grep -q '_fileCard' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
           grep -q '_initWeb' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
-          echo "SOURCE_OK v17"
+          echo "SOURCE_OK v18"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
