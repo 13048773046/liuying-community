@@ -10,13 +10,20 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply source patch
+      - name: Apply base patch
         run: |
           set -e
-          curl -fsSL "https://aka.doubaocdn.com/s/HWU6eLIbXw" -o /tmp/patch.zip
-          unzip -oq /tmp/patch.zip -d "$GITHUB_WORKSPACE"
+          curl -fsSL "https://aka.doubaocdn.com/s/HWU6eLIbXw" -o /tmp/base.zip
+          unzip -oq /tmp/base.zip -d "$GITHUB_WORKSPACE"
           grep -m1 version: pubspec.yaml
           ls assets/frames | wc -l
+      - name: Apply AI workshop source
+        run: |
+          set -e
+          curl -fsSL "https://aka.doubaocdn.com/s/c8DEdeSSPA" -o /tmp/ai.zip
+          unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
+          grep -m1 version: pubspec.yaml
+          grep -n 'af_workbench' lib/pages/home/home_page.dart | head -3
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
