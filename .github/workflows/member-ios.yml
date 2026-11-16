@@ -19,11 +19,10 @@ jobs:
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/W1hEEUefQy" -o /tmp/ai.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/qmm0uFvqVX" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
-          grep -q 'AI 工坊 v11' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
-          grep -q '_convId' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
-          echo "SOURCE_OK v11"
+          grep -q 'AI 工坊 v12' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
+          echo "SOURCE_OK v12"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
