@@ -13,18 +13,17 @@ jobs:
       - name: Apply base patch
         run: |
           set -e
-          curl -fsSL "https://aka.doubaocdn.com/s/HWU6eLIbXw" -o /tmp/base.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/HWU6eLIbXw" -o /tmp/base.zip
           unzip -oq /tmp/base.zip -d "$GITHUB_WORKSPACE"
           grep -m1 version: pubspec.yaml
           ls assets/frames | wc -l
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL "https://aka.doubaocdn.com/s/ngf89OmOSq" -o /tmp/ai.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/ZT805xSYcH" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
-          grep -m1 version: pubspec.yaml
-          grep -n 'ai workshop' lib/pages/home/home_page.dart | head -3 || true
-          grep -n 'AI 工坊 v9' lib/pages/home/af_workbench_page.dart | head -3
+          grep -q 'AI 工坊 v9' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
+          echo "SOURCE_OK v9"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
