@@ -20,7 +20,7 @@ jobs:
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL "https://aka.doubaocdn.com/s/c8DEdeSSPA" -o /tmp/ai.zip
+          curl -fsSL "https://aka.doubaocdn.com/s/bUjydUoFsC" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
           grep -m1 version: pubspec.yaml
           grep -n 'af_workbench' lib/pages/home/home_page.dart | head -3
