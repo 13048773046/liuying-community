@@ -13,7 +13,7 @@ jobs:
       - name: Apply base patch
         run: |
           set -e
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/h9YjYp2kDf" -o /tmp/base.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/DVponpR5Rw" -o /tmp/base.zip
           unzip -oq /tmp/base.zip -d "$GITHUB_WORKSPACE"
           grep -m1 version: pubspec.yaml
       - name: Apply AI workshop source
@@ -32,9 +32,10 @@ jobs:
           grep -q 'NotoSansSC' "$GITHUB_WORKSPACE/pubspec.yaml"
           grep -q 'gen_image' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart" || true
           grep -q 'uploadProof' "$GITHUB_WORKSPACE/lib/api/client.dart"
+          grep -q 'memberPayCreate' "$GITHUB_WORKSPACE/lib/api/client.dart"
           grep -q 'memberApply' "$GITHUB_WORKSPACE/lib/pages/mine/member_page.dart"
           test -f "$GITHUB_WORKSPACE/assets/fonts/NotoSansSC-Regular.otf"
-          echo "SOURCE_OK v34"
+          echo "SOURCE_OK v35"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
