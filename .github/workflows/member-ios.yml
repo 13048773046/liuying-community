@@ -32,7 +32,7 @@ jobs:
           grep -q 'NotoSansSC' "$GITHUB_WORKSPACE/pubspec.yaml"
           grep -q 'gen_image' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart" || true
           grep -q 'uploadProof' "$GITHUB_WORKSPACE/lib/api/client.dart"
-          grep -q 'member-apply|memberApply' "$GITHUB_WORKSPACE/lib/pages/mine/member_page.dart"
+          grep -q 'memberApply' "$GITHUB_WORKSPACE/lib/pages/mine/member_page.dart"
           test -f "$GITHUB_WORKSPACE/assets/fonts/NotoSansSC-Regular.otf"
           echo "SOURCE_OK v34"
       - uses: subosito/flutter-action@v2
