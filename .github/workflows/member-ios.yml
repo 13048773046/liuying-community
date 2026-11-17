@@ -19,9 +19,9 @@ jobs:
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/eKKeI3CyVr" -o /tmp/ai.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/OJxPV9w4Pg" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
-          grep -q 'AI 工坊 v26' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
+          grep -q 'AI 工坊 v27' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
           grep -q 'AfPalette' "$GITHUB_WORKSPACE/lib/pages/home/af_palette.dart"
           grep -q 'key_hint' "$GITHUB_WORKSPACE/lib/pages/home/af_providers.dart"
           grep -q 'afSplitSummary' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
@@ -30,7 +30,7 @@ jobs:
           grep -q '_startResume' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
           grep -q 'openApiId' "$GITHUB_WORKSPACE/lib/pages/home/af_effort_card.dart"
           grep -q 'file_picker: \^10' "$GITHUB_WORKSPACE/pubspec.yaml"
-          echo "SOURCE_OK v26"
+          echo "SOURCE_OK v27"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
