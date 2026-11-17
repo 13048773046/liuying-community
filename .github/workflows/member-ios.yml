@@ -19,7 +19,7 @@ jobs:
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/mks8G4HZUd" -o /tmp/ai.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/ndUewBOCLK" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
           grep -q 'AI 工坊 v21' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
           grep -q 'af_providers' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
