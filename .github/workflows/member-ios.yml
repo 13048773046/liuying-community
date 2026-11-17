@@ -19,18 +19,17 @@ jobs:
       - name: Apply AI workshop source
         run: |
           set -e
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/uoluo2v0C7" -o /tmp/ai.zip
+          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/l63nHMdsSt" -o /tmp/ai.zip
           unzip -oq /tmp/ai.zip -d "$GITHUB_WORKSPACE"
-          grep -q 'AI 工坊 v30' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
+          grep -q 'AI 工坊 v31' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
           grep -q 'AfPalette' "$GITHUB_WORKSPACE/lib/pages/home/af_palette.dart"
           grep -q 'key_hint' "$GITHUB_WORKSPACE/lib/pages/home/af_providers.dart"
           grep -q 'afSplitSummary' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
-          grep -q 'kAfMaxImgs' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
-          grep -q '自建 API · 不计费' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
-          grep -q '_startResume' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
+          grep -q '_drawerCtrl' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
+          grep -q '_convActions' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
           grep -q 'onEditProvider' "$GITHUB_WORKSPACE/lib/pages/home/af_effort_card.dart"
-          grep -q 'file_picker: \^10' "$GITHUB_WORKSPACE/pubspec.yaml"
-          echo "SOURCE_OK v30"
+          grep -q 'file_picker: ^10' "$GITHUB_WORKSPACE/pubspec.yaml"
+          echo "SOURCE_OK v31"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
