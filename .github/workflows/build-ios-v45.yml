@@ -19,8 +19,8 @@ jobs:
           set -euo pipefail
           curl -fL --retry 3 --retry-delay 2 'https://aka.doubaocdn.com/s/XZUuVUgVSl' -o /tmp/src.zip
           unzip -tq /tmp/src.zip >/dev/null
-          rm -rf lib ios assets
-          unzip -q /tmp/src.zip -d "$GITHUB_WORKSPACE"
+          rm -rf lib ios assets pubspec.yaml pubspec.lock
+          unzip -oq /tmp/src.zip -d "$GITHUB_WORKSPACE"
           test -f pubspec.yaml
           test -f lib/main.dart
           test -f ios/Runner.xcodeproj/project.pbxproj
