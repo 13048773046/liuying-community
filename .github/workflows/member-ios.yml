@@ -10,39 +10,21 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply base patch
+      - name: Apply source patches
         run: |
           set -e
           curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/DVponpR5Rw" -o /tmp/base.zip
-          unzip -oq /tmp/base.zip -d "$GITHUB_WORKSPACE"
-          grep -m1 version: pubspec.yaml
-      - name: Apply v36 patch
-        run: |
-          set -e
           curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/MJuEas34Ol" -o /tmp/v36.zip
-          unzip -oq /tmp/v36.zip -d "$GITHUB_WORKSPACE"
-          grep -q 'version: 0.8.5+64' "$GITHUB_WORKSPACE/pubspec.yaml"
-          test -f "$GITHUB_WORKSPACE/assets/ai/xiaoying_wave.gif"
-          test -f "$GITHUB_WORKSPACE/assets/ai/xiaoying.png"
-          grep -q 'class AiAvatar' "$GITHUB_WORKSPACE/lib/widgets/ai_avatar.dart"
-          grep -q 'AiAvatar' "$GITHUB_WORKSPACE/lib/pages/home/af_workbench_page.dart"
-          grep -q '_planNameOf' "$GITHUB_WORKSPACE/lib/pages/mine/member_page.dart"
-          grep -q '为员权盈' "$GITHUB_WORKSPACE/lib/pages/mine/member_page.dart"
-          grep -q 'memberPayCreate' "$GITHUB_WORKSPACE/lib/api/client.dart"
-          grep -q 'memberApply' "$GITHUB_WORKSPACE/lib/pages/mine/member_page.dart"
-          grep -q 'NotoSansSC' "$GITHUB_WORKSPACE/pubspec.yaml"
-          test -f "$GITHUB_WORKSPACE/assets/fonts/NotoSansSC-Regular.otf"
-          echo "SOURCE_OK v36"
-      - name: Apply v37 mine UI patch
-        run: |
-          set -e
           curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/DJL0wyEetD" -o /tmp/v37.zip
+          unzip -oq /tmp/base.zip -d "$GITHUB_WORKSPACE"
+          unzip -oq /tmp/v36.zip -d "$GITHUB_WORKSPACE"
           unzip -oq /tmp/v37.zip -d "$GITHUB_WORKSPACE"
           grep -q 'version: 0.8.5+65' "$GITHUB_WORKSPACE/pubspec.yaml"
           test -f "$GITHUB_WORKSPACE/lib/pages/mine/mine_entry_section.dart"
           grep -q 'MineEntrySection' "$GITHUB_WORKSPACE/lib/pages/mine/mine_page.dart"
           grep -q '_goWorks' "$GITHUB_WORKSPACE/lib/pages/mine/mine_page.dart"
           grep -q 'kAppVersion' "$GITHUB_WORKSPACE/lib/pages/settings/settings_page.dart"
+          test -f "$GITHUB_WORKSPACE/assets/fonts/NotoSansSC-Regular.otf"
           echo "SOURCE_OK v37"
       - uses: subosito/flutter-action@v2
         with:
