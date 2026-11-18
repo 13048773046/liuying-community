@@ -1,0 +1,70 @@
+name: build-ios-app-market
+
+on:
+  push:
+    branches: [ios-market-build]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios-unsigned:
+    runs-on: macos-latest
+    steps:
+      - name: Download source snapshot
+        run: |
+          set -e
+          curl -fL 'https://aka.doubaocdn.com/s/X8aMc8M7kD' -o "$RUNNER_TEMP/app.zip"
+          mkdir -p "$RUNNER_TEMP/app"
+          unzip -q "$RUNNER_TEMP/app.zip" -d "$RUNNER_TEMP/app"
+          ls -la "$RUNNER_TEMP/app" | head -20
+          test -f "$RUNNER_TEMP/app/pubspec.yaml"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Build iOS unsigned
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          set -e
+          flutter pub get
+          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+          flutter build ios --release --no-codesign
+          APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP"
+          echo "App: $APP"
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r liuying-app-market-v42-unsigned.ipa Payload
+          ls -lh liuying-app-market-v42-unsigned.ipa
+          unzip -l liuying-app-market-v42-unsigned.ipa | head -20
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: liuying-app-market-v42-unsigned-ipa
+          path: ${{ runner.temp }}/app/build/ios/ipa/liuying-app-market-v42-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Publish IPA to dist-ios
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/pubios"
+          cd "$RUNNER_TEMP/pubios"
+          git init -q -b dist-ios
+          git config user.name 'ci'
+          git config user.email 'ci@users.noreply.github.com'
+          cp "$RUNNER_TEMP/app/build/ios/ipa/liuying-app-market-v42-unsigned.ipa" .
+          git add -A
+          git commit -q -m 'publish app-market v42 unsigned ipa' || true
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios
