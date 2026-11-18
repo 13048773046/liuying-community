@@ -10,19 +10,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply v41 source patches
+      - name: Apply v41 source
         run: |
           set -e
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/DVponpR5Rw" -o /tmp/base.zip
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/MJuEas34Ol" -o /tmp/v36.zip
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/1ZGl8c9Zni" -o /tmp/v39.zip
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/cPJMhHTVAK" -o /tmp/v40.zip
-          curl -fsSL --max-time 240 --retry 2 --retry-delay 5 "https://aka.doubaocdn.com/s/gpNrN3OQ8r" -o /tmp/v41.zip
-          unzip -oq /tmp/base.zip -d "$GITHUB_WORKSPACE"
-          unzip -oq /tmp/v36.zip -d "$GITHUB_WORKSPACE"
-          unzip -oq /tmp/v39.zip -d "$GITHUB_WORKSPACE"
-          unzip -oq /tmp/v40.zip -d "$GITHUB_WORKSPACE"
-          unzip -oq /tmp/v41.zip -d "$GITHUB_WORKSPACE"
+          curl -fsSL --max-time 300 --retry 2 --retry-delay 5 "https://www.dbmt999.asia/ai-workshop/source/v41-full.zip" -o /tmp/v41-full.zip
+          unzip -oq /tmp/v41-full.zip -d "$GITHUB_WORKSPACE"
           grep -q 'version: 0.8.5+69' "$GITHUB_WORKSPACE/pubspec.yaml"
           grep -q 'north_east_rounded' "$GITHUB_WORKSPACE/lib/pages/mine/mine_entry_section.dart"
           grep -q '数据四项：直接落在画布上' "$GITHUB_WORKSPACE/lib/pages/mine/mine_page.dart"
