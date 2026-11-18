@@ -1,0 +1,72 @@
+name: build-ios-v46
+
+on:
+  push:
+    branches: [ios-v46-build]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios-unsigned:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Replace with latest source bundle
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 'https://aka.doubaocdn.com/s/XudlbaNkRs' -o /tmp/src.zip
+          unzip -tq /tmp/src.zip >/dev/null
+          rm -rf lib ios assets pubspec.yaml pubspec.lock
+          unzip -oq /tmp/src.zip -d "$GITHUB_WORKSPACE"
+          test -f pubspec.yaml
+          test -f lib/main.dart
+          test -f ios/Runner.xcodeproj/project.pbxproj
+          grep -n '^version:' pubspec.yaml
+          grep -n 'kAppVersion' lib/config.dart
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Build iOS unsigned
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter build ios --release --no-codesign
+          APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP"
+          IOS_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          IOS_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")
+          echo "IPA version=$IOS_VERSION build=$IOS_BUILD"
+          mkdir -p build/ios/ipa/Payload
+          rm -rf build/ios/ipa/Payload/*
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qr "liuying-community-${IOS_VERSION}-unsigned.ipa" Payload
+          ls -lh *.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: liuying-community-ios-unsigned
+          path: build/ios/ipa/*.ipa
+          if-no-files-found: error
+
+      - name: Publish IPA to dist-ios-v46 branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pubios && cd /tmp/pubios
+          git init -q -b dist-ios-v46
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/"*.ipa .
+          sha256sum *.ipa > SHA256.txt
+          ls -lh
+          git add -A
+          git commit -q -m "publish ios v46"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-v46
