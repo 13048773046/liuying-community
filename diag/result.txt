@@ -1,0 +1,3 @@
+curl_exit=0
+-rw-r--r-- 1 runner runner 66M Nov 18 18:03 /tmp/src.zip
+df7198243b59d5308ae0d52f61484997beb01d144151f8734e5f08a31f501ec4  /tmp/src.zip
