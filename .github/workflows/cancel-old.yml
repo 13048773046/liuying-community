@@ -1,0 +1,19 @@
+name: cancel-old
+on:
+  push:
+    branches: [cancel-old]
+  workflow_dispatch:
+permissions:
+  actions: write
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel stale macOS run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "canceling 44365664078"
+          curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/44365664078/cancel" -o /tmp/out.json -w 'http=%{http_code}\n'
+          cat /tmp/out.json
