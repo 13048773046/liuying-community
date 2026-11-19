@@ -17,7 +17,7 @@ jobs:
       - name: Replace with latest source bundle
         run: |
           set -euo pipefail
-          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/UYsarxkICl' -o /tmp/src.zip
+          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/ksAl8BNu87' -o /tmp/src.zip
           unzip -tq /tmp/src.zip >/dev/null
           rm -rf lib ios assets pubspec.yaml pubspec.lock third_party
           unzip -oq /tmp/src.zip -d "$GITHUB_WORKSPACE"
@@ -34,6 +34,7 @@ jobs:
           cache: true
 
       - name: Build iOS unsigned
+        id: build
         run: |
           set -euo pipefail
           flutter pub get
@@ -43,6 +44,8 @@ jobs:
           IOS_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
           IOS_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")
           echo "IPA version=$IOS_VERSION build=$IOS_BUILD"
+          echo "IOS_VERSION=$IOS_VERSION" >> "$GITHUB_OUTPUT"
+          echo "IOS_BUILD=$IOS_BUILD" >> "$GITHUB_OUTPUT"
           mkdir -p build/ios/ipa/Payload
           rm -rf build/ios/ipa/Payload/*
           cp -R "$APP" build/ios/ipa/Payload/
@@ -56,11 +59,31 @@ jobs:
           path: build/ios/ipa/*.ipa
           if-no-files-found: error
 
-      - name: Publish IPA to dist-ios-v47 branch
+      - name: Publish IPA to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          IPA=$(ls build/ios/ipa/*.ipa)
+          VERSION="${{ steps.build.outputs.IOS_VERSION }}"
+          BUILD="${{ steps.build.outputs.IOS_BUILD }}"
+          TAG="ios-v${VERSION}-${BUILD}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $TAG already exists"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "流萤社区 iOS ${VERSION} (${BUILD})" \
+              --notes "Unsigned IPA. Built from ${GITHUB_SHA}. Version ${VERSION}, build ${BUILD}."
+          fi
+          gh release upload "$TAG" "$IPA" --clobber --repo "$GITHUB_REPOSITORY"
+          echo "release asset: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "$IPA")"
+
+      - name: Publish IPA to dist-ios-v47 branch (best effort)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
           mkdir -p /tmp/pubios && cd /tmp/pubios
           git init -q -b dist-ios-v47
           git config user.name "ci"
@@ -69,5 +92,10 @@ jobs:
           sha256sum *.ipa > SHA256.txt
           ls -lh
           git add -A
-          git commit -q -m "publish ios 0.9.21+92"
-          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-v47
+          git commit -q -m "publish ios 0.9.22+93"
+          if ! git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-v47; then
+            echo "dist push failed, retrying once"
+            sleep 8
+            git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-v47 || \
+              echo "dist push failed; durable IPA is on the GitHub Release"
+          fi
