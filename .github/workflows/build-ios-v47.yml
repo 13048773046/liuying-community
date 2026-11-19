@@ -17,7 +17,7 @@ jobs:
       - name: Replace with latest source bundle
         run: |
           set -euo pipefail
-          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/2YR26XF1cy' -o /tmp/src.zip
+          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/UYsarxkICl' -o /tmp/src.zip
           unzip -tq /tmp/src.zip >/dev/null
           rm -rf lib ios assets pubspec.yaml pubspec.lock third_party
           unzip -oq /tmp/src.zip -d "$GITHUB_WORKSPACE"
