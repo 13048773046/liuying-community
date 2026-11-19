@@ -11,18 +11,19 @@ jobs:
   ios-unsigned-ipa:
     runs-on: macos-latest
     env:
-      SRC_ARCHIVE: https://www.yosar.cloud/ci/liuying-0.9.23-src.tar.gz
+      SRC_ARCHIVE: https://www.yosar.cloud/ci/liuying-0.9.24-src.tar.gz
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply current 0.9.23 source
+      - name: Apply current 0.9.24 source
         run: |
           set -e
           curl -fsSL --max-time 360 --retry 2 "$SRC_ARCHIVE" -o /tmp/src.tgz
           tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
-          grep -q '^version: 0.9.23+94' pubspec.yaml
+          grep -q '^version: 0.9.24+95' pubspec.yaml
           grep -q 'www.yosar.cloud' lib/config.dart
           grep -q '夜航档案' lib/pages/user/user_profile.dart
+          grep -q 'profile-avatar' lib/pages/user/user_profile.dart
 
       - uses: subosito/flutter-action@v2
         with:
@@ -50,14 +51,14 @@ jobs:
             cp -R "$APP" build/ios/ipa/Payload/
             cd build/ios/ipa
             zip -qr community-unsigned-ipa.zip Payload
-            mv community-unsigned-ipa.zip liuying-community-0.9.23-unsigned.ipa
-            ls -lh liuying-community-0.9.23-unsigned.ipa
+            mv community-unsigned-ipa.zip liuying-community-0.9.24-unsigned.ipa
+            ls -lh liuying-community-0.9.24-unsigned.ipa
           } 2>&1 | tee -a "$LOG"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: liuying-community-0.9.23-unsigned-ipa
-          path: build/ios/ipa/liuying-community-0.9.23-unsigned.ipa
+          name: liuying-community-0.9.24-unsigned-ipa
+          path: build/ios/ipa/liuying-community-0.9.24-unsigned.ipa
           if-no-files-found: error
 
       - name: Publish IPA to dist-ios-current
@@ -70,8 +71,8 @@ jobs:
           git config user.name ci
           git config user.email ci@users.noreply.github.com
           cp "$GITHUB_WORKSPACE/ci-ios.log" . 2>/dev/null || true
-          cp "$GITHUB_WORKSPACE/build/ios/ipa/liuying-community-0.9.23-unsigned.ipa" .
-          shasum -a 256 liuying-community-0.9.23-unsigned.ipa > SHA256.txt
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/liuying-community-0.9.24-unsigned.ipa" .
+          shasum -a 256 liuying-community-0.9.24-unsigned.ipa > SHA256.txt
           git add -A
-          git commit -q -m "publish ios 0.9.23 unsigned ipa"
+          git commit -q -m "publish ios 0.9.24 unsigned ipa"
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-current
