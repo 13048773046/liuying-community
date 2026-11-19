@@ -17,7 +17,7 @@ jobs:
       - name: Replace with latest source bundle
         run: |
           set -euo pipefail
-          curl -fL --retry 3 --retry-delay 2 'https://aka.doubaocdn.com/s/PkJuF2UjvS' -o /tmp/src.zip
+          curl -fL --retry 3 --retry-delay 2 'https://aka.doubaocdn.com/s/pbtU390TJy' -o /tmp/src.zip
           unzip -tq /tmp/src.zip >/dev/null
           rm -rf lib ios assets pubspec.yaml pubspec.lock third_party
           unzip -oq /tmp/src.zip -d "$GITHUB_WORKSPACE"
@@ -69,5 +69,5 @@ jobs:
           sha256sum *.ipa > SHA256.txt
           ls -lh
           git add -A
-          git commit -q -m "publish ios 0.9.18+89"
+          git commit -q -m "publish ios 0.9.19+90"
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-v47
