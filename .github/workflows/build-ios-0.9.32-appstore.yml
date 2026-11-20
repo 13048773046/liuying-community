@@ -1,4 +1,5 @@
 # build iOS 0.9.32 App Store deep-link and mine shelf removal 2026-11-21
+# rerun: source snapshot includes third_party/video_thumbnail path dependency
 name: build iOS 0.9.32 App Store links
 on:
   push:
@@ -24,6 +25,7 @@ jobs:
           tar -xzf /tmp/src.tar.gz -C "$GITHUB_WORKSPACE"
           echo 'source snapshot extracted'
           grep '^version:' pubspec.yaml
+          test -f third_party/video_thumbnail/pubspec.yaml
 
       - uses: subosito/flutter-action@v2
         with:
