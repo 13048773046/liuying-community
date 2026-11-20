@@ -1,0 +1,62 @@
+name: build iOS 0.9.30 app rec
+on:
+  push:
+    branches: [ci/ios-0-9-30-apprec]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest source snapshot
+        run: |
+          set -euo pipefail
+          curl -fsSL 'https://www.dbmt999.asia/community/api/media/community_img_src_0.9.30.png' -o /tmp/src.png
+          test "$(stat -c%s /tmp/src.png 2>/dev/null || stat -f%z /tmp/src.png)" -gt 1000000
+          tail -c +9 /tmp/src.png > /tmp/src.tar.gz
+          tar -xzf /tmp/src.tar.gz -C "$GITHUB_WORKSPACE"
+          echo 'source snapshot extracted'
+          grep '^version:' pubspec.yaml
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Build iOS unsigned IPA
+        run: |
+          set -o pipefail
+          flutter pub get
+          flutter build ios --release --no-codesign
+          APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' | head -1)
+          test -n "$APP"
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry community-unsigned-0.9.30.ipa Payload
+          ls -lh community-unsigned-0.9.30.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-ios-0.9.30-apprec
+          path: build/ios/ipa/community-unsigned-0.9.30.ipa
+
+      - name: Publish IPA to dist-ios-personalized
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pubios && cd /tmp/pubios
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned-0.9.30.ipa" liuying-community-0.9.30-unsigned.ipa
+          git init -q -b dist-ios-personalized
+          git config user.name 'ci'
+          git config user.email 'ci@users.noreply.github.com'
+          git add -A
+          git commit -q -m 'publish iOS 0.9.30 app market personalized'
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-personalized
