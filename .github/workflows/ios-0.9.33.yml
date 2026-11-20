@@ -1,0 +1,90 @@
+name: build-ios-0.9.33-source
+
+on:
+  push:
+    branches: [ios-build-0.9.33]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch 0.9.33 source snapshot
+        run: |
+          set -euo pipefail
+          SRC="https://www.dbmt999.asia/ci/liuying-0.9.33-src.tar.gz"
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 600 "$SRC" -o /tmp/src.tgz
+          tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
+          grep -q '^version: 0.9.33+104' pubspec.yaml
+          grep -q 'storeUrl' lib/pages/apps/app_detail_page.dart
+          test -f third_party/video_thumbnail/lib/video_thumbnail.dart
+          echo "source snapshot extracted"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Verify store behavior and analyze
+        run: |
+          set -o pipefail
+          flutter pub get
+          flutter test test/app_market_store_test.dart
+          flutter test test/app_market_widget_test.dart --plain-name 'App Store 应用详情'
+          flutter analyze lib --no-fatal-infos --no-fatal-warnings
+
+      - name: Build unsigned iOS IPA
+        run: |
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-ios-0.9.33.log"
+          {
+            echo "== xcode =="
+            xcodebuild -version
+            echo "== build =="
+            flutter build ios --release --no-codesign
+            APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' | head -1)
+            test -n "$APP"
+            echo "App: $APP"
+            mkdir -p build/ios/ipa/Payload
+            cp -R "$APP" build/ios/ipa/Payload/
+            cd build/ios/ipa
+            zip -qry community-unsigned-0.9.33.ipa Payload
+            cp community-unsigned-0.9.33.ipa community-unsigned.ipa
+            shasum -a 256 community-unsigned-0.9.33.ipa > SHA256.txt
+            ls -lh community-unsigned-0.9.33.ipa community-unsigned.ipa
+            cat SHA256.txt
+          } 2>&1 | tee -a "$LOG"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: community-ios-0.9.33-unsigned-ipa
+          path: |
+            build/ios/ipa/community-unsigned-0.9.33.ipa
+            build/ios/ipa/SHA256.txt
+            ci-ios-0.9.33.log
+          if-no-files-found: warn
+
+      - name: Publish IPA to dist-ios
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p /tmp/pubios && cd /tmp/pubios
+          git init -q -b dist-ios
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned-0.9.33.ipa" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned.ipa" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/SHA256.txt" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/ci-ios-0.9.33.log" . 2>/dev/null || true
+          git add -A
+          git commit -q -m "publish ios 0.9.33 unsigned ipa" || true
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios
