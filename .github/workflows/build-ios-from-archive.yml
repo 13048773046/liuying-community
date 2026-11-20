@@ -55,7 +55,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout --orphan dist-ios-publish
-          git rm -rf .
+          git rm -rf --ignore-unmatch .
           mkdir -p ios
           cp /tmp/community-unsigned.ipa ios/community-unsigned.ipa
           git add ios/community-unsigned.ipa
