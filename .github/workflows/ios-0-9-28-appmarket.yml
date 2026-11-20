@@ -1,0 +1,82 @@
+name: build-ios-0-9-28-appmarket
+
+on:
+  push:
+    branches: [ci/ios-0-9-28-appmarket]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios-unsigned:
+    runs-on: macos-latest
+    steps:
+      - name: Download source snapshot
+        run: |
+          set -e
+          curl -fL --max-time 900 'https://aka.doubaocdn.com/s/Q1BhV5uEoe' -o "$RUNNER_TEMP/src.zip"
+          ls -lh "$RUNNER_TEMP/src.zip"
+          mkdir -p "$RUNNER_TEMP/src"
+          unzip -q "$RUNNER_TEMP/src.zip" -d "$RUNNER_TEMP/src"
+          test -f "$RUNNER_TEMP/src/pubspec.yaml"
+          grep -q '^version: 0.9.28+99' "$RUNNER_TEMP/src/pubspec.yaml"
+          grep -q 'itms-services' "$RUNNER_TEMP/src/ios/Runner/Info.plist"
+          test -f "$RUNNER_TEMP/src/lib/pages/apps/app_share_sheet.dart"
+          test -f "$RUNNER_TEMP/src/lib/services/app_install_service.dart"
+          test -s "$RUNNER_TEMP/src/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Build iOS unsigned
+        working-directory: ${{ runner.temp }}/src
+        run: |
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-ios-0.9.28.log"
+          {
+            flutter config --enable-swift-package-manager || true
+            flutter pub get
+            XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+            test -n "$XCODE" || XCODE=/Applications/Xcode.app
+            sudo xcode-select -s "$XCODE/Contents/Developer"
+            xcodebuild -version
+            flutter build ios --release --no-codesign
+            APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
+            test -n "$APP"
+            echo "App: $APP"
+            mkdir -p build/ios/ipa/Payload
+            rm -rf build/ios/ipa/Payload/Runner.app
+            cp -R "$APP" build/ios/ipa/Payload/
+            cd build/ios/ipa
+            zip -qr liuying-community-0.9.28-unsigned.ipa Payload
+            ls -lh liuying-community-0.9.28-unsigned.ipa
+            unzip -l liuying-community-0.9.28-unsigned.ipa | head -30
+          } 2>&1 | tee -a "$LOG"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: liuying-community-0.9.28-unsigned-ipa
+          path: ${{ runner.temp }}/src/build/ios/ipa/liuying-community-0.9.28-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Publish IPA to dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/pubios"
+          cd "$RUNNER_TEMP/pubios"
+          git init -q -b dist-ios-0-9-28
+          git config user.name 'ci'
+          git config user.email 'ci@users.noreply.github.com'
+          cp "$RUNNER_TEMP/src/build/ios/ipa/liuying-community-0.9.28-unsigned.ipa" .
+          cp "$GITHUB_WORKSPACE/ci-ios-0.9.28.log" . 2>/dev/null || true
+          shasum -a 256 liuying-community-0.9.28-unsigned.ipa > SHA256.txt
+          git add -A
+          git commit -q -m 'publish ios 0.9.28 app-market unsigned ipa'
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-0-9-28
