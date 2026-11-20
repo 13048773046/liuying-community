@@ -1,0 +1,63 @@
+name: iOS unsigned IPA from source archive
+
+on:
+  push:
+    branches:
+      - ios-build-20261120
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch latest source archive
+        run: |
+          curl -fL --retry 3 --retry-delay 5 -o /tmp/community_app_src.tgz 'https://p9-flow-sign.byteimg.com/tos-cn-i-ik7evvg4ik/rc/pc/super_tool/cbb733f5bdf645c28b2fe28f53825ead.tgz?lk3s=8e244e95&rcl=20261120140051BD176ECFA44982EDC69C&rrcfp=cb23d0ed&x-expires=1795759420&x-signature=6X7eH%2BaSdISPeWw3Mim3k%2BAFkL4%3D'
+          tar -xzf /tmp/community_app_src.tgz
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build iOS release without codesign
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry community-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-ios-unsigned-ipa
+          path: build/ios/ipa/community-unsigned.ipa
+          retention-days: 14
+
+      - name: Publish IPA to dist-ios
+        run: |
+          cp build/ios/ipa/community-unsigned.ipa /tmp/community-unsigned.ipa
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout --orphan dist-ios-publish
+          git rm -rf .
+          mkdir -p ios
+          cp /tmp/community-unsigned.ipa ios/community-unsigned.ipa
+          git add ios/community-unsigned.ipa
+          git commit -m 'iOS unsigned IPA built from latest source archive'
+          git push --force origin HEAD:dist-ios
