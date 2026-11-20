@@ -1,0 +1,142 @@
+Resolving dependencies...
+Downloading packages...
+  archive 3.6.1 (4.7.1 available)
+  audio_session 0.1.25 (0.2.4 available)
+  cached_network_image 3.4.1 (4.0.7 available)
+  cached_network_image_platform_interface 4.1.1 (5.0.4 available)
+  cached_network_image_web 1.3.1 (2.0.5 available)
+  code_assets 1.2.1 (2.2.0 available)
+  cross_file 0.3.5+5 (0.4.0 available)
+  crypto 3.0.7 (3.0.8 available)
+  dbus 0.7.15 (0.8.1 available)
+  file_picker 10.3.10 (13.4.0 available)
+  flutter_cache_manager 3.4.5 (3.5.0 available)
+  flutter_map 7.0.2 (8.3.2 available)
+  flutter_svg 2.4.0 (2.5.0 available)
+  hooks 2.0.2 (2.2.0 available)
+  image_picker_ios 0.8.13+13 (0.8.13+16 available)
+  jni 1.1.0 (1.2.1 available)
+  jni_flutter 1.0.4+1 (1.1.0 available)
+  just_audio 0.9.46 (0.10.6 available)
+  latlong2 0.9.1 (0.10.1 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.3 (1.19.0 available)
+  mgrs_dart 2.0.0 (3.0.0 available)
+  objective_c 9.5.0 (9.6.4 available)
+  octo_image 2.1.2 (2.1.5 available)
+  petitparser 7.0.2 (7.1.0 available)
+  proj4dart 2.1.0 (3.0.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  share_plus 10.1.4 (13.3.1 available)
+  share_plus_platform_interface 5.0.2 (7.2.0 available)
+  shared_preferences_android 2.5.3 (2.5.5 available)
+  shared_preferences_foundation 2.5.7 (2.6.2 available)
+  sqflite 2.4.5 (2.4.6 available)
+  sqflite_android 2.4.5 (2.4.6 available)
+  sqflite_common 2.5.14 (2.5.17 available)
+  sqflite_darwin 2.4.4+1 (2.4.6 available)
+  sqflite_platform_interface 2.4.3 (2.4.4 available)
+  synchronized 3.5.0 (3.6.1+1 available)
+  test_api 0.7.12 (0.7.15 available)
+  unicode 0.3.1 (1.1.9 available)
+  url_launcher_android 6.3.33 (6.3.35 available)
+  vector_math 2.4.0 (2.4.4 available)
+  video_player_android 2.12.2 (2.13.0 available)
+! video_player_avfoundation 2.11.1 (overridden) (2.12.4 available)
+! video_thumbnail 0.5.6 from path third_party/video_thumbnail (overridden)
+  win32 5.15.0 (6.4.0 available)
+  xml 7.0.1 (7.1.0 available)
+Got dependencies!
+45 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+== xcode ==
+Xcode_26.0.1.app
+Xcode_26.0.app
+Xcode_26.1.1.app
+Xcode_26.1.app
+Xcode_26.2.0.app
+Xcode_26.2.app
+Xcode_26.3.0.app
+Xcode_26.3.app
+Xcode_26.4.1.app
+Xcode_26.4.app
+Xcode_26.5.0.app
+Xcode_26.5.app
+Xcode_26.6.0.app
+Xcode_26.6.app
+Xcode.app
+Xcode 26.6
+Build version 17F113
+== build ==
+Resolving dependencies...
+Downloading packages...
+  archive 3.6.1 (4.7.1 available)
+  audio_session 0.1.25 (0.2.4 available)
+  cached_network_image 3.4.1 (4.0.7 available)
+  cached_network_image_platform_interface 4.1.1 (5.0.4 available)
+  cached_network_image_web 1.3.1 (2.0.5 available)
+  code_assets 1.2.1 (2.2.0 available)
+  cross_file 0.3.5+5 (0.4.0 available)
+  crypto 3.0.7 (3.0.8 available)
+  dbus 0.7.15 (0.8.1 available)
+  file_picker 10.3.10 (13.4.0 available)
+  flutter_cache_manager 3.4.5 (3.5.0 available)
+  flutter_map 7.0.2 (8.3.2 available)
+  flutter_svg 2.4.0 (2.5.0 available)
+  hooks 2.0.2 (2.2.0 available)
+  image_picker_ios 0.8.13+13 (0.8.13+16 available)
+  jni 1.1.0 (1.2.1 available)
+  jni_flutter 1.0.4+1 (1.1.0 available)
+  just_audio 0.9.46 (0.10.6 available)
+  latlong2 0.9.1 (0.10.1 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.3 (1.19.0 available)
+  mgrs_dart 2.0.0 (3.0.0 available)
+  objective_c 9.5.0 (9.6.4 available)
+  octo_image 2.1.2 (2.1.5 available)
+  petitparser 7.0.2 (7.1.0 available)
+  proj4dart 2.1.0 (3.0.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  share_plus 10.1.4 (13.3.1 available)
+  share_plus_platform_interface 5.0.2 (7.2.0 available)
+  shared_preferences_android 2.5.3 (2.5.5 available)
+  shared_preferences_foundation 2.5.7 (2.6.2 available)
+  sqflite 2.4.5 (2.4.6 available)
+  sqflite_android 2.4.5 (2.4.6 available)
+  sqflite_common 2.5.14 (2.5.17 available)
+  sqflite_darwin 2.4.4+1 (2.4.6 available)
+  sqflite_platform_interface 2.4.3 (2.4.4 available)
+  synchronized 3.5.0 (3.6.1+1 available)
+  test_api 0.7.12 (0.7.15 available)
+  unicode 0.3.1 (1.1.9 available)
+  url_launcher_android 6.3.33 (6.3.35 available)
+  vector_math 2.4.0 (2.4.4 available)
+  video_player_android 2.12.2 (2.13.0 available)
+! video_player_avfoundation 2.11.1 (overridden) (2.12.4 available)
+! video_thumbnail 0.5.6 from path third_party/video_thumbnail (overridden)
+  win32 5.15.0 (6.4.0 available)
+  xml 7.0.1 (7.1.0 available)
+Got dependencies!
+45 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Warning: Building for device with codesigning disabled. You will have to manually codesign before deploying to device.
+Xcode is fetching Swift Package Manager dependencies. This may take several minutes...
+  Fetching from https://github.com/zhangao0086/DKImagePickerController...     
+  Fetching from https://github.com/zhangao0086/DKCamera...      
+  Fetching from https://github.com/zhangao0086/DKPhotoGallery...     
+  Fetching from https://github.com/SDWebImage/SDWebImage...     
+  Fetching from https://github.com/kirualex/SwiftyGif.git...     
+  Fetching from https://github.com/TimOliver/TOCropViewController...     
+  Fetching from https://github.com/mattgallagher/CwlCatchException.git...     
+  Fetching from https://github.com/SDWebImage/SDWebImageWebPCoder.git...     
+  Fetching from https://github.com/SDWebImage/libwebp-Xcode.git...     
+Building com.community.communityApp for device (ios-release)...
+The following plugins do not support Swift Package Manager for ios:
+  - video_thumbnail
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running pod install...                                              3.7s
+Running Xcode build...                                          
+Xcode build done.                                           199.3s
+✓ Built build/ios/iphoneos/Runner.app (68.1MB)
+App: build/ios/iphoneos/Runner.app
+-rw-r--r--  1 runner  staff    47M Nov 20 00:38 liuying-community-0.9.25-unsigned.ipa
