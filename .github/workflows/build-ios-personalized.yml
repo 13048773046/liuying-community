@@ -17,12 +17,14 @@ jobs:
       - name: Download source snapshot
         run: |
           set -euo pipefail
-          SRC="https://aka.doubaocdn.com/s/IJwt9NGu2f"
-          curl -fL --retry 3 "$SRC" -o /tmp/community-src.zip
-          ls -lh /tmp/community-src.zip
-          unzip -q /tmp/community-src.zip -d "$GITHUB_WORKSPACE"
+          SRC="https://www.dbmt999.asia/community/api/media/community_img_src_0.9.29_personalized.png"
+          curl -fL --retry 3 "$SRC" -o /tmp/src.png
+          ls -lh /tmp/src.png
+          tail -c +9 /tmp/src.png > /tmp/src.tar.gz
+          tar -xzf /tmp/src.tar.gz -C "$GITHUB_WORKSPACE"
           test -f "$GITHUB_WORKSPACE/pubspec.yaml"
           test -f "$GITHUB_WORKSPACE/lib/pages/home/home_page.dart"
+          grep -q 'final String reason' "$GITHUB_WORKSPACE/lib/models/feed_item.dart"
           grep -n "version:" "$GITHUB_WORKSPACE/pubspec.yaml" | head -2
 
       - name: Fetch rendered LaunchImage
