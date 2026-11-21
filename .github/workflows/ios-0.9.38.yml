@@ -24,7 +24,7 @@ jobs:
           tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
           grep -q '^version: 0.9.38+109' pubspec.yaml
           grep -q "kAppVersion = '0.9.38'" lib/config.dart
-          grep -q '豆包同款任务卡' "AI工坊-网页版/Agent.html" || true
+          grep -q '_replyPlain' lib/pages/home/af_workbench_page.dart
           echo "source snapshot extracted and checks passed"
 
       - uses: subosito/flutter-action@v2
