@@ -1,0 +1,109 @@
+name: build-ios-0.9.42-source
+
+on:
+  push:
+    branches: [ios-build-0.9.42]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch 0.9.42 source snapshot
+        run: |
+          set -euo pipefail
+          SRC="https://www.dbmt999.asia/ci/liuying-0.9.42-src.tar.gz"
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 600 "$SRC" -o /tmp/src.tgz
+          tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
+          grep -q '^version: 0.9.42+113' pubspec.yaml
+          grep -q "kAppVersion = '0.9.42'" lib/config.dart
+          grep -q 'kAppBuild = 113' lib/config.dart
+          test -f test/app_update_test.dart
+          test -f test/task_center_real_test.dart
+          test -f test/boards_parent_all_test.dart
+          test -f test/message_page_render_test.dart
+          test -f lib/pages/mine/task_center_page.dart
+          test -f lib/pages/boards/boards_page.dart
+          ! grep -R "ChatPageRoute" lib
+          echo "0.9.42 source snapshot extracted and checks passed"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Resolve dependencies and analyze
+        run: |
+          set -o pipefail
+          flutter pub get
+          flutter analyze lib --no-fatal-infos --no-fatal-warnings
+
+      - name: Run focused regression tests
+        run: |
+          set -o pipefail
+          flutter test \
+            test/app_update_test.dart \
+            test/task_center_real_test.dart \
+            test/boards_parent_all_test.dart \
+            test/message_page_render_test.dart
+
+      - name: Build unsigned iOS IPA
+        run: |
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-ios-0.9.42.log"
+          {
+            echo "== xcode =="
+            xcodebuild -version
+            echo "== build =="
+            flutter build ios --release --no-codesign
+            APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' | head -1)
+            test -n "$APP"
+            echo "App: $APP"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+            mkdir -p build/ios/ipa/Payload
+            cp -R "$APP" build/ios/ipa/Payload/
+            cd build/ios/ipa
+            zip -qry community-unsigned-0.9.42.ipa Payload
+            cp community-unsigned-0.9.42.ipa community-unsigned.ipa
+            shasum -a 256 community-unsigned-0.9.42.ipa > SHA256.txt
+            ls -lh community-unsigned-0.9.42.ipa community-unsigned.ipa
+            cat SHA256.txt
+          } 2>&1 | tee -a "$LOG"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: community-ios-0.9.42-unsigned-ipa
+          path: |
+            build/ios/ipa/community-unsigned-0.9.42.ipa
+            build/ios/ipa/community-unsigned.ipa
+            build/ios/ipa/SHA256.txt
+            ci-ios-0.9.42.log
+          if-no-files-found: warn
+
+      - name: Publish IPA to dist-ios
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          rm -rf /tmp/pubios
+          git clone -q --depth 1 --branch dist-ios "$REPO_URL" /tmp/pubios
+          cd /tmp/pubios
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned-0.9.42.ipa" .
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned.ipa" .
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/SHA256.txt" .
+          cp "$GITHUB_WORKSPACE/ci-ios-0.9.42.log" .
+          git add -A
+          git commit -q -m "publish ios 0.9.42 unsigned ipa" || true
+          git push -q origin dist-ios
