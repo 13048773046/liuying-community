@@ -42,6 +42,14 @@ jobs:
           grep -q 'settings.public_base' community/handlers/af.py
           grep -q '_executionCard' lib/pages/home/af_workbench_page.dart
           grep -q 'web_search' lib/pages/home/af_workbench_page.dart
+          grep -q '_thinkingCard' lib/pages/home/af_workbench_page.dart
+          grep -q 'bool reasoningOpen = false' lib/pages/home/af_workbench_page.dart
+          grep -q 'avatarInsetFor' lib/design/components.dart
+          grep -q 'VerifiedBadge.forAvatar' lib/design/components.dart
+          grep -q '同一时间戳的下载记录按名称稳定排序' test/app_download_manager_test.dart
+          grep -q '查看完整回复' lib/pages/home/af_workbench_page.dart
+          grep -q 'r-action' "AI工坊-网页版/Agent.html"
+          grep -q 'reasoningOpen' "AI工坊-网页版/Agent.html"
           grep -q 'weixin' ios/Runner/Info.plist
           test -f assets/ai/xiaoying.png
           test -f third_party/video_thumbnail/lib/video_thumbnail.dart
