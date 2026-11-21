@@ -25,6 +25,7 @@ jobs:
           grep -q '^version: 0.9.38+109' pubspec.yaml
           grep -q "kAppVersion = '0.9.38'" lib/config.dart
           grep -q '_replyPlain' lib/pages/home/af_workbench_page.dart
+          grep -q '0x99FFFFFF' lib/pages/home/af_workbench_page.dart
           echo "source snapshot extracted and checks passed"
 
       - uses: subosito/flutter-action@v2
