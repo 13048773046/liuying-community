@@ -70,13 +70,13 @@ Building com.community.communityApp for device (ios-release)...
 The following plugins do not support Swift Package Manager for ios:
   - video_thumbnail
 This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
-Running pod install...                                              3.3s
+Running pod install...                                              3.1s
 Running Xcode build...                                          
-Xcode build done.                                           184.8s
+Xcode build done.                                           169.0s
 ✓ Built build/ios/iphoneos/Runner.app (68.6MB)
 App: build/ios/iphoneos/Runner.app
 0.9.37
 108
--rw-r--r--  1 runner  staff    47M Nov 21 07:42 community-unsigned-0.9.37.ipa
--rw-r--r--  1 runner  staff    47M Nov 21 07:42 community-unsigned.ipa
-21171402a7affcac5f511359c8ed1befb5e1c5cd81e9d3c5778d7c4676e6685a  community-unsigned-0.9.37.ipa
+-rw-r--r--  1 runner  staff    47M Nov 21 08:45 community-unsigned-0.9.37.ipa
+-rw-r--r--  1 runner  staff    47M Nov 21 08:45 community-unsigned.ipa
+9d12c2eca0877748f2a471c793e61bbbc3d0decccf0a08aac1f7152c17b97fd6  community-unsigned-0.9.37.ipa

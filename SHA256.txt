@@ -1,1 +1,1 @@
-21171402a7affcac5f511359c8ed1befb5e1c5cd81e9d3c5778d7c4676e6685a  community-unsigned-0.9.37.ipa
+9d12c2eca0877748f2a471c793e61bbbc3d0decccf0a08aac1f7152c17b97fd6  community-unsigned-0.9.37.ipa
