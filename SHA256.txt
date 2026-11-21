@@ -1,1 +1,1 @@
-15be90fdac3d7b12cf57dd946746008c02fe4a76f9c38ef60e12f3398604668f  community-unsigned-0.9.38.ipa
+ccc822420d58c5ea16e24b5222c7ebd110bb76ef562386712b0ae12e76e67a68  community-unsigned-0.9.39.ipa
