@@ -79,8 +79,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          mkdir -p /tmp/pubios && cd /tmp/pubios
-          git init -q -b dist-ios
+          REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          rm -rf /tmp/pubios
+          # 保留 dist-ios 上已有的历史产物，只覆盖/新增本次文件，绝不 force 清空
+          git clone -q --depth 1 --branch dist-ios "$REPO_URL" /tmp/pubios
+          cd /tmp/pubios
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned-0.9.34.ipa" . 2>/dev/null || true
@@ -89,4 +92,4 @@ jobs:
           cp "$GITHUB_WORKSPACE/ci-ios-0.9.34.log" . 2>/dev/null || true
           git add -A
           git commit -q -m "publish ios 0.9.34 unsigned ipa" || true
-          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios
+          git push -q origin dist-ios
