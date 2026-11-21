@@ -37,6 +37,11 @@ jobs:
           grep -q 'tab_fade_$i' lib/pages/root_page.dart
           grep -q 'Agent 模式（本轮硬性）' community/handlers/af.py
           grep -q 'TOOLS_CHAT' community/handlers/af.py
+          grep -q 'def web_search' community/handlers/af.py
+          grep -q 'SB.ensure(uid, net=True)' community/handlers/af.py
+          grep -q 'settings.public_base' community/handlers/af.py
+          grep -q '_executionCard' lib/pages/home/af_workbench_page.dart
+          grep -q 'web_search' lib/pages/home/af_workbench_page.dart
           grep -q 'weixin' ios/Runner/Info.plist
           test -f assets/ai/xiaoying.png
           test -f third_party/video_thumbnail/lib/video_thumbnail.dart
