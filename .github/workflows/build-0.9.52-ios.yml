@@ -1,0 +1,66 @@
+name: Build 0.9.52 iOS unsigned IPA
+
+on:
+  push:
+    branches: [build-0.9.52]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Download source package
+        run: |
+          set -e
+          curl -fL --retry 3 --retry-delay 2 \
+            https://www.dbmt999.asia/ci/liuying-0.9.52-src.tar.gz \
+            -o liuying-0.9.52-src.tar.gz
+          mkdir -p src
+          tar -xzf liuying-0.9.52-src.tar.gz -C src
+          test -f src/pubspec.yaml
+          grep -q 'version: 0.9.52+123' src/pubspec.yaml
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter --version && flutter doctor -v
+
+      - name: Resolve dependencies
+        working-directory: src
+        run: flutter pub get
+
+      - name: Pod install
+        working-directory: src/ios
+        run: pod install --repo-update
+
+      - name: Build unsigned iOS app
+        working-directory: src
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        working-directory: src
+        run: |
+          set -e
+          mkdir -p build/ios/ipa
+          cd build/ios/iphoneos
+          rm -rf Payload
+          mkdir Payload
+          cp -R Runner.app Payload/
+          zip -qry ../ipa/liuying-community-0.9.52-unsigned.ipa Payload
+          cd ..
+          ls -lh ipa/liuying-community-0.9.52-unsigned.ipa
+          shasum -a 256 ipa/liuying-community-0.9.52-unsigned.ipa | tee ipa/SHA256-0.9.52.txt
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-ios-0.9.52-unsigned-ipa
+          path: src/build/ios/ipa/liuying-community-0.9.52-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
