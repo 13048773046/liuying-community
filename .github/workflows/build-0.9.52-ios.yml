@@ -5,15 +5,18 @@ on:
     branches: [build-0.9.52]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    runs-on: macos-14
-    timeout-minutes: 45
+    runs-on: macos-15
+    timeout-minutes: 85
     steps:
       - name: Download source package
         run: |
-          set -e
-          curl -fL --retry 3 --retry-delay 2 \
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 5 --max-time 180 \
             https://www.dbmt999.asia/ci/liuying-0.9.52-src.tar.gz \
             -o liuying-0.9.52-src.tar.gz
           mkdir -p src
@@ -25,7 +28,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
-          channel: stable
           cache: true
 
       - name: Flutter doctor
@@ -46,7 +48,7 @@ jobs:
       - name: Package unsigned IPA
         working-directory: src
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p build/ios/ipa
           cd build/ios/iphoneos
           rm -rf Payload
@@ -59,8 +61,11 @@ jobs:
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: community-ios-0.9.52-unsigned-ipa
-          path: src/build/ios/ipa/liuying-community-0.9.52-unsigned.ipa
-          if-no-files-found: error
+          path: |
+            src/build/ios/ipa/liuying-community-0.9.52-unsigned.ipa
+            src/build/ios/ipa/SHA256-0.9.52.txt
+          if-no-files-found: warn
           retention-days: 30
