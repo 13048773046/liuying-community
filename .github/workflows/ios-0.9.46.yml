@@ -1,0 +1,108 @@
+name: build-ios-0.9.46-source
+
+on:
+  push:
+    branches: [ios-build-0.9.46]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch 0.9.46 source snapshot
+        run: |
+          set -euo pipefail
+          SRC="https://www.dbmt999.asia/ci/liuying-0.9.46-src.tar.gz"
+          SHA="4f22600bd1b24279acd055db59756d2cf3b2cc4ceb0af0acb7943f419365cf8b"
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 600 "$SRC" -o /tmp/src.tgz
+          echo "$SHA  /tmp/src.tgz" | shasum -a 256 -c -
+          tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
+          grep -q '^version: 0.9.46+117' pubspec.yaml
+          grep -q "kAppVersion = '0.9.46'" lib/config.dart
+          grep -q 'kAppBuild = 117' lib/config.dart
+          test -f lib/features/emoji/text_emoji.dart
+          test -f assets/emoji_text/01_开心大笑.png
+          test -f assets/emoji_text/50_庆祝撒花.png
+          test -f lib/pages/post/post_editor.dart
+          test -f lib/pages/post/post_detail.dart
+          test -f test/text_emoji_test.dart
+          grep -q '输入框显示文字 token' test/text_emoji_test.dart
+          ! grep -q 'buildTextSpan' lib/features/emoji/text_emoji.dart
+          grep -q 'TextEmojiEditingController' lib/widgets/comment_sheet.dart
+          grep -q 'TextEmojiEditingController' lib/pages/post/post_editor.dart
+          grep -q 'TextEmojiEditingController' lib/pages/message/dm_chat_page.dart
+          grep -q 'TextEmojiText' lib/pages/apps/app_detail_page.dart
+          grep -q 'textEmojiSpans' lib/pages/shorts/video_card.dart
+          echo "0.9.46 source snapshot extracted and checks passed"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Resolve dependencies and analyze
+        run: |
+          set -o pipefail
+          flutter pub get
+          flutter analyze lib --no-fatal-infos --no-fatal-warnings
+
+      - name: Build unsigned iOS IPA
+        run: |
+          set -o pipefail
+          LOG="$GITHUB_WORKSPACE/ci-ios-0.9.46.log"
+          {
+            echo "== xcode =="
+            xcodebuild -version
+            echo "== build =="
+            flutter build ios --release --no-codesign
+            APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' | head -1)
+            test -n "$APP"
+            echo "App: $APP"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+            mkdir -p build/ios/ipa/Payload
+            cp -R "$APP" build/ios/ipa/Payload/
+            cd build/ios/ipa
+            zip -qry community-unsigned-0.9.46.ipa Payload
+            cp community-unsigned-0.9.46.ipa community-unsigned.ipa
+            shasum -a 256 community-unsigned-0.9.46.ipa > SHA256.txt
+            ls -lh community-unsigned-0.9.46.ipa community-unsigned.ipa
+            cat SHA256.txt
+          } 2>&1 | tee -a "$LOG"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: community-ios-0.9.46-unsigned-ipa
+          path: |
+            build/ios/ipa/community-unsigned-0.9.46.ipa
+            build/ios/ipa/community-unsigned.ipa
+            build/ios/ipa/SHA256.txt
+            ci-ios-0.9.46.log
+          if-no-files-found: warn
+
+      - name: Publish IPA to dist-ios
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          rm -rf /tmp/pubios
+          git clone -q --depth 1 --branch dist-ios "$REPO_URL" /tmp/pubios
+          cd /tmp/pubios
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned-0.9.46.ipa" .
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/community-unsigned.ipa" .
+          cp "$GITHUB_WORKSPACE/build/ios/ipa/SHA256.txt" .
+          cp "$GITHUB_WORKSPACE/ci-ios-0.9.46.log" .
+          git add -A
+          git commit -q -m "publish ios 0.9.46 unsigned ipa" || true
+          git push -q origin dist-ios
