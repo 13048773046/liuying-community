@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL --retry 3 --retry-delay 5 --max-time 120 \
-            https://www.dbmt999.asia/ci/ci-android-0.9.49.sh -o /tmp/ci-android.sh
+            https://www.dbmt999.asia/ci/ci-android-0.9.49-v2.sh -o /tmp/ci-android.sh
           bash /tmp/ci-android.sh
       - uses: actions/upload-artifact@v4
         if: always()
@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL --retry 3 --retry-delay 5 --max-time 120 \
-            https://www.dbmt999.asia/ci/ci-ios-0.9.49.sh -o /tmp/ci-ios.sh
+            https://www.dbmt999.asia/ci/ci-ios-0.9.49-v2.sh -o /tmp/ci-ios.sh
           bash /tmp/ci-ios.sh
       - uses: actions/upload-artifact@v4
         if: always()
