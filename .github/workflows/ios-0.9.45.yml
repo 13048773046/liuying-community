@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           SRC="https://www.dbmt999.asia/ci/liuying-0.9.45-src.tar.gz"
-          SHA="0b5c4af192e12fbdbf88218a0dbb06c6cc30138782c889c8edfed5f744396ad6"
+          SHA="a5c9b3f7b064d0f04e879c64b4b210e0830a9044e9c4f3f817c914a06f06f302"
           curl -fsSL --retry 3 --retry-delay 5 --max-time 600 "$SRC" -o /tmp/src.tgz
           echo "$SHA  /tmp/src.tgz" | shasum -a 256 -c -
           tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
