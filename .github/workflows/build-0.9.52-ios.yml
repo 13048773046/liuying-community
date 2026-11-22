@@ -37,10 +37,6 @@ jobs:
         working-directory: src
         run: flutter pub get
 
-      - name: Pod install
-        working-directory: src/ios
-        run: pod install --repo-update
-
       - name: Build unsigned iOS app
         working-directory: src
         run: flutter build ios --release --no-codesign
@@ -49,15 +45,16 @@ jobs:
         working-directory: src
         run: |
           set -euo pipefail
-          mkdir -p build/ios/ipa
-          cd build/ios/iphoneos
-          rm -rf Payload
-          mkdir Payload
-          cp -R Runner.app Payload/
-          zip -qry ../ipa/liuying-community-0.9.52-unsigned.ipa Payload
-          cd ..
-          ls -lh ipa/liuying-community-0.9.52-unsigned.ipa
-          shasum -a 256 ipa/liuying-community-0.9.52-unsigned.ipa | tee ipa/SHA256-0.9.52.txt
+          APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' | head -1)
+          test -n "$APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry liuying-community-0.9.52-unsigned.ipa Payload
+          shasum -a 256 liuying-community-0.9.52-unsigned.ipa | tee SHA256-0.9.52.txt
+          ls -lh liuying-community-0.9.52-unsigned.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
