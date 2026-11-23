@@ -1,3 +1,4 @@
+# rebuild 2 2026-11-24: guard speech initialize exception
 # rebuild 2026-11-24: iOS back gesture + private-message voice permission copy
 name: build-community-0.9.56-ios
 on:
