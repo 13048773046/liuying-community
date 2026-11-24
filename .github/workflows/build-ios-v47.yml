@@ -17,7 +17,7 @@ jobs:
       - name: Replace with latest source bundle
         run: |
           set -euo pipefail
-          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/wcV7RRRRWg' -o /tmp/src.zip
+          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/4jXyGSJXxQ' -o /tmp/src.zip
           unzip -tq /tmp/src.zip >/dev/null
           rm -rf lib ios assets pubspec.yaml pubspec.lock third_party
           unzip -oq /tmp/src.zip -d "$GITHUB_WORKSPACE"
@@ -25,6 +25,7 @@ jobs:
           test -f lib/main.dart
           test -f ios/Runner.xcodeproj/project.pbxproj
           test -f third_party/video_thumbnail/pubspec.yaml
+          grep -n 'DEVELOPMENT_TEAM' ios/Runner.xcodeproj/project.pbxproj
           grep -n '^version:' pubspec.yaml
           grep -n 'kAppVersion' lib/config.dart
 
@@ -38,9 +39,18 @@ jobs:
         run: |
           set -euo pipefail
           flutter pub get
+          set +e
           flutter build ios --release --no-codesign
+          FLUTTER_STATUS=$?
+          set -e
           APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
-          test -n "$APP"
+          if [ -z "$APP" ]; then
+            echo "No .app produced (flutter exit $FLUTTER_STATUS)"
+            exit 1
+          fi
+          if [ "$FLUTTER_STATUS" -ne 0 ]; then
+            echo "::warning::flutter build exited $FLUTTER_STATUS but produced $APP; packaging unsigned IPA"
+          fi
           IOS_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
           IOS_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")
           echo "IPA version=$IOS_VERSION build=$IOS_BUILD"
