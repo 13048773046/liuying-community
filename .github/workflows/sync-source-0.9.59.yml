@@ -1,5 +1,5 @@
-# 一次性源码同步：把 0.9.59 的完整客户端 + 后端源码落到仓库 main。
-# 归档地址由生产静态站提供，文件内已排除密钥、keystore、node_modules、测试库和失败截图。
+# 一次性源码同步：把 0.9.59 的完整客户端 + 后端源码落到仓库。
+# 先推到 source-0.9.59 分支，再由 PR 合入 main，避免触碰 main 保护规则。
 name: sync-source-0.9.59
 on:
   push:
@@ -41,6 +41,8 @@ jobs:
           test -f community/handlers/dm.py
 
       - name: Commit and push snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "liuying-source-sync"
@@ -48,7 +50,8 @@ jobs:
           git add -A
           if git diff --cached --quiet; then
             echo "already up to date"
+            git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:source-0.9.59
             exit 0
           fi
           git commit -m "chore: sync 0.9.59 full client + backend source"
-          git push origin HEAD:source-0.9.59
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:source-0.9.59
