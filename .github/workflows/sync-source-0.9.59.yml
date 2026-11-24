@@ -43,6 +43,8 @@ jobs:
           test -f community/handlers/dm.py
           echo "STEP reset workflows"
           git restore --source=HEAD --staged --worktree .github
+          git clean -fdq .github
+          git status --short .github | head -5
           echo "STEP commit"
           git config user.name "liuying-source-sync"
           git config user.email "sync@liuying.local"
