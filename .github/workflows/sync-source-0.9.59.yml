@@ -1,4 +1,5 @@
 # 一次性源码同步：把 0.9.59 的完整客户端 + 后端源码推到 source-0.9.59 分支。
+# 只提交业务源码，不改任何 .github/workflows，避免 GitHub App 的 workflows 权限限制。
 name: sync-source-0.9.59
 on:
   push:
@@ -40,12 +41,13 @@ jobs:
           test -f lib/pages/home/home_page.dart
           test -f lib/pages/message/dm_chat_page.dart
           test -f community/handlers/dm.py
+          echo "STEP reset workflows"
+          git restore --source=HEAD --staged --worktree .github
           echo "STEP commit"
           git config user.name "liuying-source-sync"
           git config user.email "sync@liuying.local"
           git add -A
           git status --short | head -5
-          git count-objects -vH
           if git diff --cached --quiet; then
             echo "no changes"
           else
