@@ -17,7 +17,7 @@ jobs:
       - name: Replace with latest source bundle
         run: |
           set -euo pipefail
-          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/ksAl8BNu87' -o /tmp/src.zip
+          curl --http1.1 -fL --retry 3 --retry-delay 2 --connect-timeout 20 'https://aka.doubaocdn.com/s/wcV7RRRRWg' -o /tmp/src.zip
           unzip -tq /tmp/src.zip >/dev/null
           rm -rf lib ios assets pubspec.yaml pubspec.lock third_party
           unzip -oq /tmp/src.zip -d "$GITHUB_WORKSPACE"
@@ -92,7 +92,7 @@ jobs:
           sha256sum *.ipa > SHA256.txt
           ls -lh
           git add -A
-          git commit -q -m "publish ios 0.9.22+93"
+          git commit -q -m "publish ios 0.9.59+130"
           if ! git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-v47; then
             echo "dist push failed, retrying once"
             sleep 8
