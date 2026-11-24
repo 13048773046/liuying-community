@@ -1,0 +1,54 @@
+# 一次性源码同步：把 0.9.59 的完整客户端 + 后端源码落到仓库 main。
+# 归档地址由生产静态站提供，文件内已排除密钥、keystore、node_modules、测试库和失败截图。
+name: sync-source-0.9.59
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/sync-source-0.9.59.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download 0.9.59 source archive
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 300 \
+            https://www.dbmt999.asia/community/files/ci/community_src_0.9.59.tgz \
+            -o /tmp/source.tgz
+          test "$(stat -c%s /tmp/source.tgz)" -gt 50000000
+          tar -tzf /tmp/source.tgz >/dev/null
+
+      - name: Replace source tree with 0.9.59 snapshot
+        run: |
+          set -euo pipefail
+          rm -rf lib community ios android assets test third_party
+          tar -xzf /tmp/source.tgz -C "$GITHUB_WORKSPACE"
+          rm -rf community/cap_service/node_modules community/tests/test.db community/tests/tracks_test.db
+          grep '^version:' pubspec.yaml
+          grep 'kAppVersion' lib/config.dart | head -1
+          test -f lib/pages/home/home_page.dart
+          test -f lib/pages/message/dm_chat_page.dart
+          test -f community/handlers/dm.py
+
+      - name: Commit and push snapshot
+        run: |
+          set -euo pipefail
+          git config user.name "liuying-source-sync"
+          git config user.email "sync@liuying.local"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "already up to date"
+            exit 0
+          fi
+          git commit -m "chore: sync 0.9.59 full client + backend source"
+          git push origin HEAD:main
