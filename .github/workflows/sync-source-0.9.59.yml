@@ -51,4 +51,4 @@ jobs:
             exit 0
           fi
           git commit -m "chore: sync 0.9.59 full client + backend source"
-          git push origin HEAD:main
+          git push origin HEAD:source-0.9.59
