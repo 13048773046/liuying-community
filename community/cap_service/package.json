@@ -1,0 +1,11 @@
+{
+  "name": "liuying-cap-service",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "流萤社区本机 Cap 人机验证服务",
+  "dependencies": {
+    "capjs-core": "0.1.19",
+    "esbuild": "0.28.0"
+  }
+}

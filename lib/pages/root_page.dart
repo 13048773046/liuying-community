@@ -1,25 +1,34 @@
-/// 主容器：底部导航（复刻音乐 iOS AppTabBar）
-/// - 中间位 = 短视频入口（凸起大按钮，等效音乐端"播放控制"在导航中间）
-/// - 短视频页沉浸式全屏；切到其他页时返回常规导航
+/// 主容器：贴底通栏导航（96% 黑 + 顶部发丝线 + 中间圆角矩形发布键）
+/// - 不再使用悬浮岛：左右贴到屏幕边缘、底边压到屏幕最下方，圆角归零
+/// - 中间按钮 74×44、圆角 12、只留「＋」，与四个 tab 同线居中，不上浮
 library;
 
-import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// 底栏改为贴底通栏后不再需要 BackdropFilter
 
-import '../config.dart';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import '../api/client.dart';
+import '../design/components.dart';
+import '../models/feed_item.dart';
+import '../services/app_update.dart';
+import '../services/hot_update.dart';
 import '../services/notify_bus.dart';
+import '../services/publish_bus.dart';
+import '../services/secure_store.dart';
 import '../utils/music_bgm.dart';
+import 'boards/boards_page.dart';
 import 'home/home_page.dart';
 import 'message/message_page.dart';
 import 'mine/mine_page.dart';
-import 'boards/boards_page.dart';
 import 'post/post_editor.dart';
 import 'shorts/shorts_page.dart';
+import '../widgets/hot_maintenance_page.dart';
 
-/// 底部导航内容区高度（不含系统 safeBottom）：图标23+间距2+文字13+内边距12+外Padding10=60
-/// 内容区底部留白必须与此一致，否则导航栏上方会露出缝隙或被遮住
-const double kTabBarContentH = 60;
+/// 底部导航占用高度（不含系统安全区）：图标 24 + 间距 4 + 文字 12 + 上下内边距
+const double kTabBarContentH = 58;
 
 class RootPage extends StatefulWidget {
   const RootPage({super.key});
@@ -28,315 +37,577 @@ class RootPage extends StatefulWidget {
   State<RootPage> createState() => _RootPageState();
 }
 
-class _RootPageState extends State<RootPage> {
-  int _tab = 0; // 0 首页 | 1 版块 | 2 短视频(中间) | 3 消息 | 4 我的
+class _RootPageState extends State<RootPage>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  int _tab = 0; // 0 首页 | 1 版块 | 2 短视频 | 3 消息 | 4 我的
+  int? _prevTab; // 切页时上一页保留 180ms，做交叉淡入而不是硬切
+  bool _floorOpen = false; // 首页二楼是否展开（展开时隐藏底栏）
+  Timer? _startupUpdateTimer;
 
-  /// 切 tab：离开短视频页时停配乐，避免残留播放
+  late final AnimationController _tabFade =
+      AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 180),
+      )..addStatusListener((status) {
+        if (status == AnimationStatus.completed &&
+            mounted &&
+            _prevTab != null) {
+          setState(() => _prevTab = null);
+        }
+      });
+
   void _onTabChanged(int i) {
-    if (_tab == 2 && i != 2) {
-      MusicBgm.I.stop();
-    }
-    setState(() => _tab = i);
+    if (i == _tab) return;
+    // 离开短视频页时停配乐，避免残留播放
+    if (_tab == 2) MusicBgm.I.stop();
+    setState(() {
+      _prevTab = _tab;
+      _tab = i;
+    });
+    _tabFade.forward(from: 0);
   }
 
-  static const _pages = <Widget>[
-    HomePage(),
-    BoardsPage(),
-    ShortsPage(),
-    MessagePage(),
-    MinePage(),
-  ];
+  /// 五页懒加载：冷启动只建首页，首次切到某 tab 时才初始化；
+  /// 已建过的页面继续保留在 Offstage 中，滚动位置/输入/播放状态不丢。
+  final List<Widget?> _pages = List<Widget?>.filled(5, null);
+
+  Widget _buildPage(int i) {
+    switch (i) {
+      case 0:
+        return HomePage(
+          onFloorOpenChanged: (v) {
+            if (mounted && _floorOpen != v) setState(() => _floorOpen = v);
+          },
+        );
+      case 1:
+        return const BoardsPage();
+      case 2:
+        return const ShortsPage();
+      case 3:
+        return const MessagePage();
+      default:
+        return const MinePage();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // 热更新先读本地缓存，再静默拉一次；不阻塞首帧。
+    unawaited(HotUpdateService.instance.start());
+    HotUpdateService.instance.config.addListener(_onHotConfig);
     _connectWs();
+    PublishBus.goHome.addListener(_onPublishGoHome);
+    // 首帧后延迟检查更新，避免和启动动画/首屏请求抢资源。
+    // 用可取消的 Timer，页面销毁后不能留下一个还在走的 2 秒任务。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startupUpdateTimer?.cancel();
+      _startupUpdateTimer = Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        AppUpdateService.checkForUpdate(context, startup: true);
+      });
+    });
+  }
+
+  void _onPublishGoHome() {
+    if (!mounted) return;
+    if (_floorOpen) setState(() => _floorOpen = false);
+    _onTabChanged(0);
+  }
+
+  /// 远程配置变化：维护模式关掉短视频与配乐，功能开关关掉时把当前页退回首页。
+  void _onHotConfig() {
+    if (!mounted) return;
+    final cfg = HotUpdateService.instance.config.value;
+    if (cfg.maintenanceEnabled) {
+      MusicBgm.I.stop();
+      if (_floorOpen) setState(() => _floorOpen = false);
+    }
+    if (_tab == 2 && !cfg.featureEnabled('shorts')) {
+      _onTabChanged(0);
+    }
   }
 
   /// 登录态恢复：拉起 WebSocket 实时通知
   Future<void> _connectWs() async {
-    final sp = await SharedPreferences.getInstance();
-    final tok = sp.getString('community_token') ?? '';
-    if (tok.isNotEmpty) {
-      NotifyBus.shared.connect(tok);
-    }
+    final tok = await SecureStore.read(SecureStore.tokenKey) ?? '';
+    // 读偏好期间用户可能已经退出/切换账号；只允许“当前内存 token”
+    // 与磁盘 token 一致时连接，避免退出后又被旧异步任务连回来。
+    if (!mounted || tok.isEmpty || ApiClient.token != tok) return;
+    NotifyBus.shared.connect(tok);
+    unawaited(_syncUnread());
+  }
+
+  /// WS 握手现在带互动/私信/官方三类未读；启动时再补一次 REST 兜底，
+  /// 避免 WS 尚未建连或断线时底部「消息」总红点漏数。
+  Future<void> _syncUnread() async {
+    try {
+      final n = await ApiClient.notificationsUnread();
+      NotifyBus.shared.setUnread(intOf(n['unread']));
+      NotifyBus.shared.setOfficialUnread(intOf(n['officialUnread']));
+    } catch (_) {}
+    try {
+      final d = await ApiClient.dmUnread();
+      NotifyBus.shared.setDmUnread(intOf(d['unread'] ?? d['count']));
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _startupUpdateTimer?.cancel();
+    PublishBus.goHome.removeListener(_onPublishGoHome);
+    HotUpdateService.instance.config.removeListener(_onHotConfig);
     NotifyBus.shared.disconnect();
+    _tabFade.dispose();
     super.dispose();
+  }
+
+  Widget _pageLayer(
+    int i, {
+    required bool active,
+    required bool interactive,
+    double opacity = 1,
+  }) {
+    final page = TickerMode(
+      key: ValueKey('tab_page_$i'),
+      enabled: active,
+      // 切页淡入淡出只重新合成，不重绘整页内容。
+      child: RepaintBoundary(child: _pages[i]!),
+    );
+    return Offstage(
+      offstage: !active,
+      child: IgnorePointer(
+        ignoring: !interactive,
+        // 始终保留同一层 Opacity，不要“透明度到 1 就换成裸 page”。
+        // 换父级会让整个页面 Element 重建：首页 feed、滚动位置、输入框、
+        // 播放进度全部重来，表现就是切个 tab 页面“重新加载”。
+        child: Opacity(
+          key: ValueKey('tab_fade_$i'),
+          opacity: opacity.clamp(0.0, 1.0),
+          child: page,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 短视频页：沉浸式全屏（TabBar 半透明悬浮显示，等效音乐端"透明悬浮导航"）
     final isShorts = _tab == 2;
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      // 修复：禁用键盘避让（resizeToAvoidBottomInset: false）
-      // iOS 键盘弹出时默认会压缩 Scaffold body（812pt→约430pt），
-      // 导致 Positioned(bottom:0) 的底部导航被顶到屏幕中部并盖住内容；
-      // RootPage 自身无输入框，键盘避让由 push 出的登录/发布/评论页各自处理。
+    // 当前页首次显示时才初始化；冷启动只打首页一个接口。
+    _pages[_tab] ??= _buildPage(_tab);
+    final page = ImmersivePage(
       resizeToAvoidBottomInset: false,
-      body: Stack(
-        // 强制所有子组件撑满屏幕，底部导航必然贴底
+      child: Stack(
         fit: StackFit.expand,
         children: [
-          // 内容区：五个页面常驻（音乐端三页常驻等价）
-          // 不做整体底部抬升：页面背景可延伸至屏幕底部（穿过导航栏区域），
-          // 内容本身由各页面滚动容器用「导航栏高度 tabBarBottomInset」动态避让，
-          // 既不被导航栏遮挡也不留下空白缝隙
-          Stack(
-            fit: StackFit.expand,
-            children: [
-              for (var i = 0; i < _pages.length; i++)
-                Offstage(
-                  offstage: _tab != i,
-                  child: TickerMode(
-                    enabled: _tab == i,
-                    child: _pages[i],
-                  ),
-                ),
-            ],
+          // 五个页面常驻（保活）。切页时上一页垫在下面淡出，新页淡入，
+          // 不是 Offstage 硬切；动画结束后恢复单页可见，避免多层持续合成。
+          AnimatedBuilder(
+            animation: _tabFade,
+            builder: (context, _) {
+              final t = Curves.easeOutCubic.transform(_tabFade.value);
+              final transitioning = _prevTab != null;
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  for (var i = 0; i < _pages.length; i++)
+                    if (i == _tab)
+                      // 新旧两页同时淡：新页 0→1、旧页 1→0，两层叠在一起
+                      // 才是交叉溶解；只淡旧页会被不透明的新页整块盖住。
+                      _pageLayer(
+                        i,
+                        active: true,
+                        interactive: !transitioning || t > 0.45,
+                        opacity: transitioning ? t : 1,
+                      )
+                    else if (i == _prevTab && _pages[i] != null)
+                      _pageLayer(
+                        i,
+                        active: true,
+                        interactive: false,
+                        opacity: 1 - t,
+                      )
+                    else if (_pages[i] != null)
+                      _pageLayer(i, active: false, interactive: false),
+                ],
+              );
+            },
           ),
-          // 底部导航（Positioned 贴底：不吃 StackFit.expand 的 tight 约束，必然贴底；
-          // 短视频页沉浸式时保持透明悬浮，透出内容）
+          // 底部导航浮层
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: _ShortsSelectionScope(
-              selection: _tab,
+            child: _BottomNav(
+              hidden: _floorOpen,
+              index: _tab,
+              immersive: isShorts,
               onChanged: _onTabChanged,
-              child: _AppTabBar(
-                selection: _tab,
-                onChanged: _onTabChanged,
-              ),
+              onPublish: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PostEditorPage()),
+                );
+              },
+              onShorts: () => _onTabChanged(2),
             ),
           ),
         ],
       ),
     );
-  }
-}
-
-/// 底部导航：5 格，中间凸起短视频按钮
-class _AppTabBar extends StatelessWidget {
-  final int selection;
-  final ValueChanged<int> onChanged;
-  const _AppTabBar({required this.selection, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: selection == 2
-            ? Colors.transparent
-            : const Color(AppTheme.card).withOpacity(0.98),
-        border: selection == 2
-            ? null
-            : const Border(top: BorderSide(color: Color(AppTheme.border), width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 6, bottom: 4),
-          child: Row(
-            children: [
-              _tabButton('assets/icons/home.svg', '首页', 0),
-              _tabButton('assets/icons/compass.svg', '版块', 1),
-              const _ShortsCenterButton(),
-              _tabButtonWithBadge('assets/icons/chatbubbles.svg', '消息', 3),
-              _tabButton('assets/icons/person.svg', '我的', 4),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _tabButton(String asset, String label, int index) {
-    final selected = selection == index;
-    final color = selected
-        ? const Color(AppTheme.accent)
-        : const Color(AppTheme.textSecondary);
-    return Expanded(
-      child: InkWell(
-        onTap: () => onChanged(index),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SvgPicture.asset(
-                asset,
-                width: 23,
-                height: 23,
-                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-              ),
-              const SizedBox(height: 2),
-              SizedBox(
-                height: 13,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10.5,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 消息 tab：右上角未读红点（复刻音乐端消息小红点）
-  Widget _tabButtonWithBadge(String asset, String label, int index) {
-    final selected = selection == index;
-    final color = selected
-        ? const Color(AppTheme.accent)
-        : const Color(AppTheme.textSecondary);
-    return Expanded(
-      child: InkWell(
-        onTap: () => onChanged(index),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ValueListenableBuilder<int>(
-                valueListenable: NotifyBus.shared.unread,
-                builder: (_, n, __) => Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    SvgPicture.asset(
-                      asset,
-                      width: 23,
-                      height: 23,
-                      colorFilter:
-                          ColorFilter.mode(color, BlendMode.srcIn),
-                    ),
-                    if (n > 0)
-                      Positioned(
-                        right: -5,
-                        top: -2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 3, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF4D6D),
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          constraints: const BoxConstraints(minWidth: 8),
-                          child: Text(
-                            n > 99 ? '99+' : '$n',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 8, height: 1.2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 2),
-              SizedBox(
-                height: 13,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10.5,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return ValueListenableBuilder<HotConfig>(
+      valueListenable: HotUpdateService.instance.config,
+      builder: (context, cfg, child) {
+        if (cfg.maintenanceEnabled) return HotMaintenancePage(config: cfg);
+        return child!;
+      },
+      child: page,
     );
   }
 }
 
-/// 中间短视频按钮：凸起圆钮（复刻音乐端播放控制圆钮）
-class _ShortsCenterButton extends StatelessWidget {
-  const _ShortsCenterButton();
-
-  @override
-  Widget build(BuildContext context) {
-    // 中间凸起按钮：样式固定，选中态由父级重建驱动
-    return const SizedBox(width: 64, child: _ShortsButtonInner());
-  }
-}
-
-class _ShortsButtonInner extends StatelessWidget {
-  const _ShortsButtonInner();
-
-  @override
-  Widget build(BuildContext context) {
-    // 读取父级选中态
-    final sel = _ShortsSelectionScope.of(context)?.selection ?? 0;
-    final isActive = sel == 2;
-    return Center(
-      child: GestureDetector(
-        onTap: () {
-          if (isActive) {
-            // 短视频页内：中间按钮 = 发布入口（点击跳发布页）
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PostEditorPage()),
-            );
-          } else {
-            _ShortsSelectionScope.of(context)?.onChanged(2);
-          }
-        },
-        child: Container(
-          key: const ValueKey('shortsCenterBtn'),
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            // 纯薄荷绿圆钮（复刻音乐 AppTabBar 播放控制钮样式）
-            color: const Color(AppTheme.accent),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(AppTheme.accent).withOpacity(0.35),
-                blurRadius: 12,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: SvgPicture.asset(
-            // 短视频页内显示发布 + 号（更小），其他 tab 显示圆形播放键
-            isActive ? 'assets/icons/add.svg' : 'assets/icons/play-circle.svg',
-            width: isActive ? 16 : 24,
-            height: isActive ? 16 : 24,
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 轻量 InheritedWidget：中间按钮读取选中态并触发切换
-class _ShortsSelectionScope extends InheritedWidget {
-  final int selection;
-  final ValueChanged<int> onChanged;
-  const _ShortsSelectionScope({
-    required this.selection,
+/// 贴底通栏导航：96% 黑 + 顶部一条发丝线，中间是圆角矩形发布键。
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({
+    this.hidden = false,
+    required this.index,
+    required this.immersive,
     required this.onChanged,
-    required super.child,
+    required this.onPublish,
+    required this.onShorts,
   });
 
-  static _ShortsSelectionScope? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_ShortsSelectionScope>();
+  final bool hidden;
+  final int index;
+  final bool immersive;
+  final ValueChanged<int> onChanged;
+  final VoidCallback onPublish;
+  final VoidCallback onShorts;
 
   @override
-  bool updateShouldNotify(_ShortsSelectionScope old) =>
-      old.selection != selection;
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    final bar = SizedBox(
+      height: kTabBarContentH,
+      child: Row(
+        children: [
+          _NavItem(
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_rounded,
+            label: '首页',
+            active: index == 0,
+            onTap: () => onChanged(0),
+          ),
+          _NavItem(
+            icon: Icons.dashboard_outlined,
+            activeIcon: Icons.dashboard_rounded,
+            label: '版块',
+            active: index == 1,
+            onTap: () => onChanged(1),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.x2),
+            child: _CenterButton(onTap: () => _openCreateMenu(context)),
+          ),
+          _NavItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            activeIcon: Icons.chat_bubble_rounded,
+            label: '消息',
+            active: index == 3,
+            onTap: () => onChanged(3),
+            badge: NotifyBus.shared.totalUnread,
+          ),
+          _NavItem(
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            label: '我的',
+            active: index == 4,
+            onTap: () => onChanged(4),
+          ),
+        ],
+      ),
+    );
+
+    return IgnorePointer(
+      ignoring: hidden,
+      child: AnimatedOpacity(
+        duration: AppMotion.base,
+        opacity: hidden ? 0 : 1,
+        child: Container(
+          key: const ValueKey('bottom_nav_shell'),
+          // 短视频页切到更深的沉浸态：去掉发丝线，画面与导航之间不再有
+          // 一条突兀的灰色分隔；其它页保持原来的通栏样式。
+          decoration: BoxDecoration(
+            color: immersive
+                ? const Color(0xF0000000)
+                : const Color(0xF5000000),
+            border: immersive
+                ? null
+                : const Border(
+                    top: BorderSide(color: Color(AppColors.border), width: 1),
+                  ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottom),
+            child: bar,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 「＋」展开创作入口：发一帖 / 刷短视频，避免静默丢掉短视频入口。
+  void _openCreateMenu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(AppColors.canvas),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF313136),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            if (HotUpdateService.instance.config.value.featureEnabled('post'))
+              _CreateEntry(
+                icon: Icons.edit_rounded,
+                title: '发一帖',
+                subtitle: '图文或视频，发布到社区',
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  onPublish();
+                },
+              ),
+            if (HotUpdateService.instance.config.value.featureEnabled('post') &&
+                HotUpdateService.instance.config.value.featureEnabled('shorts'))
+              const Divider(height: 1, color: Color(AppColors.hairline)),
+            if (HotUpdateService.instance.config.value.featureEnabled('shorts'))
+              _CreateEntry(
+                icon: Icons.play_circle_outline_rounded,
+                title: '刷短视频',
+                subtitle: '沉浸播放，上滑切换',
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  onShorts();
+                },
+              ),
+            if (!HotUpdateService.instance.config.value.featureEnabled(
+                  'post',
+                ) &&
+                !HotUpdateService.instance.config.value.featureEnabled(
+                  'shorts',
+                ))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+                child: Text(
+                  '创作入口暂时关闭，稍后再来看看。',
+                  style: AppType.caption.copyWith(
+                    color: const Color(AppColors.textTertiary),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 创作面板里的一行。
+class _CreateEntry extends StatelessWidget {
+  const _CreateEntry({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpace.x5, 14, AppSpace.x5, 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(AppColors.accentSoft),
+                borderRadius: AppRadius.rMd,
+              ),
+              child: Icon(icon, size: 20, color: const Color(AppColors.accent)),
+            ),
+            const SizedBox(width: AppSpace.x3),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppType.body.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: AppType.micro.copyWith(
+                    color: const Color(AppColors.textTertiary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.badge,
+  });
+
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final ValueListenable<int>? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active
+        ? const Color(AppColors.textPrimary)
+        : const Color(AppColors.textTertiary);
+
+    Widget iconWidget = Icon(
+      active ? activeIcon : icon,
+      size: 23,
+      color: color,
+    );
+
+    if (badge != null) {
+      iconWidget = ValueListenableBuilder<int>(
+        valueListenable: badge!,
+        builder: (_, n, child) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            child!,
+            if (n > 0)
+              Positioned(
+                right: -9,
+                top: -6,
+                child: CountBadge(count: n, large: true),
+              ),
+          ],
+        ),
+        child: iconWidget,
+      );
+    }
+
+    return Expanded(
+      child: PressableScale(
+        onTap: onTap,
+        scale: 0.9,
+        child: SizedBox(
+          height: kTabBarContentH,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: active ? 1.06 : 1.0,
+                duration: AppMotion.base,
+                curve: AppMotion.emphasized,
+                child: AnimatedSwitcher(
+                  duration: AppMotion.fast,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  // Icon 本身没有 key 时 AnimatedSwitcher 会原地换图标、硬切；
+                  // 用 active 作为 key，实心/描边两枚图标才会真正交叉淡入。
+                  child: KeyedSubtree(
+                    key: ValueKey('nav_icon_${label}_$active'),
+                    child: iconWidget,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: AppMotion.fast,
+                style: TextStyle(
+                  // AnimatedDefaultTextStyle 不会自动继承外层 DefaultTextStyle 的
+                  // 字体回退链；显式带上，中文 tab 名在自定义字体/测试字体下也不会变方框。
+                  fontFamily: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.fontFamily,
+                  fontFamilyFallback: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.fontFamilyFallback,
+                  fontSize: 10,
+                  height: 1.1,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                  letterSpacing: 0.2,
+                ),
+                child: Text(label),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 中间按钮：74×44 圆角矩形，只留「＋」，与四个 tab 同线居中、不上浮。
+class _CenterButton extends StatelessWidget {
+  const _CenterButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      scale: 0.94,
+      child: Container(
+        width: 74,
+        height: 44,
+        decoration: BoxDecoration(
+          color: const Color(AppColors.accent),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.add_rounded,
+          color: Color(AppColors.onAccent),
+          size: 22,
+        ),
+      ),
+    );
+  }
 }

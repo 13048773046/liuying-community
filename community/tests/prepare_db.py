@@ -81,6 +81,9 @@ def seed():
     adm_tok = secrets.token_urlsafe(24)
     c.execute("INSERT INTO community_admins(token,user_id,level,name,created) VALUES(?,?,?,?,?)",
               (adm_tok, users[0], 1, "一级管理员", now))
+    # 用户1 设为已认证 AI 账号，头像使用带时间戳文件名（前端解析回归）
+    c.execute("UPDATE users SET verified='1', verified_label='AI', avatar=? WHERE id=?",
+              ('ai_test_avatar_1795056518.png', users[0]))
     # 用户2 关注用户1（关注流测试）
     c.execute("INSERT INTO follows(follower_id,following_id,created) VALUES(?,?,?)",
               (users[1], users[0], now))

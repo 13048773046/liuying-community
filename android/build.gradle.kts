@@ -1,5 +1,8 @@
 allprojects {
     repositories {
+        // 镜像优先（runner 访问 github release 资产时段性 504），官方仓库兜底
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
         google()
         mavenCentral()
     }

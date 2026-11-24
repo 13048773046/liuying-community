@@ -1,16 +1,28 @@
-/// 互动通知二级列表页：点赞/评论/@提及/新增关注/审核结果（仅社区互动通知）
+/// 互动通知二级列表页（沉浸黑）：点赞/评论/@提及/新增关注/审核结果
 /// 单列表 + 类型图标 + 未读红点 + 相对时间 + 空态/登录引导/失败重试
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
+import '../../features/message/data/message_repository.dart';
 import '../../config.dart';
+import '../../design/components.dart';
+import '../../design/shared_element.dart';
+import '../../features/emoji/text_emoji.dart';
 import '../../models/feed_item.dart';
+import '../../services/notify_bus.dart';
 import '../mine/login_page.dart';
+import '../post/post_detail.dart';
+import '../user/user_profile.dart';
 
 class NotifListPage extends StatefulWidget {
-  const NotifListPage({super.key});
+  const NotifListPage({super.key, this.kind});
+
+  /// 二级分类过滤：like / comment / follow；为空时显示全部互动
+  final String? kind;
 
   @override
   State<NotifListPage> createState() => _NotifListPageState();
@@ -24,19 +36,86 @@ class _NotifListPageState extends State<NotifListPage> {
   bool _listLoading = false;
   bool _needLogin = false;
   String? _loadError;
+  StreamSubscription? _notifSub;
+
+  /// 按分类过滤后的可见条目（不改变原始列表，删除/恢复仍按 _items 处理）
+  List<Map<String, dynamic>> get _visible {
+    final k = widget.kind;
+    if (k == null) return _items;
+    return _items.where((n) {
+      final t = _strOf(n['type']).toLowerCase();
+      switch (k) {
+        case 'like':
+          return t.contains('like');
+        case 'comment':
+          return t.contains('comment') ||
+              t.contains('reply') ||
+              t.contains('mention');
+        case 'follow':
+          // 后端新增关注实际类型为 community_interact，不含 follow
+          return t.contains('follow') || t.contains('interact');
+        case 'audit':
+          return t.contains('audit');
+        default:
+          return true;
+      }
+    }).toList();
+  }
 
   @override
   void initState() {
     super.initState();
+    _notifSub = NotifyBus.shared.onNotification.stream.listen(_onNotification);
     _load(refresh: true);
+  }
+
+  @override
+  void dispose() {
+    _notifSub?.cancel();
+    super.dispose();
+  }
+
+  bool _eventMatches(Map<String, dynamic> n) {
+    final k = widget.kind;
+    if (k == null) return true;
+    final t = _strOf(n['type']).toLowerCase();
+    switch (k) {
+      case 'like':
+        return t.contains('like');
+      case 'comment':
+        return t.contains('comment') ||
+            t.contains('reply') ||
+            t.contains('mention');
+      case 'follow':
+        return t.contains('follow') || t.contains('interact');
+      case 'audit':
+        return t.contains('audit');
+      default:
+        return true;
+    }
+  }
+
+  /// WS 新互动通知：页面打开时直接插到顶部，无需刷新/重进。
+  void _onNotification(Map<String, dynamic> n) {
+    if (!mounted || !_eventMatches(n)) return;
+    final id = _strOf(n['id']);
+    if (id.isNotEmpty && _items.any((e) => _strOf(e['id']) == id)) return;
+    setState(() {
+      _items = [n, ..._items];
+      _loading = false;
+      _loadError = null;
+    });
   }
 
   Future<void> _load({bool refresh = false}) async {
     if (_listLoading || (!_hasMore && !refresh)) return;
     setState(() => _listLoading = true);
     try {
-      final j = await ApiClient.notifications(
-          page: refresh ? 1 : _page + 1, size: 20);
+      final j = await MessageRepository.instance.notifications(
+        group: widget.kind ?? '',
+        page: refresh ? 1 : _page + 1,
+        size: 20,
+      );
       final list = ((j['list'] ?? []) as List)
           .whereType<Map<String, dynamic>>()
           .toList();
@@ -54,11 +133,7 @@ class _NotifListPageState extends State<NotifListPage> {
         _listLoading = false;
         _loadError = null;
       });
-      if (refresh) {
-        try {
-          await ApiClient.markNotificationsRead();
-        } catch (_) {}
-      }
+      // 进入列表不再自动全部已读：保留未读/已读差异，由用户点单条或「全部已读」。
     } catch (e) {
       if (!mounted) return;
       final is401 = e is ApiException && e.code == 401;
@@ -66,16 +141,16 @@ class _NotifListPageState extends State<NotifListPage> {
         _loading = false;
         _listLoading = false;
         _needLogin = is401;
-        _loadError =
-            is401 ? null : (e is ApiException ? e.message : '网络异常，请检查网络后重试');
+        _loadError = is401
+            ? null
+            : (e is ApiException ? e.message : '网络异常，请检查网络后重试');
       });
     }
   }
 
   Future<void> _goLogin() async {
-    final ok = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-    );
+    final ok = await Navigator.of(context)
+        .push<bool>(MaterialPageRoute(builder: (_) => const LoginPage()));
     if (ok == true) {
       if (!mounted) return;
       setState(() {
@@ -90,160 +165,277 @@ class _NotifListPageState extends State<NotifListPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('互动通知',
-            style: TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                fontWeight: FontWeight.w600)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 18),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2.5))
-          : _needLogin
-              ? _loginEmpty()
-              : _loadError != null
-                  ? _errorRetry()
-                  : RefreshIndicator(
-                      color: const Color(AppTheme.accent),
-                      backgroundColor: const Color(AppTheme.card),
-                      onRefresh: () => _load(refresh: true),
-                      child: _items.isEmpty
-                          ? ListView(
-                              children: [
-                                _empty(Icons.notifications_none, '暂无互动通知',
-                                    '点赞、评论、@提及、新增关注、审核结果\n都会出现在这里'),
-                              ],
-                            )
-                          : ListView.separated(
-                              padding: EdgeInsets.only(
-                                  bottom: 16 +
-                                      MediaQuery.paddingOf(context).bottom),
-                              itemCount: _items.length + (_hasMore ? 1 : 0),
-                              separatorBuilder: (_, __) => const Divider(
-                                  height: 1,
-                                  indent: 68,
-                                  endIndent: 16,
-                                  color: Color(AppTheme.border)),
-                              itemBuilder: (_, i) {
-                                if (i == _items.length) {
-                                  return GestureDetector(
-                                    onTap: _load,
-                                    behavior: HitTestBehavior.opaque,
-                                    child: const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 14),
-                                      child: Center(
-                                        child: Text('加载更多',
-                                            style: TextStyle(
-                                                color: Color(
-                                                    AppTheme.textSecondary),
-                                                fontSize: 13)),
-                                      ),
-                                    ),
-                                  );
-                                }
-                                return buildNotifTile(_items[i]);
-                              },
-                            ),
-                    ),
-    );
+  void _retry() {
+    setState(() {
+      _loadError = null;
+      _loading = true;
+      _items = [];
+      _hasMore = false;
+      _page = 0;
+    });
+    _load(refresh: true);
   }
 
-  Widget _empty(IconData icon, String title, String subtitle,
-      {Widget? action}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60),
-      child: Center(
+  String? get _groupForKind {
+    switch (widget.kind) {
+      case 'like':
+        return 'like';
+      case 'comment':
+        return 'comment';
+      case 'follow':
+        return 'follow';
+      case 'audit':
+        return 'audit';
+      default:
+        return null;
+    }
+  }
+
+  int get _unreadCount => _visible.where((n) => !boolOf(n['isRead'])).length;
+
+  /// 从服务端重新取互动总未读，精确同步底部导航与消息页入口。
+  Future<void> _refreshGlobalUnread() async {
+    try {
+      final j = await MessageRepository.instance.notificationsUnread();
+      NotifyBus.shared.setUnread(intOf(j['unread']));
+    } catch (_) {}
+  }
+
+  Future<void> _markAllRead() async {
+    if (_unreadCount <= 0) return;
+    try {
+      await MessageRepository.instance.markNotificationsRead(
+        group: _groupForKind,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      showAppToast(context, '操作失败，请重试');
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      for (final it in _visible) {
+        it['isRead'] = 1;
+      }
+    });
+    await _refreshGlobalUnread();
+    if (mounted) showAppToast(context, '已全部标为已读');
+  }
+
+  /// 点击通知：先标已读，再按目标回流到帖子 / 评论 / 对方主页。
+  /// 旧实现只标已读，已读通知点下去完全无反应。
+  Future<void> _openNotification(Map<String, dynamic> item) async {
+    await _readOne(item);
+    if (!mounted) return;
+    final postId = _strOf(item['postId']).trim();
+    final fromUid = _strOf(item['fromUserId']).trim();
+    if (postId.isNotEmpty) {
+      await Navigator.of(context)
+          .push(AppPageRoute(builder: (_) => PostDetailPage(postId: postId)));
+      return;
+    }
+    if (fromUid.isNotEmpty) {
+      await Navigator.of(context)
+          .push(AppPageRoute(builder: (_) => UserProfilePage(uid: fromUid)));
+    }
+  }
+
+  /// 点击单条未读通知即标已读（已读通知不重复请求）。
+  Future<void> _readOne(Map<String, dynamic> item) async {
+    if (boolOf(item['isRead'])) return;
+    final id = _strOf(item['id']);
+    if (id.isEmpty) return;
+    try {
+      await MessageRepository.instance.markNotificationsRead(id: id);
+    } catch (_) {
+      if (!mounted) return;
+      showAppToast(context, '标记已读失败，请重试');
+      return;
+    }
+    if (!mounted) return;
+    setState(() => item['isRead'] = 1);
+    await _refreshGlobalUnread();
+  }
+
+  /// 左滑删除单条通知：先本地移除（乐观更新），失败再插回原位并提示
+  Future<void> _deleteNotif(String id) async {
+    final idx = _items.indexWhere((e) => _strOf(e['id']) == id);
+    if (idx < 0) return;
+    final removed = _items[idx];
+    setState(() {
+      _items.removeAt(idx);
+    });
+    final wasUnread = !boolOf(removed['isRead']);
+    try {
+      await MessageRepository.instance.deleteNotification(id);
+      if (wasUnread) await _refreshGlobalUnread();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        final at = idx > _items.length ? _items.length : idx;
+        _items.insert(at, removed);
+      });
+      showAppToast(context, '删除失败，请重试');
+    }
+  }
+
+  /// 左滑删除背景：红色圆角「删除」胶囊
+  Widget _deleteBackground() {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: AppSpace.gutter),
+      child: Container(
+        width: 60,
+        height: 56,
+        decoration: BoxDecoration(
+          color: const Color(AppColors.danger),
+          borderRadius: AppRadius.rMd,
+        ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.card),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(icon,
-                  size: 30, color: const Color(AppTheme.textTertiary)),
+            const Icon(
+              Icons.delete_outline_rounded,
+              size: 18,
+              color: Color(AppColors.onAccent),
             ),
-            const SizedBox(height: 14),
-            Text(title,
-                style: const TextStyle(
-                    color: Color(AppTheme.textPrimary),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Color(AppTheme.textTertiary),
-                    fontSize: 12.5,
-                    height: 1.6)),
-            if (action != null) ...[const SizedBox(height: 18), action],
+            const SizedBox(height: 2),
+            Text(
+              '删除',
+              style: AppType.micro.copyWith(
+                color: const Color(AppColors.onAccent),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _loginEmpty() {
-    return _empty(
-      Icons.lock_outline,
-      '登录后查看消息',
-      '点赞、评论、@提及、审核结果\n登录后才会出现在这里',
-      action: FilledButton(
-        style: FilledButton.styleFrom(
-          backgroundColor: const Color(AppTheme.accent),
-          foregroundColor: Colors.black,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-        ),
-        onPressed: _goLogin,
-        child: const Text('去登录',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+  @override
+  Widget build(BuildContext context) {
+    return ImmersivePage(
+      child: Column(
+        children: [
+          GlassTopBar(
+            title: switch (widget.kind) {
+              'like' => '赞与收藏',
+              'comment' => '评论',
+              'follow' => '新增粉丝',
+              'audit' => '审核通知',
+              _ => '互动通知',
+            },
+            solid: true,
+            actions: [
+              if (_unreadCount > 0)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(AppColors.textSecondary),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: _markAllRead,
+                  child: Text(
+                    '全部已读',
+                    style: AppType.caption.copyWith(
+                      color: const Color(AppColors.textSecondary),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          Expanded(child: _body()),
+        ],
       ),
     );
   }
 
-  Widget _errorRetry() {
-    return _empty(
-      Icons.wifi_off_outlined,
-      '加载失败',
-      _loadError ?? '请检查网络后重试',
-      action: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(AppTheme.accent),
-          side: const BorderSide(color: Color(AppTheme.accent)),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+  Widget _body() {
+    if (_loading) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
         ),
-        onPressed: () {
-          setState(() {
-            _loadError = null;
-            _loading = true;
-            _items = [];
-            _hasMore = false;
-            _page = 0;
-          });
-          _load(refresh: true);
-        },
-        child: const Text('重新加载',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+      );
+    }
+    if (_needLogin) return _loginEmpty();
+    if (_loadError != null) {
+      return Center(
+        child: ErrorState(message: _loadError!, onRetry: _retry),
+      );
+    }
+
+    final showFooter = _hasMore || _listLoading;
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: () => _load(refresh: true),
+      child: _visible.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.paddingOf(context).bottom + AppSpace.x6,
+              ),
+              children: const [
+                EmptyState(
+                  icon: Icons.notifications_none_rounded,
+                  title: '暂无互动通知',
+                  message: '点赞、评论、@提及、新增关注、审核结果\n都会出现在这里',
+                ),
+              ],
+            )
+          : ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.paddingOf(context).bottom + AppSpace.x4,
+              ),
+              itemCount: _visible.length + (showFooter ? 1 : 0),
+              separatorBuilder: (_, _) =>
+                  const Hairline(indent: AppSpace.gutter + 40 + AppSpace.x3),
+              itemBuilder: (_, i) {
+                if (i == _visible.length) {
+                  return LoadMoreFooter(
+                    loading: _listLoading,
+                    hasMore: _hasMore,
+                    onTap: () {
+                      _load();
+                    },
+                  );
+                }
+                final item = _visible[i];
+                final id = _strOf(item['id']);
+                return RepaintBoundary(
+                  child: Dismissible(
+                    key: ValueKey(id.isEmpty ? 'notif-$i' : 'notif-$id'),
+                    direction: id.isEmpty
+                        ? DismissDirection.none
+                        : DismissDirection.endToStart,
+                    background: _deleteBackground(),
+                    onDismissed: (_) => _deleteNotif(id),
+                    child: _buildNotifTile(
+                      item,
+                      onTap: () => _openNotification(item),
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _loginEmpty() {
+    return Center(
+      child: EmptyState(
+        icon: Icons.lock_outline_rounded,
+        title: '登录后查看消息',
+        message: '点赞、评论、@提及、审核结果\n登录后才会出现在这里',
+        actionLabel: '去登录',
+        onAction: _goLogin,
       ),
     );
   }
@@ -266,28 +458,30 @@ int _numOf(dynamic v) {
 (IconData, Color) _notifStyle(String type) {
   final t = type.toLowerCase();
   if (t.contains('like')) {
-    return (Icons.favorite_rounded, const Color(AppTheme.heart));
+    return (Icons.favorite_rounded, const Color(AppColors.heart));
   }
   if (t.contains('comment') || t.contains('reply')) {
-    return (Icons.chat_bubble_rounded, const Color(AppTheme.sky));
+    return (Icons.chat_bubble_rounded, const Color(AppColors.info));
   }
-  if (t.contains('follow')) {
-    return (Icons.person_add_alt, const Color(AppTheme.accent));
+  if (t.contains('follow') || t.contains('interact')) {
+    return (Icons.person_add_alt, const Color(AppColors.accent));
   }
   if (t.contains('mention')) {
-    return (Icons.alternate_email, const Color(AppTheme.lilac));
+    return (Icons.alternate_email, const Color(AppColors.lilac));
   }
   if (t.contains('audit')) {
-    return (Icons.fact_check_outlined, const Color(0xFFFFB84D));
+    return (Icons.fact_check_outlined, const Color(AppColors.warning));
   }
-  if (t.contains('interact')) {
-    return (Icons.favorite_outline, const Color(AppTheme.heart));
+  if (t.contains('app') || t.contains('member')) {
+    return (Icons.verified_user_outlined, const Color(AppColors.info));
   }
-  return (Icons.notifications_none, const Color(AppTheme.textSecondary));
+  return (Icons.notifications_none, const Color(AppColors.textSecondary));
 }
 
-/// 单条互动通知（小红书式：分隔线列表；未读红点 + 标题高亮）
-Widget buildNotifTile(Map<String, dynamic> n) {
+/// 单条互动通知（沉浸黑列表行：头像/类型图标 + 未读点 + 标题/摘要 + 相对时间）
+Widget buildNotifTile(Map<String, dynamic> n) => _buildNotifTile(n);
+
+Widget _buildNotifTile(Map<String, dynamic> n, {VoidCallback? onTap}) {
   final type = _strOf(n['type']);
   final title = _strOf(n['title']);
   final content = _strOf(n['content']);
@@ -295,75 +489,109 @@ Widget buildNotifTile(Map<String, dynamic> n) {
   final created = _numOf(n['created']);
   final isRead = boolOf(n['isRead']);
   final (icon, color) = _notifStyle(type);
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Stack(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            if (!isRead)
-              Positioned(
-                right: -1,
-                top: -1,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF4D4F),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(AppTheme.bg)),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(title,
-                        style: TextStyle(
-                          color: isRead
-                              ? const Color(AppTheme.textSecondary)
-                              : const Color(AppTheme.textPrimary),
-                          fontSize: 14.5,
-                          fontWeight:
-                              isRead ? FontWeight.normal : FontWeight.w600,
-                        )),
-                  ),
-                  Text(timeAgo(created),
-                      style: const TextStyle(
-                          color: Color(AppTheme.textTertiary), fontSize: 11)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                fromName.isEmpty ? content : '$fromName：$content',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Color(AppTheme.textSecondary),
-                    fontSize: 13,
-                    height: 1.4),
-              ),
-            ],
+
+  // 有发送者 → 头像（右下角带类型角标）；系统通知 → 类型图标
+  final Widget leading = fromName.isEmpty
+      ? Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: AppRadius.rSm,
           ),
-        ),
+          child: Icon(icon, color: color, size: 20),
+        )
+      : AppAvatar(
+          url: _strOf(n['fromAvatar']).isEmpty
+              ? avatarUrlOf(_strOf(n['fromUserId']))
+              : avatarUrl(_strOf(n['fromAvatar'])),
+          name: fromName,
+          size: 40,
+          verified:
+              verifiedOf(n['fromVerified']) ||
+              _strOf(n['fromVerifiedLabel']).trim().isNotEmpty,
+          isAi:
+              boolOf(n['fromIsAi']) ||
+              _strOf(n['fromVerifiedLabel']).trim().toUpperCase() == 'AI',
+          frameUrl: frameUrlOf(_strOf(n['fromFrameId'])),
+          badge: Container(
+            width: 18,
+            height: 18,
+            decoration: const BoxDecoration(
+              color: Color(AppColors.bg),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 11),
+          ),
+        );
+
+  return ListRow(
+    showChevron: false,
+    onTap: onTap,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpace.gutter,
+      vertical: AppSpace.x3,
+    ),
+    leading: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        leading,
+        if (!isRead)
+          Positioned(
+            right: -3,
+            top: -3,
+            child: Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                color: const Color(AppColors.heart),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(AppColors.bg), width: 2),
+              ),
+            ),
+          ),
       ],
+    ),
+    title: title.isEmpty ? '通知' : title,
+    titleStyle: AppType.body.copyWith(
+      fontWeight: isRead ? FontWeight.w400 : FontWeight.w600,
+      color: isRead
+          ? const Color(AppColors.textSecondary)
+          : const Color(AppColors.textPrimary),
+    ),
+    subtitle: fromName.isEmpty ? content : '$fromName：$content',
+    subtitleWidget: TextEmojiText(
+      fromName.isEmpty ? content : '$fromName：$content',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppType.caption.copyWith(
+        color: isRead
+            ? const Color(AppColors.textTertiary)
+            : const Color(AppColors.textSecondary),
+        fontWeight: isRead ? FontWeight.w400 : FontWeight.w500,
+      ),
+    ),
+    trailing: Padding(
+      padding: const EdgeInsets.only(left: AppSpace.x2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(timeAgo(created), style: AppType.micro),
+          const SizedBox(height: 2),
+          Text(
+            isRead ? '已读' : '未读',
+            style: AppType.micro.copyWith(
+              fontSize: 10,
+              height: 1.1,
+              color: isRead
+                  ? const Color(AppColors.textTertiary)
+                  : const Color(AppColors.heart),
+              fontWeight: isRead ? FontWeight.w500 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>需要使用相机拍摄照片，发送给私信好友或发布到社区。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册，以选择图片发送给好友或发布到社区。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>需要把拍摄或编辑后的照片保存到相册。</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -26,6 +32,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>itms-services</string>
+		<string>weixin</string>
+		<string>alipays</string>
+		<string>alipay</string>
+		<string>douyin</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -66,5 +80,26 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- 生产 API 只走 HTTPS；仅为「流萤航线」的 127.0.0.1 本地 WebGL 服务保留本地网络豁免。 -->
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!-- 不包含非豁免加密算法，避免每次发版重复填写出口合规。 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Impeller 在 iOS 上与 WKWebView 的 WebGL(Metal) 图层合成不兼容：
+	     HUD/触屏控件能显示，3D 画面却是全黑。关闭 Impeller 回退 Skia，航线里的 WebGL 才能出画。 -->
+	<key>FLTEnableImpeller</key>
+	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>私信语音、AI 工坊语音输入需要使用麦克风</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>私信语音转文字、AI 工坊语音输入需要语音识别</string>
 </dict>
 </plist>

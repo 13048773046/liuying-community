@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{OG_TITLE}}</title>
+<meta name="description" content="{{OG_DESC}}">
+<meta property="og:site_name" content="流萤社区">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{OG_TITLE}}">
+<meta property="og:description" content="{{OG_DESC}}">
+<meta property="og:image" content="{{OG_IMAGE}}">
+<meta property="og:url" content="{{OG_URL}}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="{{OG_URL}}">
+<style>
+:root{
+  --ink:#06110e; --ink-2:#0a1b17; --ink-3:#102922;
+  --mint:#45e0ae; --mint-2:#9fe8d0; --mint-3:#d8fbf0;
+  --paper:#f4f1e8; --paper-2:#e6e0d2; --paper-3:#fbf9f2;
+  --text:#101a16; --muted:#71847b;
+  --line:rgba(16,26,22,.12);
+  --radius:18px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; min-height:100svh; color:var(--paper);
+  font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  background:
+    radial-gradient(760px 520px at 88% -12%,rgba(69,224,174,.18),transparent 62%),
+    radial-gradient(640px 500px at -10% 108%,rgba(69,224,174,.08),transparent 65%),
+    linear-gradient(180deg,#081613 0%,var(--ink) 48%,#05100c 100%);
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.16;
+  background-image:radial-gradient(rgba(255,255,255,.5) .6px,transparent .6px);
+  background-size:3px 3px;
+}
+.wrap{width:min(680px,100%); margin:0 auto; padding:0 18px calc(30px + env(safe-area-inset-bottom))}
+.brand{display:flex; align-items:center; gap:9px; padding:calc(14px + env(safe-area-inset-top)) 0 18px; color:var(--mint-2); font-size:11.5px; letter-spacing:1.6px}
+.brand svg{width:26px;height:26px}
+.brand small{display:block; color:rgba(244,241,232,.44); font-size:9.5px; letter-spacing:2.6px; margin-top:1px}
+.card{
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));
+  border:1px solid rgba(159,232,208,.13);
+  border-radius:22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06);
+  overflow:hidden;
+}
+.skeleton{padding:24px 20px}
+.sk{background:rgba(255,255,255,.07); border-radius:10px; animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:.95}}
+.hero{padding:24px 20px 20px; border-bottom:1px solid rgba(255,255,255,.06)}
+.hero-top{display:flex; gap:16px; align-items:flex-start}
+.ic{
+  width:82px;height:82px;flex:0 0 82px;border-radius:20px;overflow:hidden;
+  background:linear-gradient(145deg,#12362b,#0a1714);
+  border:1px solid rgba(159,232,208,.22);
+  box-shadow:0 16px 34px rgba(0,0,0,.36),0 0 0 1px rgba(0,0,0,.3) inset;
+}
+.ic img{width:100%;height:100%;object-fit:cover;display:block}
+.ic .fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--mint-2);font-size:30px;font-weight:800;letter-spacing:-1px}
+.hero-copy{min-width:0;flex:1}
+.kicker{display:inline-flex;align-items:center;gap:6px;color:var(--mint);font-size:10.5px;font-weight:700;letter-spacing:1px}
+h1{font-size:24px;line-height:1.22;letter-spacing:-.4px;margin:7px 0 8px;font-weight:800;word-break:break-word}
+.meta{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);color:rgba(244,241,232,.72);font-size:10.5px;line-height:1.5}
+.chip.hot{color:var(--mint-2);border-color:rgba(69,224,174,.28);background:rgba(69,224,174,.08)}
+.rating{display:flex;align-items:center;gap:7px;margin-top:9px;color:rgba(244,241,232,.52);font-size:11px}
+.stars{color:var(--mint);letter-spacing:1.5px}
+.quote{margin-top:18px;padding:13px 15px;border-radius:14px;background:rgba(69,224,174,.06);border-left:2px solid rgba(69,224,174,.55);color:rgba(244,241,232,.8);font-size:13.5px;line-height:1.75}
+.quote b{display:block;color:var(--mint-2);font-size:9.5px;letter-spacing:1.6px;margin-bottom:4px;font-weight:700}
+.install{padding:18px 20px 22px}
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  min-height:50px;border-radius:999px;border:0;cursor:pointer;
+  font-size:15px;font-weight:700;letter-spacing:.2px;text-decoration:none;
+  transition:transform .18s var(--ease),filter .18s var(--ease);
+}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(135deg,#5ef0bb,#2bbf91);color:#04120d;box-shadow:0 14px 34px rgba(69,224,174,.24)}
+.btn.ghost{background:rgba(255,255,255,.05);color:var(--paper);border:1px solid rgba(255,255,255,.12)}
+.btn.sub{margin-top:9px;min-height:42px;font-size:13px;font-weight:600}
+.note{margin:11px 2px 0;color:rgba(244,241,232,.42);font-size:10.5px;line-height:1.65;text-align:center}
+.notice{
+  display:none;margin:0 0 12px;padding:10px 12px;border-radius:12px;
+  background:rgba(255,176,32,.10);border:1px solid rgba(255,176,32,.26);
+  color:#ffcf85;font-size:11.5px;line-height:1.6;
+}
+.notice.show{display:block}
+.stage{
+  display:none;position:fixed;inset:0;z-index:50;background:rgba(4,9,7,.82);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  align-items:center;justify-content:center;padding:24px;
+}
+.stage.show{display:flex}
+.stage-box{width:min(420px,100%);background:#0b1a15;border:1px solid rgba(69,224,174,.24);border-radius:20px;padding:22px 20px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.stage-box .mini{width:54px;height:54px;margin:0 auto 12px;border-radius:15px;overflow:hidden;background:#12362b}
+.stage-box .mini img{width:100%;height:100%;object-fit:cover}
+.stage-box h3{margin:0 0 6px;font-size:17px}
+.stage-box p{margin:0;color:rgba(244,241,232,.55);font-size:12.5px;line-height:1.7}
+.stage-box .close{margin-top:16px}
+.sec{padding:22px 20px;border-top:1px solid rgba(255,255,255,.06)}
+.sec h2{margin:0 0 13px;font-size:13px;color:var(--mint-2);letter-spacing:1.4px;font-weight:700}
+.about{color:rgba(244,241,232,.74);font-size:14px;line-height:1.85;white-space:pre-wrap;word-break:break-word}
+.shots{display:flex;gap:10px;overflow-x:auto;padding:2px 0 8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.shots a{flex:0 0 132px;scroll-snap-align:start;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:#0e221c}
+.shots img{width:132px;height:234px;object-fit:cover;display:block}
+.shots::-webkit-scrollbar{display:none}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.info div{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06)}
+.info small{display:block;color:rgba(244,241,232,.38);font-size:9.5px;letter-spacing:.6px;margin-bottom:3px}
+.info b{font-size:12.5px;font-weight:600;word-break:break-all;color:rgba(244,241,232,.86)}
+.author{display:flex;align-items:center;gap:10px}
+.author .av{width:38px;height:38px;border-radius:50%;overflow:hidden;background:#14352b;flex:0 0 38px}
+.author .av img{width:100%;height:100%;object-fit:cover}
+.author .nm{font-size:13px;font-weight:600}
+.author .sub{font-size:10.5px;color:rgba(244,241,232,.42)}
+.author .right{margin-left:auto;font-size:10.5px;color:rgba(244,241,232,.35)}
+.foot{padding:20px 4px 0;text-align:center;color:rgba(244,241,232,.3);font-size:10px;line-height:1.7}
+.foot b{color:rgba(159,232,208,.66);font-weight:600}
+.empty{padding:80px 20px;text-align:center;color:rgba(244,241,232,.45);font-size:14px}
+@media (max-width:360px){
+  .ic{width:70px;height:70px;flex-basis:70px;border-radius:17px}
+  h1{font-size:21px}
+  .info{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="23" r="10" fill="rgba(94,224,181,.12)"/>
+      <circle cx="20" cy="23" r="4.6" fill="#9fdcc6"/>
+      <circle cx="20" cy="23" r="1.6" fill="#eafff6"/>
+      <ellipse cx="12.5" cy="18.5" rx="7" ry="3.4" transform="rotate(-30 12.5 18.5)" fill="rgba(200,243,226,.55)"/>
+      <ellipse cx="27.5" cy="18.5" rx="7" ry="3.4" transform="rotate(30 27.5 18.5)" fill="rgba(200,243,226,.55)"/>
+      <path d="M20 18.4V12" stroke="rgba(200,243,226,.6)" stroke-width="1"/>
+      <circle cx="20" cy="11.2" r="1.4" fill="#c8f3e2"/>
+    </svg>
+    <div>流萤社区<small>LIUYING · APP SHARE</small></div>
+  </div>
+
+  <div class="card" id="card">
+    <div class="skeleton">
+      <div class="sk" style="height:82px;width:82px;border-radius:20px"></div>
+      <div class="sk" style="height:22px;width:62%;margin-top:16px"></div>
+      <div class="sk" style="height:12px;width:42%;margin-top:10px"></div>
+      <div class="sk" style="height:50px;width:100%;margin-top:22px;border-radius:999px"></div>
+      <div class="sk" style="height:12px;width:78%;margin:12px auto 0"></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>流萤社区</b> · 一个不太吵的地方<br>
+    应用由社区用户投稿，经人工审核后上架。
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <div class="stage-box">
+    <div class="mini" id="stageIcon"></div>
+    <h3 id="stageTitle">已交给系统安装</h3>
+    <p id="stageText">请回到 iPhone 桌面查看安装进度。若系统提示“无法安装”，说明这个 IPA 没有签名或签名证书已失效。</p>
+    <button class="btn ghost close" onclick="hideStage()">知道了</button>
+  </div>
+</div>
+
+<script type="application/json" id="app-data">{{APP_JSON}}</script>
+<script>
+(function(){
+  var data;
+  try { data = JSON.parse(document.getElementById('app-data').textContent); }
+  catch(e) { data = null; }
+  var app = data && data.app ? data.app : null;
+  var card = document.getElementById('card');
+  if(!app){
+    card.innerHTML = '<div class="empty">应用不存在或已下架</div>';
+    return;
+  }
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var isAndroid = /Android/i.test(ua);
+  var isWeChat = /MicroMessenger/i.test(ua);
+  var isIPA = String(app.packageType || '').toLowerCase() === 'ipa';
+  var isAPK = String(app.packageType || '').toLowerCase() === 'apk';
+  var isStore = String(app.packageType || '').toLowerCase() === 'store';
+  var api = '/community/api';
+  var shareUrl = data.shareUrl || (location.origin + location.pathname);
+  var downloadUrl = api + '/apps/' + encodeURIComponent(app.id) + '/download';
+  var manifestUrl = api + '/apps/' + encodeURIComponent(app.id) + '/ios-manifest.plist';
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(m){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+  }
+  function media(u){
+    u = String(u || '').trim();
+    if(!u) return '';
+    if(/^https?:/i.test(u)) return u;
+    if(u.charAt(0) === '/') return u;
+    return api + '/media/' + encodeURIComponent(u);
+  }
+  function num(n){
+    n = Number(n || 0);
+    if(n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + ' 万';
+    return String(n);
+  }
+  function stars(v){
+    v = Math.round(Number(v || 0) * 2) / 2;
+    var full = Math.floor(v), half = v - full >= .5;
+    var out = '';
+    for(var i = 0; i < 5; i++) out += i < full ? '★' : (i === full && half ? '☆' : '☆');
+    return out;
+  }
+  var icon = media(app.icon);
+  var title = esc(app.name || '未命名应用');
+  var ver = esc(app.version || '');
+  var plat = {ios:'iOS', android:'Android', harmony:'鸿蒙', windows:'Windows'}[String(app.platform||'').toLowerCase()] || esc(app.platform || '应用');
+  var pkg = isStore ? 'App Store' : esc(String(app.packageType || '').toUpperCase() || '安装包');
+  var rating = Number(app.rating || 0);
+  var ratingCount = Number(app.ratingCount || 0);
+  var author = app.author || {};
+  var authorName = esc(author.name || '社区用户');
+  var authorAvatar = media(author.avatar);
+
+  var shots = Array.isArray(app.screenshots) ? app.screenshots.filter(Boolean) : [];
+  var html = '';
+  html += '<div class="hero"><div class="hero-top">';
+  html += '<div class="ic">' + (icon ? '<img src="' + esc(icon) + '" alt="' + title + '">' : '<div class="fallback">' + esc((app.name||'?').slice(0,1)) + '</div>') + '</div>';
+  html += '<div class="hero-copy"><div class="kicker">流萤应用市场 · ' + plat + '</div>';
+  html += '<h1>' + title + '</h1><div class="meta">';
+  html += '<span class="chip">' + pkg + '</span>';
+  if(ver) html += '<span class="chip">v' + ver + '</span>';
+  if(app.category) html += '<span class="chip">' + esc(app.category) + '</span>';
+  if(app.subCategory) html += '<span class="chip hot">' + esc(app.subCategory) + '</span>';
+  html += '</div>';
+  html += '<div class="rating"><span class="stars">' + stars(rating) + '</span>' + (rating ? rating.toFixed(1) : '暂无评分') + ' · ' + num(ratingCount) + ' 人评 · ' + num(app.downloadCount) + ' 次下载</div>';
+  html += '</div></div>';
+  if(app.shareReason){
+    html += '<div class="quote"><b>投稿者说</b>' + esc(app.shareReason) + '</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="install"><div class="notice" id="notice"></div><div id="cta"></div></div>';
+
+  if(shots.length){
+    html += '<div class="sec"><h2>应用截图</h2><div class="shots">';
+    shots.forEach(function(s){
+      var u = media(s);
+      html += '<a href="' + esc(u) + '" target="_blank" rel="noopener"><img src="' + esc(u) + '" loading="lazy" alt="截图"></a>';
+    });
+    html += '</div></div>';
+  }
+
+  if(app.description){
+    html += '<div class="sec"><h2>应用介绍</h2><div class="about">' + esc(app.description) + '</div></div>';
+  }
+
+  html += '<div class="sec"><h2>应用信息</h2><div class="info">';
+  html += '<div><small>版本</small><b>' + (ver ? 'v' + ver : '未填写') + '</b></div>';
+  html += '<div><small>' + (isStore ? '获取方式' : '安装包') + '</small><b>'
+    + (isStore ? 'App Store · iOS' : pkg + ' · ' + plat) + '</b></div>';
+  html += '<div><small>系统要求</small><b>' + esc(app.osVersion || '未填写') + '</b></div>';
+  html += '<div><small>包名 / 标识</small><b>' + esc(app.packageName || '未填写') + '</b></div>';
+  html += '<div><small>分类</small><b>' + esc((app.category || '') + (app.subCategory ? ' / ' + app.subCategory : '')) + '</b></div>';
+  html += '<div><small>上架时间</small><b>' + (app.publishedAt ? new Date(app.publishedAt * 1000).toLocaleDateString('zh-CN') : '—') + '</b></div>';
+  html += '</div></div>';
+
+  html += '<div class="sec"><h2>投稿者</h2><div class="author"><div class="av">' + (authorAvatar ? '<img src="' + esc(authorAvatar) + '" alt="">' : '') + '</div>';
+  html += '<div><div class="nm">' + authorName + '</div><div class="sub">把好用的应用带进社区</div></div>';
+  html += '<div class="right">流萤社区</div></div></div>';
+
+  card.innerHTML = html;
+
+  var cta = document.getElementById('cta');
+  var notice = document.getElementById('notice');
+  function showNotice(text){ notice.textContent = text; notice.className = 'notice show'; }
+
+  if(isStore){
+    var storeUrl = String(app.storeUrl || downloadUrl || '');
+    cta.innerHTML = '<a class="btn primary" href="' + esc(storeUrl) + '" rel="noopener">前往 App Store</a>'
+      + '<p class="note">将在 App Store 打开 · 由 Apple 提供下载、更新与内购</p>';
+    if(isWeChat && isIOS){ showNotice('微信内可能无法直接唤起 App Store。可点右上角「···」选择「在浏览器打开」。'); }
+  } else if(isIOS && isIPA){
+    cta.innerHTML = '<button class="btn primary" id="installBtn" type="button">在 iPhone 上安装</button>'
+      + '<a class="btn ghost sub" href="' + esc(downloadUrl) + '">下载 IPA 文件</a>'
+      + '<p class="note">安装由 iOS 系统接管 · 需要已签名的 IPA 和有效证书<br>未签名包会被系统提示“无法安装”</p>';
+    if(isWeChat){ showNotice('微信内不能直接唤起系统安装。请点右上角「···」选择「在浏览器打开」后再安装。'); }
+    var btn = document.getElementById('installBtn');
+    btn.addEventListener('click', function(){
+      if(isWeChat){ showNotice('请点右上角「···」选择「在浏览器打开」后再安装。'); return; }
+      btn.textContent = '正在唤起系统…';
+      btn.disabled = true;
+      var u = 'itms-services://?action=download-manifest&url=' + encodeURIComponent(location.origin + manifestUrl);
+      try { location.href = u; } catch(e) {}
+      setTimeout(function(){
+        btn.textContent = '已交给系统 · 重新安装';
+        btn.disabled = false;
+        var si = document.getElementById('stageIcon');
+        if(si) si.innerHTML = icon ? '<img src="' + esc(icon) + '" alt="">' : '';
+        document.getElementById('stage').className = 'stage show';
+      }, 900);
+    });
+  } else if(isAndroid && isAPK){
+    cta.innerHTML = '<a class="btn primary" href="' + esc(downloadUrl) + '">下载安装包</a>'
+      + '<p class="note">' + pkg + ' · 由流萤社区下载网关直连<br>下载完成后交给系统安装器</p>';
+  } else if(isIOS && isAPK){
+    cta.innerHTML = '<button class="btn ghost" id="copyBtn" type="button">复制链接，在 Android 设备打开</button>'
+      + '<p class="note">这是 Android 安装包，iPhone 无法安装。</p>';
+  } else if(isAndroid && isIPA){
+    cta.innerHTML = '<button class="btn ghost" id="copyBtn" type="button">复制链接，在 iPhone 上打开</button>'
+      + '<p class="note">这是 iOS 安装包，Android 设备无法安装。</p>';
+  } else {
+    cta.innerHTML = '<a class="btn primary" href="' + esc(downloadUrl) + '">下载安装包</a>'
+      + '<p class="note">' + pkg + ' · ' + plat + ' 版本</p>';
+  }
+
+  var copyBtn = document.getElementById('copyBtn');
+  if(copyBtn){
+    copyBtn.addEventListener('click', function(){
+      var text = shareUrl;
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){ copyBtn.textContent = '链接已复制'; });
+      } else {
+        var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+        try { document.execCommand('copy'); copyBtn.textContent = '链接已复制'; } catch(e) {}
+        document.body.removeChild(t);
+      }
+    });
+  }
+})();
+function hideStage(){ document.getElementById('stage').className = 'stage'; }
+</script>
+</body>
+</html>

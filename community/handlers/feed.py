@@ -14,6 +14,8 @@ import math
 
 from common import (db, resolve_token, decorate_post, is_blocked, blocked_by, row_dict,
                     rate_limit, client_ip)
+from personalized import build_personalized, remember_pushed
+from search_personalized import rank_posts, rank_users, rank_topics
 
 HALF_LIFE = 48 * 3600
 
@@ -52,20 +54,24 @@ def _handle_feed(self, c, u, api, method):
     tab = (query.get("tab") or ["all"])[0].strip()
     if tab not in ("all", "follow", "recommend"):
         tab = "all"
+    exclude = [x for x in (query.get("exclude") or [""])[0].split(",") if x][:100]
+    fresh = (query.get("fresh") or ["0"])[0].strip() in ("1", "true", "yes")
     uid = _uid(c, self)
     where = [_visible_sql()]
     args = []
     if board_id:
-        # 含子分类：该版块及其所有后代
+        # 含子分类：该版块及其所有后代（逐层展开，不能只查直接子级）。
         board_ids = [board_id]
-        changed = True
-        while changed:
-            changed = False
-            for row in c.execute("SELECT id FROM community_boards WHERE parent_id=? AND active=1",
-                                 (board_id,)):
-                if row[0] not in board_ids:
-                    board_ids.append(row[0])
-                    changed = True
+        pending = [board_id]
+        while pending:
+            parent = pending.pop()
+            for row in c.execute(
+                    "SELECT id FROM community_boards WHERE parent_id=? AND active=1",
+                    (parent,)):
+                child = row[0]
+                if child not in board_ids:
+                    board_ids.append(child)
+                    pending.append(child)
         ph = ",".join("?" for _ in board_ids)
         where.append("board_id IN (%s)" % ph)
         args += board_ids
@@ -97,20 +103,21 @@ def _handle_feed(self, c, u, api, method):
             else:
                 where.append("1=0")
     elif tab == "recommend":
-        # 候选窗口化（避免全表扫描）：created 近 RECOMMEND_WINDOW 且按时间倒序
-        # 取最多 RECOMMEND_MAX_CANDIDATES 条，再按热度排序分页。
-        w2 = list(where) + ["created >= ?"]
-        a2 = args + [time.time() - RECOMMEND_WINDOW]
-        rows0 = c.execute(
-            "SELECT * FROM community_posts WHERE %s ORDER BY created DESC LIMIT ?"
-            % " AND ".join(w2), a2 + [RECOMMEND_MAX_CANDIDATES]).fetchall()
-        rows0 = [r for r in rows0 if not blocked_by(c, uid, row_dict(r)["user_id"])]
-        rows0.sort(key=lambda r: _heat(row_dict(r), 0), reverse=True)
-        total = len(rows0)
-        sliced = rows0[(page - 1) * size: page * size]
+        # 个性化推荐：多路召回 + 画像加权 + 多样性重排（见 personalized.py）
+        rows, has_more, pushed = build_personalized(
+            c, uid, page=page, size=size, board_id=board_id, topic=topic, ptype=ptype,
+            exclude=exclude, fresh=fresh, with_push=True)
+        items = []
+        for row, reason in rows:
+            d = decorate_post(c, row, uid)
+            d["reason"] = reason
+            items.append(d)
+        if uid and page == 1:
+            remember_pushed(c, uid, pushed)
         c.commit()
-        self._ok({"list": [decorate_post(c, r, uid) for r in sliced],
-                  "page": page, "size": size, "hasMore": page * size < total})
+        self._ok({"list": items, "page": page, "size": size,
+                  "hasMore": has_more, "personalized": bool(uid),
+                  "fresh": fresh})
         return True
     sql = "SELECT * FROM community_posts WHERE %s ORDER BY %s LIMIT ? OFFSET ?" % (
         " AND ".join(where), order)
@@ -138,11 +145,15 @@ def _handle_rankings(self, c, u, api, method):
         return True
     if rtype == "user":
         rows = c.execute(
-            "SELECT e.user_id, e.exp, e.level, u.name, u.avatar FROM community_exp e"
-            " JOIN users u ON u.id=e.user_id ORDER BY e.exp DESC LIMIT ?", (limit,)).fetchall()
+            "SELECT e.user_id, e.exp, e.level, u.name, u.avatar, u.verified, u.verified_label"
+            " FROM community_exp e JOIN users u ON u.id=e.user_id"
+            " ORDER BY e.exp DESC LIMIT ?", (limit,)).fetchall()
         c.commit()
-        self._ok({"list": [{"user": {"id": r[0], "name": r[3] or "", "avatar": r[4] or ""},
-                            "exp": r[1], "level": r[2]} for r in rows]})
+        self._ok({"list": [{"user": {
+            "id": r[0], "name": r[3] or "", "avatar": r[4] or "",
+            "verified": r[5] or "", "verifiedLabel": r[6] or "",
+            "isAi": (r[6] or "").strip().upper() == "AI",
+        }, "exp": r[1], "level": r[2]} for r in rows]})
         return True
     # 默认 post 热榜
     rows = c.execute(
@@ -175,25 +186,41 @@ def _handle_search(self, c, u, api, method):
                   (uuid.uuid4().hex, uid, q[:50], time.time()))
     like = "%" + q + "%"
     result = {"posts": [], "videos": [], "users": [], "topics": []}
+    candidate_limit = min(100, max(size * 4, size))
     if stype in ("", "post", "video"):
         st = "video" if stype == "video" else stype
-        sql = "SELECT * FROM community_posts WHERE %s AND content LIKE ? ORDER BY created DESC LIMIT ? OFFSET ?"
-        args = [like, size, (page - 1) * size]
+        base = "SELECT * FROM community_posts WHERE %s AND content LIKE ?" % _visible_sql()
+        args = [like]
         if st:
-            sql = "SELECT * FROM community_posts WHERE %s AND type=? AND content LIKE ? ORDER BY created DESC LIMIT ? OFFSET ?"
-            args = [st, like, size, (page - 1) * size]
-        rows = c.execute(sql % _visible_sql(), args).fetchall()
+            base += " AND type=?"
+            args.append(st)
+        rows = c.execute(base + " ORDER BY created DESC LIMIT ? OFFSET ?",
+                         args + [candidate_limit, (page - 1) * size]).fetchall()
+        ranked = rank_posts(c, uid, rows, q, min(size, len(rows)))
         key = "videos" if stype == "video" else "posts"
-        result[key] = [decorate_post(c, r, uid) for r in rows]
+        out = []
+        for row, reason in ranked:
+            item = decorate_post(c, row, uid)
+            item["reason"] = reason
+            out.append(item)
+        result[key] = out
     if stype in ("", "user"):
         rows = c.execute(
-            "SELECT id,name,avatar FROM users WHERE name LIKE ? OR account LIKE ? LIMIT ?",
-            (like, like, size)).fetchall()
-        result["users"] = [{"id": r[0], "name": r[1] or "", "avatar": r[2] or ""} for r in rows]
+            "SELECT id,name,avatar,verified,verified_label FROM users"
+            " WHERE name LIKE ? OR account LIKE ? LIMIT ?",
+            (like, like, candidate_limit)).fetchall()
+        ranked = rank_users(c, uid, rows, q, size)
+        result["users"] = [{
+            "id": r[0], "name": r[1] or "", "avatar": r[2] or "",
+            "verified": r[3] or "", "verifiedLabel": r[4] or "",
+            "isAi": (r[4] or "").strip().upper() == "AI",
+            "reason": reason, "followers": followers,
+        } for r, reason, followers in ranked]
     if stype in ("", "topic"):
         rows = c.execute("SELECT name, post_count FROM community_topics WHERE name LIKE ? LIMIT ?",
-                         (like, size)).fetchall()
-        result["topics"] = [{"name": r[0], "count": r[1]} for r in rows]
+                         (like, candidate_limit)).fetchall()
+        result["topics"] = rank_topics(c, uid, rows, q, size)
+    result["personalized"] = bool(uid)
     c.commit()
     self._ok(result)
     return True
@@ -242,9 +269,22 @@ def _handle_banners(self, c, u, api, method):
     for r in rows:
         d = row_dict(r)
         out.append({"id": d["id"], "image": d["image"],
+                    "title": d.get("title", ""),
                     "linkType": d["link_type"], "linkId": d["link_id"]})
+    fb = c.execute(
+        "SELECT * FROM community_banner_fallback WHERE id='default'").fetchone()
+    fallback = {"enabled": False}
+    if fb:
+        d = row_dict(fb)
+        fallback = {
+            "enabled": bool(d.get("enabled", 1)),
+            "title": d.get("title", ""),
+            "subtitle": d.get("subtitle", ""),
+            "linkType": d.get("link_type", "task"),
+            "linkId": d.get("link_id", ""),
+        }
     c.commit()
-    self._ok({"list": out})
+    self._ok({"list": out, "fallback": fallback})
     return True
 
 

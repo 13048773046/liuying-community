@@ -148,6 +148,18 @@ def ws_push(uid, data):
         conn.send_text(text)
 
 
+def ws_broadcast(data):
+    """向所有在线用户推送（官方广播用；逐连接静默失败）。"""
+    with _CLIENTS_LOCK:
+        conns = [conn for group in _CLIENTS.values() for conn in list(group)]
+    if not conns:
+        return 0
+    text = json.dumps(data, ensure_ascii=False)
+    for conn in conns:
+        conn.send_text(text)
+    return len(conns)
+
+
 def _do_handshake(handler, sock, token):
     key = handler.headers.get("Sec-WebSocket-Key", "")
     if not key:
@@ -159,6 +171,9 @@ def _do_handshake(handler, sock, token):
     handler.send_header("Connection", "Upgrade")
     handler.send_header("Sec-WebSocket-Accept", accept)
     handler.end_headers()
+    # 101 之后协议已切换，不能再走 JSON 错误响应；同时让访问日志记录真实状态。
+    handler._status_code = 101
+    handler._responded = True
     return True
 
 
@@ -193,12 +208,25 @@ def dispatch(self, c, u, api, method):
         # 初始推送未读数
         try:
             n = c.execute("SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0"
-                          " AND type!='official' AND is_deleted=0", (uid,)).fetchone()[0]
-            conn.send_text(json.dumps({"kind": "hello", "uid": uid, "unread": n},
+                          " AND type LIKE 'community_%' AND is_deleted=0", (uid,)).fetchone()[0]
+            dm_unread = c.execute(
+                "SELECT COUNT(*) FROM community_dm_messages"
+                " WHERE receiver_id=? AND is_read=0", (uid,)).fetchone()[0]
+            read = c.execute("SELECT last_read FROM community_official_read WHERE user_id=?",
+                             (uid,)).fetchone()
+            since = read[0] if read else 0
+            official_unread = c.execute(
+                "SELECT COUNT(*) FROM community_official_messages WHERE created>?"
+                " AND (receiver_user_id='' OR receiver_user_id=?)",
+                (since, uid)).fetchone()[0]
+            conn.send_text(json.dumps({"kind": "hello", "uid": uid, "unread": n,
+                                       "dmUnread": dm_unread,
+                                       "officialUnread": official_unread},
                                       ensure_ascii=False))
         except Exception:
             pass
-        c.close()
+        # 连接由 request_connection 统一关闭；这里提前 close 会让请求收尾
+        # 的 commit/close 命中已关闭连接，日志出现 500。
         # 读循环 + 心跳（主线程）
         threading.Thread(target=conn.read_loop, daemon=True).start()
         last_ping = time.time()

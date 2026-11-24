@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>安全验证</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:#f7f4e9;color:#17151c;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;align-items:center;justify-content:center;padding:24px}
+  .wrap{width:100%;max-width:360px;text-align:center}
+  .badge{width:54px;height:54px;border-radius:18px;background:#dff7eb;color:#0f9f74;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px}
+  h1{font-size:20px;line-height:1.3;margin:0 0 8px;letter-spacing:.02em}
+  p{font-size:13px;line-height:1.65;color:#6d6878;margin:0 0 18px}
+  .cap-box{display:flex;justify-content:center;margin:8px 0 14px;min-height:58px;--cap-widget-width:100%;--cap-widget-height:58px;--cap-background:#ffffff;--cap-border-color:#17b887;--cap-color:#17151c;--cap-border-radius:14px}
+  .cap-box cap-widget{display:block;width:100%;min-width:0;flex:1 1 auto}
+  .status{min-height:22px;font-size:12px;color:#8b8497;line-height:1.5}
+  .status.bad{color:#d64545}
+  .status.ok{color:#0f9f74}
+  button{border:0;border-radius:12px;background:#17b887;color:#fff;font-weight:600;font-size:14px;padding:11px 22px;margin-top:12px;display:none}
+  button.show{display:inline-block}
+</style>
+<script>
+  window.CAP_SILENT = true;
+  window.CAP_CUSTOM_WASM_URL = '/invite/cap/cap_wasm_disabled.wasm';
+  window.CAP_PAKO_URL = '/invite/cap/pako_inflate.min.js';
+</script>
+<script src="/invite/cap/cap.min.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="badge">✦</div>
+  <h1>安全验证</h1>
+  <p>点击下方按钮确认你是真人。验证通过后会自动返回 App。</p>
+  <div class="cap-box">
+    <cap-widget id="cap" data-cap-api-endpoint="/community/api/captcha/cap" data-cap-lang="zh-cn" data-cap-worker-count="2"></cap-widget>
+  </div>
+  <div class="status" id="status">正在准备安全验证…</div>
+  <button id="retry" type="button">重新验证</button>
+</div>
+<script>
+(function(){
+  var cap = document.getElementById('cap');
+  var status = document.getElementById('status');
+  var retry = document.getElementById('retry');
+  var finished = false;
+  setTimeout(function(){ if(!finished && status.textContent.indexOf('正在准备') === 0) say('点击上方按钮完成安全验证'); }, 900);
+  function bridge(obj){
+    if(window.CapCaptchaBridge){ window.CapCaptchaBridge.postMessage(JSON.stringify(obj)); }
+  }
+  function say(msg, cls){ status.textContent = msg; status.className = 'status' + (cls ? ' ' + cls : ''); }
+  cap.addEventListener('solve', function(e){
+    if(finished) return;
+    finished = true;
+    say('验证已完成，正在返回…', 'ok');
+    bridge({ token: e.detail.token });
+  });
+  cap.addEventListener('error', function(e){
+    var msg = (e.detail && e.detail.message) || '验证未通过，请重试';
+    say(msg, 'bad');
+    retry.classList.add('show');
+    bridge({ error: msg });
+  });
+  cap.addEventListener('progress', function(e){
+    if(!finished) say('安全校验中… ' + Math.max(0, Math.min(100, e.detail.progress || 0)) + '%');
+  });
+  retry.addEventListener('click', function(){
+    finished = false;
+    retry.classList.remove('show');
+    say('正在重新验证…');
+    try { cap.reset(); } catch(err) { location.reload(); }
+  });
+})();
+</script>
+</body>
+</html>

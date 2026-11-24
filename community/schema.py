@@ -9,8 +9,10 @@ import os
 import time
 import uuid
 
-DB_PATH = os.environ.get("COMMUNITY_DB", "/www/wwwroot/music/tracks.db")
-FILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "files")
+from core.settings import settings
+
+DB_PATH = settings.db_path
+FILES_DIR = settings.files_dir
 
 _TABLES = [
     # ============ 内容域 ============
@@ -21,6 +23,9 @@ _TABLES = [
         type TEXT DEFAULT 'text',          -- 'text' / 'video' / 'poll'
         content TEXT DEFAULT '',           -- 富文本原文（#话题 @昵称 [表情code]）
         images TEXT DEFAULT '[]',          -- JSON ≤3 张 community_img_*
+        music TEXT DEFAULT '',             -- JSON 配乐 {url,name,cover,trackId}
+        audio_volume INTEGER DEFAULT 100,  -- 原声音量 0-100
+        music_volume INTEGER DEFAULT 50,   -- 配乐音量 0-100
         video TEXT DEFAULT '',             -- 视频文件名 community_video_*
         cover TEXT DEFAULT '',             -- 封面文件名（自动/指定帧/上传）
         duration REAL DEFAULT 0,
@@ -29,6 +34,7 @@ _TABLES = [
         topic TEXT DEFAULT '[]',           -- 话题 JSON
         mentions TEXT DEFAULT '[]',        -- @ 用户 JSON [{id,name}]
         poll TEXT DEFAULT '',              -- 投票定义 JSON {question,options,votes,endAt,multi}
+        attachments TEXT DEFAULT '[]',     -- JSON ≤2 个帖子附件 {name,label,size,ext,mime}
         like_count INTEGER DEFAULT 0,
         comment_count INTEGER DEFAULT 0,
         share_count INTEGER DEFAULT 0,
@@ -78,6 +84,24 @@ _TABLES = [
     CREATE TABLE IF NOT EXISTS community_shares(
         user_id TEXT NOT NULL, post_id TEXT NOT NULL, created REAL,
         PRIMARY KEY(user_id, post_id))""",
+    # ============ 个性化推荐域 ============
+    """
+    CREATE TABLE IF NOT EXISTS community_behavior_events(
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        post_id TEXT NOT NULL,
+        event TEXT NOT NULL,               -- view/like/fav/comment/share/vote/open/not_interested
+        value REAL DEFAULT 0,
+        meta TEXT DEFAULT '',              -- 事件快照 JSON（board/topic/author）
+        created REAL)""",
+    "CREATE INDEX IF NOT EXISTS idx_cbe_user ON community_behavior_events(user_id, created DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cbe_post ON community_behavior_events(post_id, event, created DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cbe_event ON community_behavior_events(event, created DESC)",
+    """
+    CREATE TABLE IF NOT EXISTS community_recommend_push(
+        uid TEXT NOT NULL, post_id TEXT NOT NULL, pushed_at REAL,
+        PRIMARY KEY(uid, post_id))""",
+    "CREATE INDEX IF NOT EXISTS idx_crp_time ON community_recommend_push(uid, pushed_at)",
     # ============ 组织域 ============
     """
     CREATE TABLE IF NOT EXISTS community_boards(
@@ -89,7 +113,7 @@ _TABLES = [
     """
     CREATE TABLE IF NOT EXISTS community_topics(
         id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE,
-        post_count INTEGER DEFAULT 0, created REAL)""",
+        post_count INTEGER DEFAULT 0, created_by TEXT DEFAULT '', created REAL)""",
     "CREATE INDEX IF NOT EXISTS idx_ctopic_hot ON community_topics(post_count DESC)",
     # ============ 用户域 ============
     """
@@ -108,7 +132,8 @@ _TABLES = [
     CREATE TABLE IF NOT EXISTS community_emojis(
         id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE,
         image TEXT NOT NULL, category TEXT DEFAULT '默认',
-        sort INTEGER DEFAULT 0, active INTEGER DEFAULT 1, created REAL)""",
+        sort INTEGER DEFAULT 0, active INTEGER DEFAULT 1, created REAL,
+        owner_id TEXT DEFAULT '')""",
     "CREATE INDEX IF NOT EXISTS idx_cemoji_cat ON community_emojis(category, sort)",
     """
     CREATE TABLE IF NOT EXISTS community_user_emojis(
@@ -119,7 +144,9 @@ _TABLES = [
     CREATE TABLE IF NOT EXISTS community_official_messages(
         id TEXT PRIMARY KEY, content TEXT NOT NULL,
         sender_name TEXT DEFAULT '流萤社区官方',
-        receiver_user_id TEXT DEFAULT '', created REAL)""",
+        receiver_user_id TEXT DEFAULT '', created REAL,
+        content_type TEXT DEFAULT 'text',   -- text / rich
+        plain_text TEXT DEFAULT '')         -- 富文本的纯文本 fallback / 列表摘要""",
     "CREATE INDEX IF NOT EXISTS idx_comsg ON community_official_messages(receiver_user_id, created DESC)",
     """
     CREATE TABLE IF NOT EXISTS community_official_read(
@@ -129,6 +156,8 @@ _TABLES = [
         token TEXT PRIMARY KEY,
         user_id TEXT DEFAULT '',
         level INTEGER DEFAULT 2,           -- 1 一级 / 2 二级
+        role TEXT DEFAULT '',             -- super/admin/auditor
+        perms TEXT DEFAULT '',            -- 逗号分隔模块权限
         name TEXT DEFAULT '社区管理员', created REAL)""",
     """
     CREATE TABLE IF NOT EXISTS community_admin_logs(
@@ -202,8 +231,16 @@ _TABLES = [
     CREATE TABLE IF NOT EXISTS community_banners(
         id TEXT PRIMARY KEY, image TEXT NOT NULL,
         link_type TEXT DEFAULT 'url', link_id TEXT DEFAULT '',
+        title TEXT DEFAULT '',
         sort INTEGER DEFAULT 0, active INTEGER DEFAULT 1,
         start_at REAL DEFAULT 0, end_at REAL DEFAULT 0, created REAL)""",
+    """
+    CREATE TABLE IF NOT EXISTS community_banner_fallback(
+        id TEXT PRIMARY KEY, enabled INTEGER DEFAULT 1,
+        title TEXT DEFAULT '社区活动进行中',
+        subtitle TEXT DEFAULT '签到、发帖、互动都能涨经验，冲等级解锁装扮',
+        link_type TEXT DEFAULT 'task', link_id TEXT DEFAULT '',
+        updated REAL)""",
     """
     CREATE TABLE IF NOT EXISTS community_activities(
         id TEXT PRIMARY KEY, topic_id TEXT DEFAULT '', title TEXT NOT NULL,
@@ -243,6 +280,49 @@ _TABLES = [
         cover TEXT DEFAULT '', error TEXT DEFAULT '',
         created REAL, updated REAL)""",
     "CREATE INDEX IF NOT EXISTS idx_cvideo_user ON community_videos(user_id, created DESC)",
+    # ============ 会员域（VIP/SVIP 双档 + 兑换码 + 开通记录） ============
+    """
+    CREATE TABLE IF NOT EXISTS community_member_plans(
+        id TEXT PRIMARY KEY,
+        level TEXT NOT NULL,
+        name TEXT DEFAULT '',
+        days INTEGER DEFAULT 30,
+        price INTEGER DEFAULT 0,
+        benefits TEXT DEFAULT '[]',
+        sort INTEGER DEFAULT 0,
+        active INTEGER DEFAULT 1,
+        created REAL)""",
+    """
+    CREATE TABLE IF NOT EXISTS community_member_codes(
+        code TEXT PRIMARY KEY,
+        level TEXT NOT NULL,
+        days INTEGER NOT NULL,
+        plan_id TEXT DEFAULT '',
+        batch TEXT DEFAULT '',
+        used_by TEXT DEFAULT '',
+        used_at REAL DEFAULT 0,
+        created REAL,
+        note TEXT DEFAULT '')""",
+    "CREATE INDEX IF NOT EXISTS idx_mcode_used ON community_member_codes(used_by, used_at DESC)",
+    """
+    CREATE TABLE IF NOT EXISTS community_member_orders(
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        level TEXT NOT NULL,
+        days INTEGER DEFAULT 0,
+        price INTEGER DEFAULT 0,
+        channel TEXT DEFAULT 'code',
+        code TEXT DEFAULT '',
+        contact TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        proof TEXT DEFAULT '',
+        trade_no TEXT DEFAULT '',
+        paid_at REAL DEFAULT 0,
+        status INTEGER DEFAULT 1,
+        created REAL,
+        updated REAL)""",
+    "CREATE INDEX IF NOT EXISTS idx_morder_user ON community_member_orders(user_id, created DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_morder_status ON community_member_orders(status, created DESC)",
 ]
 
 _DEFAULT_TASKS = [
@@ -268,8 +348,24 @@ def init_schema():
         c.execute("PRAGMA synchronous=NORMAL")
         for ddl in _TABLES:
             c.execute(ddl)
+        _migrate(c)
         _seed_boards(c)
         _seed_tasks(c)
+        _seed_banner_fallback(c)
+        _seed_member_plans(c)
+        _seed_frames(c)
+        from app_market.schema import init_app_schema
+        init_app_schema(c)
+        from invite_core import init_schema as init_invite_schema
+        init_invite_schema(c)
+        from ai_bot_schema import init_ai_bot_schema
+        init_ai_bot_schema(c)
+        from site_content import init_schema as init_site_schema
+        init_site_schema(c)
+        from handlers.app_release import init_schema as init_app_release_schema
+        init_app_release_schema(c)
+        from handlers.app_hot_update import init_schema as init_hot_schema
+        init_hot_schema(c)
         c.commit()
     finally:
         c.close()
@@ -300,3 +396,115 @@ def _seed_tasks(c):
         c.execute("INSERT INTO community_tasks(id,name,type,target,reward_exp,active,created)"
                   " VALUES(?,?,?,?,?,1,?)",
                   (tid, name, typ, target, reward, now))
+
+
+def _migrate(c):
+    """轻量迁移：只对 community_* 表加列，幂等。"""
+    # 头像框档位门槛：'' 公开 / member 会员 / svip 高级会员
+    cols = [r[1] for r in c.execute("PRAGMA table_info(community_frames)").fetchall()]
+    if "member_level" not in cols:
+        c.execute("ALTER TABLE community_frames ADD COLUMN member_level TEXT DEFAULT ''")
+    # 会员订单：补易支付字段（线上老表幂等升级）
+    ocols = [r[1] for r in c.execute("PRAGMA table_info(community_member_orders)").fetchall()]
+    if "proof" not in ocols:
+        c.execute("ALTER TABLE community_member_orders ADD COLUMN proof TEXT DEFAULT ''")
+    if "trade_no" not in ocols:
+        c.execute("ALTER TABLE community_member_orders ADD COLUMN trade_no TEXT DEFAULT ''")
+    if "paid_at" not in ocols:
+        c.execute("ALTER TABLE community_member_orders ADD COLUMN paid_at REAL DEFAULT 0")
+    # 管理端角色/模块权限（老库幂等升级）
+    acols = [r[1] for r in c.execute("PRAGMA table_info(community_admins)").fetchall()]
+    if "role" not in acols:
+        c.execute("ALTER TABLE community_admins ADD COLUMN role TEXT DEFAULT ''")
+    if "perms" not in acols:
+        c.execute("ALTER TABLE community_admins ADD COLUMN perms TEXT DEFAULT ''")
+    # Banner 左下角文字（老库幂等升级）
+    bcols = [r[1] for r in c.execute("PRAGMA table_info(community_banners)").fetchall()]
+    if "title" not in bcols:
+        c.execute("ALTER TABLE community_banners ADD COLUMN title TEXT DEFAULT ''")
+    # 帖子配乐/音量（老库幂等升级）
+    pcols = [r[1] for r in c.execute("PRAGMA table_info(community_posts)").fetchall()]
+    for col, ddl in (
+        ("music", "TEXT DEFAULT ''"),
+        ("audio_volume", "INTEGER DEFAULT 100"),
+        ("music_volume", "INTEGER DEFAULT 50"),
+        ("attachments", "TEXT DEFAULT '[]'"),
+    ):
+        if col not in pcols:
+            c.execute("ALTER TABLE community_posts ADD COLUMN %s %s" % (col, ddl))
+    # 官方通知富文本（老库幂等升级）：content 存 canonical JSON，纯文本另存。
+    ocols = [r[1] for r in c.execute("PRAGMA table_info(community_official_messages)").fetchall()]
+    if "content_type" not in ocols:
+        c.execute("ALTER TABLE community_official_messages ADD COLUMN content_type TEXT DEFAULT 'text'")
+    if "plain_text" not in ocols:
+        c.execute("ALTER TABLE community_official_messages ADD COLUMN plain_text TEXT DEFAULT ''")
+    # 话题创建者：用户级创建后展示「我创建的」；旧话题保持空。
+    tcols = [r[1] for r in c.execute("PRAGMA table_info(community_topics)").fetchall()]
+    if "created_by" not in tcols:
+        c.execute("ALTER TABLE community_topics ADD COLUMN created_by TEXT DEFAULT ''")
+    # 自定义表情归属：空=官方表情；非空=仅该用户收藏可见。
+    ecols = [r[1] for r in c.execute("PRAGMA table_info(community_emojis)").fetchall()]
+    if "owner_id" not in ecols:
+        c.execute("ALTER TABLE community_emojis ADD COLUMN owner_id TEXT DEFAULT ''")
+    # 旧数据里把话题名填在外链字段的 Banner 自动归位，避免点击落到任务中心。
+    c.execute(
+        "UPDATE community_banners SET link_type='topic'"
+        " WHERE link_type='url' AND link_id IN (SELECT name FROM community_topics)")
+
+
+
+def _seed_frames(c):
+    """默认头像框（幂等：仅当表空）。image 为 media 相对路径，member_level 控制档位。"""
+    if c.execute("SELECT COUNT(*) FROM community_frames").fetchone()[0]:
+        return
+    now = time.time()
+    rows = [
+        ("f01", "薄荷细环", "frames/f01_ring.png", 1, ""),
+        ("f02", "双线白环", "frames/f02_double.png", 2, ""),
+        ("f03", "缺口环", "frames/f03_notch.png", 3, ""),
+        ("f04", "柔光薄荷", "frames/f04_glow.png", 4, "member"),
+        ("f05", "星芒环", "frames/f05_star.png", 5, "member"),
+        ("f06", "齿轮环", "frames/f06_gear.png", 6, "member"),
+        ("f07", "波纹环", "frames/f07_ripple.png", 7, "member"),
+        ("f08", "花瓣环", "frames/f08_petal.png", 8, "svip"),
+        ("f09", "切角方框", "frames/f09_square.png", 9, "svip"),
+        ("f10", "点阵环", "frames/f10_dots.png", 10, "svip"),
+        ("f11", "藤蔓环", "frames/f11_vine.png", 11, "svip"),
+        ("f12", "皇冠环", "frames/f12_crown.png", 12, "svip"),
+    ]
+    for fid, name, img, sort, lvl in rows:
+        c.execute("INSERT OR IGNORE INTO community_frames"
+                  "(id,name,image,image_dynamic,sort,active,created,member_level)"
+                  " VALUES(?,?,?,?,?,?,?,?)",
+                  (fid, name, img, "", sort, 1, now, lvl))
+
+
+def _seed_banner_fallback(c):
+    """首页无 Banner 时的默认运营卡，后台可改；仅首次写入。"""
+    if c.execute("SELECT COUNT(*) FROM community_banner_fallback").fetchone()[0]:
+        return
+    c.execute(
+        "INSERT INTO community_banner_fallback"
+        "(id,enabled,title,subtitle,link_type,link_id,updated)"
+        " VALUES('default',1,?,?,?,?,?)",
+        ("社区活动进行中", "签到、发帖、互动都能涨经验，冲等级解锁装扮",
+         "task", "", time.time()))
+
+
+def _seed_member_plans(c):
+    """默认套餐（幂等：仅当表空）。价格单位：分。"""
+    if c.execute("SELECT COUNT(*) FROM community_member_plans").fetchone()[0]:
+        return
+    now = time.time()
+    plans = [
+        ("p_vip_1", "member", "VIP · 月卡", 30, 1200, 10),
+        ("p_vip_3", "member", "VIP · 季卡", 90, 3000, 20),
+        ("p_vip_12", "member", "VIP · 年卡", 365, 9800, 30),
+        ("p_svip_1", "svip", "SVIP · 月卡", 30, 3000, 40),
+        ("p_svip_3", "svip", "SVIP · 季卡", 90, 7800, 50),
+        ("p_svip_12", "svip", "SVIP · 年卡", 365, 26800, 60),
+    ]
+    for pid, level, name, days, price, sort in plans:
+        c.execute("INSERT INTO community_member_plans(id,level,name,days,price,benefits,sort,active,created)"
+                  " VALUES(?,?,?,?,?,?,?,1,?)",
+                  (pid, level, name, days, price, "[]", sort, now))

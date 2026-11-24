@@ -1,14 +1,19 @@
-/// 版块帖子流（双列瀑布流，feed?board_id=），供板块页二级直切与独立页复用
+/// 版块帖子流（三列作品网格，feed?board_id=），供版块页二级直切与独立页复用
+///
+/// 沉浸黑：黑底 + 三列圆角网格（[PostGridTile]）+ 底部加载更多；
+/// 请求、分页、下拉刷新、滚动加载逻辑保持原样。
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../api/client.dart';
 import '../config.dart';
+import '../design/components.dart';
 import '../models/feed_item.dart';
-import 'waterfall_card.dart';
 import '../pages/post/post_detail.dart';
+import 'post_card.dart';
 
 class BoardFeedGrid extends StatefulWidget {
   final String boardId;
@@ -71,95 +76,137 @@ class _BoardFeedGridState extends State<BoardFeedGrid> {
         _loaded = true;
         _loading = false;
       });
-      if (_items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('加载失败：$e'),
-          backgroundColor: const Color(AppTheme.card),
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+      if (_items.isEmpty) showAppToast(context, '加载失败：$e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded) {
-      return const Center(
-        child: CircularProgressIndicator(
-            color: Color(AppTheme.accent), strokeWidth: 2.5),
-      );
-    }
-    if (_items.isEmpty) {
-      return RefreshIndicator(
-        color: const Color(AppTheme.accent),
-        backgroundColor: const Color(AppTheme.card),
-        onRefresh: () => _load(refresh: true),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 100),
-            Icon(Icons.forum_outlined,
-                size: 48, color: Color(AppTheme.textTertiary)),
-            SizedBox(height: 10),
-            Center(
-              child: Text('该版块还没有内容\n去发布第一帖吧',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: Color(AppTheme.textSecondary),
-                      fontSize: 13.5,
-                      height: 1.6)),
-            ),
-          ],
-        ),
-      );
-    }
-    return RefreshIndicator(
-      color: const Color(AppTheme.accent),
-      backgroundColor: const Color(AppTheme.card),
+    final bottom = 28 + tabBarBottomInset(context);
+    final content = RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
       onRefresh: () => _load(refresh: true),
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
-          if (n.metrics.extentAfter < 400) _load();
+          if (n.metrics.extentAfter < n.metrics.viewportDimension) _load();
           return false;
         },
-        child: MasonryGridView.count(
-          physics: const AlwaysScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          // 底部避让：动态取导航栏实际高度（背景延伸由 Scaffold 底色承担）
-          padding: EdgeInsets.fromLTRB(12, 4, 12, tabBarBottomInset(context)),
-          itemCount: _items.length + 1,
-          itemBuilder: (_, i) {
-            if (i == _items.length) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: _hasMore
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(AppTheme.accent)))
-                      : const Text('— 到底啦 —',
-                          style: TextStyle(
-                              color: Color(AppTheme.textTertiary),
-                              fontSize: 11)),
+        child: CustomScrollView(
+          scrollCacheExtent: const ScrollCacheExtent.pixels(300),
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            if (_items.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: bottom),
+                  child: const Center(
+                    child: EmptyState(
+                      icon: Icons.forum_outlined,
+                      title: '该版块还没有内容',
+                      message: '去发布第一帖吧',
+                    ),
+                  ),
                 ),
-              );
-            }
-            final it = _items[i];
-            return WaterfallCard(
-              item: it,
-              onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => PostDetailPage(postId: it.id))),
-            );
-          },
+              )
+            else ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.gutter,
+                  AppSpace.x2,
+                  AppSpace.gutter,
+                  0,
+                ),
+                sliver: SliverMasonryGrid.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 8,
+                  childCount: _items.length,
+                  itemBuilder: (context, i) {
+                    final it = _items[i];
+                    final cover = it.isVideo
+                        ? it.cover
+                        : (it.images.isNotEmpty ? it.images.first : '');
+                    final tile = PostGridTile(
+                      item: it,
+                      centerText: true,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PostDetailPage(postId: it.id),
+                        ),
+                      ),
+                    );
+                    // 有封面按竖版卡片；纯文字帖按内容行数收紧，避免大片空卡。
+                    Widget content;
+                    if (cover.isNotEmpty) {
+                      content = AspectRatio(aspectRatio: 0.80, child: tile);
+                    } else {
+                      final chars = it.content.trim().runes.length;
+                      final lines = (chars / 11).ceil().clamp(2, 5).toInt();
+                      final top = it.isVideo ? 34.0 : 12.0;
+                      content = SizedBox(
+                        height: top + lines * 19.0 + 38.0,
+                        child: tile,
+                      );
+                    }
+                    return StaggerReveal(
+                      key: ValueKey('board-post-${it.id}'),
+                      index: i,
+                      child: content,
+                    );
+                  },
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: bottom),
+                  child: LoadMoreFooter(
+                    loading: _loading,
+                    hasMore: _hasMore,
+                    onTap: () => _load(),
+                    endLabel: '— 到底啦 —',
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
+    );
+    return SkeletonSwap(
+      loading: !_loaded,
+      skeleton: const ShimmerScope(child: _GridSkeleton()),
+      child: content,
+    );
+  }
+}
+
+/// 首屏骨架：三列圆角占位，避免白屏跳动。
+class _GridSkeleton extends StatelessWidget {
+  const _GridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        AppSpace.x2,
+        AppSpace.gutter,
+        0,
+      ),
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.86,
+      ),
+      itemCount: 6,
+      itemBuilder: (_, _) => const SkeletonBox(radius: AppRadius.sm),
     );
   }
 }

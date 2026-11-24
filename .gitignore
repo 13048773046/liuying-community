@@ -74,3 +74,13 @@ community/files/
 *.db-wal
 *.db-shm
 community/tests/tracks_test.db
+
+# 本地密钥 / 审计产物（绝不入库）
+.sec-audit/
+*.jks
+*.keystore
+test/failures/
+community/tests/test.db
+
+# Node 依赖
+community/cap_service/node_modules/

@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.library'
+}
+
+group 'xyz.justsoft.video_thumbnail'
+version '1.0-SNAPSHOT'
+
+android {
+    namespace 'xyz.justsoft.video_thumbnail'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 21
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+}

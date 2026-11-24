@@ -1,4 +1,4 @@
-/// 私信会话列表页：头像 + 名字 + 最后消息 + 时间 + 未读数字角标
+/// 私信会话列表页（沉浸黑）：头像 + 名字 + 最后消息 + 时间 + 未读数字角标
 /// 点击进入聊天页；下拉刷新；WS 新消息实时更新列表
 library;
 
@@ -7,10 +7,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
+import '../../features/message/data/message_repository.dart';
 import '../../config.dart';
+import '../../design/components.dart';
+import '../../features/emoji/text_emoji.dart';
 import '../../models/feed_item.dart';
 import '../../services/notify_bus.dart';
-import '../../widgets/user_avatar.dart';
 import '../mine/login_page.dart';
 import 'dm_chat_page.dart';
 
@@ -29,15 +31,15 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
   bool _needLogin = false;
   String? _loadError;
   StreamSubscription? _dmSub;
+  final Set<String> _seenDmIds = <String>{};
+  bool _chatOpening = false;
 
   @override
   void initState() {
     super.initState();
     _load(refresh: true);
-    // 新私信实时刷新列表（未读 + 置顶）
-    _dmSub = NotifyBus.shared.onDm.stream.listen((_) {
-      if (mounted) _load(refresh: true);
-    });
+    // 新私信实时本地置顶/更新，不整表重载
+    _dmSub = NotifyBus.shared.onDm.stream.listen(_onDmEvent);
   }
 
   @override
@@ -46,12 +48,63 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
     super.dispose();
   }
 
+  void _onDmEvent(Map<String, dynamic> dm) {
+    if (!mounted) return;
+    final mid = (dm['id'] ?? '').toString();
+    if (mid.isNotEmpty && !_seenDmIds.add(mid)) return;
+    final convId = (dm['convId'] ?? '').toString();
+    if (convId.isEmpty) return;
+    final from = dm['from'] is Map
+        ? Map<String, dynamic>.from(dm['from'] as Map)
+        : <String, dynamic>{};
+    final preview = (dm['preview'] ?? dm['content'] ?? '').toString();
+    final mtype = (dm['msgType'] ?? 'text').toString();
+    final created = (dm['created'] as num?)?.toDouble() ?? 0;
+    final convUnread = intOf(dm['convUnread']);
+    setState(() {
+      final idx = _items.indexWhere((e) => (e['id'] ?? '') == convId);
+      Map<String, dynamic> item;
+      if (idx >= 0) {
+        item = _items.removeAt(idx);
+        item['lastMsg'] = preview;
+        item['lastType'] = mtype;
+        item['lastTime'] = created;
+        item['unread'] = convUnread;
+      } else {
+        item = {
+          'id': convId,
+          'peer': {
+            'id': (from['id'] ?? '').toString(),
+            'name': (from['name'] ?? '').toString(),
+            'avatar': (from['avatar'] ?? '').toString(),
+            'title': '',
+            'verified': '',
+            'verifiedLabel': '',
+            'isAi': false,
+            'frameId': '',
+          },
+          'lastMsg': preview,
+          'lastType': mtype,
+          'lastTime': created,
+          'unread': convUnread,
+        };
+      }
+      _items = [item, ..._items];
+      _loading = false;
+      _loadError = null;
+    });
+    final total = _items.fold<int>(0, (sum, it) => sum + intOf(it['unread']));
+    NotifyBus.shared.setDmUnread(total);
+  }
+
   Future<void> _load({bool refresh = false}) async {
     if (!refresh && !_hasMore) return;
     setState(() => _loading = refresh);
     try {
-      final j = await ApiClient.dmConversations(
-          page: refresh ? 1 : _page + 1, size: 20);
+      final j = await MessageRepository.instance.dmConversations(
+        page: refresh ? 1 : _page + 1,
+        size: 20,
+      );
       final list = ((j['list'] ?? []) as List)
           .whereType<Map<String, dynamic>>()
           .toList();
@@ -68,6 +121,8 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
         _loading = false;
         _loadError = null;
       });
+      final total = _items.fold<int>(0, (sum, it) => sum + intOf(it['unread']));
+      NotifyBus.shared.setDmUnread(total);
     } catch (e) {
       if (!mounted) return;
       final is401 = e is ApiException && e.code == 401;
@@ -81,196 +136,195 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
     }
   }
 
+  int get _unreadCount =>
+      _items.fold<int>(0, (sum, it) => sum + intOf(it['unread']));
+
+  Future<void> _markAllRead() async {
+    if (_unreadCount <= 0) return;
+    var allOk = false;
+    try {
+      await MessageRepository.instance.dmReadAll();
+      allOk = true;
+    } catch (_) {}
+    if (!allOk) {
+      for (final it in _items) {
+        if (intOf(it['unread']) <= 0) continue;
+        final peer = (it['peer'] ?? {}) as Map<String, dynamic>;
+        final peerId = (peer['id'] ?? '') as String;
+        if (peerId.isEmpty) continue;
+        try {
+          await MessageRepository.instance.dmRead(peerId);
+        } catch (_) {}
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      for (final it in _items) {
+        it['unread'] = 0;
+      }
+    });
+    NotifyBus.shared.clearDmUnread();
+    showAppToast(context, '全部私信已标为已读');
+  }
+
   Future<void> _openChat(Map<String, dynamic> it) async {
+    if (_chatOpening) return;
     final peer = (it['peer'] ?? {}) as Map<String, dynamic>;
-    await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => DmChatPage(
+    _chatOpening = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DmChatPage(
             peerId: (peer['id'] ?? '') as String,
             peerName: (peer['name'] ?? '') as String,
-            peerAvatar: (peer['avatar'] ?? '') as String)));
+            peerAvatar: (peer['avatar'] ?? '') as String,
+            peerFrameId: (peer['frameId'] ?? '') as String,
+            peerVerified:
+                verifiedOf(peer['verified']) ||
+                (peer['verifiedLabel'] ?? '').toString().trim().isNotEmpty,
+            peerVerifiedLabel: (peer['verifiedLabel'] ?? '').toString(),
+            peerIsAi:
+                boolOf(peer['isAi']) ||
+                (peer['verifiedLabel'] ?? '').toString().trim().toUpperCase() ==
+                    'AI',
+          ),
+        ),
+      );
+    } finally {
+      _chatOpening = false;
+    }
     if (mounted) _load(refresh: true);
+  }
+
+  Future<void> _goLogin() async {
+    final ok = await Navigator.of(context)
+        .push<bool>(MaterialPageRoute(builder: (_) => const LoginPage()));
+    if (ok == true) {
+      setState(() {
+        _needLogin = false;
+        _loading = true;
+        _items = [];
+      });
+      _load(refresh: true);
+    }
+  }
+
+  void _retry() {
+    setState(() {
+      _loadError = null;
+      _loading = true;
+    });
+    _load(refresh: true);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('私信',
-            style: TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                fontWeight: FontWeight.w600)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 18),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2.5))
-          : _needLogin
-              ? _loginEmpty()
-              : _loadError != null
-                  ? _errorRetry()
-                  : RefreshIndicator(
-                      color: const Color(AppTheme.accent),
-                      backgroundColor: const Color(AppTheme.card),
-                      onRefresh: () => _load(refresh: true),
-                      child: _items.isEmpty
-                          ? ListView(
-                              physics:
-                                  const AlwaysScrollableScrollPhysics(),
-                              children: [
-                                _empty(),
-                              ],
-                            )
-                          : ListView.separated(
-                              padding: EdgeInsets.only(
-                                  bottom:
-                                      16 + MediaQuery.paddingOf(context).bottom),
-                              itemCount:
-                                  _items.length + (_hasMore ? 1 : 0),
-                              separatorBuilder: (_, __) => const Divider(
-                                  height: 1,
-                                  indent: 76,
-                                  endIndent: 16,
-                                  color: Color(AppTheme.border)),
-                              itemBuilder: (_, i) {
-                                if (i == _items.length) {
-                                  return GestureDetector(
-                                    onTap: () => _load(),
-                                    behavior: HitTestBehavior.opaque,
-                                    child: const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 14),
-                                      child: Center(
-                                        child: Text('加载更多',
-                                            style: TextStyle(
-                                                color: Color(
-                                                    AppTheme.textSecondary),
-                                                fontSize: 13)),
-                                      ),
-                                    ),
-                                  );
-                                }
-                                final it = _items[i];
-                                return buildConvTile(it, onTap: () => _openChat(it));
-                              },
-                            ),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          GlassTopBar(
+            title: '私信',
+            solid: true,
+            actions: [
+              if (_unreadCount > 0)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(AppColors.textSecondary),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: _markAllRead,
+                  child: Text(
+                    '全部已读',
+                    style: AppType.caption.copyWith(
+                      color: const Color(AppColors.textSecondary),
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ),
+            ],
+          ),
+          Expanded(child: _body()),
+        ],
+      ),
     );
   }
 
-
-  Widget _empty() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 80),
-      child: Center(
-        child: Column(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: const Color(AppTheme.card),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.forum_outlined,
-                  size: 30, color: Color(AppTheme.textTertiary)),
-            ),
-            const SizedBox(height: 14),
-            const Text('暂无私信',
-                style: TextStyle(
-                    color: Color(AppTheme.textPrimary),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            const Text('与互相关注的好友开启私聊\n在对方主页点击「私信」即可发起',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Color(AppTheme.textTertiary),
-                    fontSize: 12.5,
-                    height: 1.6)),
-          ],
+  Widget _body() {
+    if (_loading) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
         ),
-      ),
+      );
+    }
+    if (_needLogin) return _loginEmpty();
+    if (_loadError != null) {
+      return Center(
+        child: ErrorState(message: _loadError!, onRetry: _retry),
+      );
+    }
+
+    final showFooter = _hasMore;
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: () => _load(refresh: true),
+      child: _items.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.paddingOf(context).bottom + AppSpace.x6,
+              ),
+              children: const [
+                EmptyState(
+                  icon: Icons.forum_outlined,
+                  title: '暂无私信',
+                  message: '与互相关注的好友开启私聊\n在对方主页点击「私信」即可发起',
+                ),
+              ],
+            )
+          : ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.paddingOf(context).bottom + AppSpace.x4,
+              ),
+              itemCount: _items.length + (showFooter ? 1 : 0),
+              separatorBuilder: (_, _) =>
+                  const Hairline(indent: AppSpace.gutter + 48 + AppSpace.x3),
+              itemBuilder: (_, i) {
+                if (i == _items.length) {
+                  return LoadMoreFooter(
+                    loading: false,
+                    hasMore: true,
+                    onTap: () {
+                      _load();
+                    },
+                  );
+                }
+                final it = _items[i];
+                return RepaintBoundary(
+                  child: KeyedSubtree(
+                    key: ValueKey('dm-conv-${it['id']}'),
+                    child: buildConvTile(it, onTap: () => _openChat(it)),
+                  ),
+                );
+              },
+            ),
     );
   }
 
   Widget _loginEmpty() {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.lock_outline,
-              size: 48, color: Color(AppTheme.textTertiary)),
-          const SizedBox(height: 12),
-          const Text('登录后查看私信',
-              style: TextStyle(
-                  color: Color(AppTheme.textPrimary), fontSize: 15)),
-          const SizedBox(height: 16),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(AppTheme.accent),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22)),
-            ),
-            onPressed: () async {
-              final ok = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(builder: (_) => const LoginPage()));
-              if (ok == true) {
-                setState(() {
-                  _needLogin = false;
-                  _loading = true;
-                  _items = [];
-                });
-                _load(refresh: true);
-              }
-            },
-            child: const Text('去登录',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _errorRetry() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.wifi_off_outlined,
-              size: 48, color: Color(AppTheme.textTertiary)),
-          const SizedBox(height: 12),
-          Text(_loadError ?? '加载失败',
-              style: const TextStyle(
-                  color: Color(AppTheme.textSecondary), fontSize: 13)),
-          const SizedBox(height: 16),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(AppTheme.accent),
-              side: const BorderSide(color: Color(AppTheme.accent)),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22)),
-            ),
-            onPressed: () {
-              setState(() {
-                _loadError = null;
-                _loading = true;
-              });
-              _load(refresh: true);
-            },
-            child: const Text('重新加载'),
-          ),
-        ],
+      child: EmptyState(
+        icon: Icons.lock_outline_rounded,
+        title: '登录后查看私信',
+        message: '与互相关注的好友的会话会出现在这里',
+        actionLabel: '去登录',
+        onAction: _goLogin,
       ),
     );
   }
@@ -278,7 +332,7 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
 
 // ==================== 公共会话项（消息页一级列表复用） ====================
 
-/// 会话列表项：头像 + 名字 + 最后消息 + 时间 + 未读数字角标
+/// 会话列表项：头像（未读角标）+ 名字/最后消息 + 时间 + 未读点
 Widget buildConvTile(Map<String, dynamic> it, {required VoidCallback onTap}) {
   final peer = (it['peer'] ?? {}) as Map<String, dynamic>;
   final name = (peer['name'] ?? '') as String;
@@ -286,77 +340,91 @@ Widget buildConvTile(Map<String, dynamic> it, {required VoidCallback onTap}) {
   final lastMsg = (it['lastMsg'] ?? '') as String;
   final lastTime = ((it['lastTime'] ?? 0) as num).toInt();
   final unread = ((it['unread'] ?? 0) as num).toInt();
-  return InkWell(
+  final hasUnread = unread > 0;
+
+  return ListRow(
     onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
-      child: Row(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              UserAvatar(url: avatar, name: name, size: 48),
-              if (unread > 0)
-                Positioned(
-                  right: -4,
-                  top: -4,
-                  child: Container(
-                    constraints:
-                        const BoxConstraints(minWidth: 18, minHeight: 18),
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF4D4F),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Text(
-                      unread > 99 ? '99+' : '$unread',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-            ],
+    showChevron: false,
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpace.gutter,
+      vertical: AppSpace.x3,
+    ),
+    leading: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AppAvatar(
+          url: avatar.isEmpty
+              ? avatarUrlOf((peer['id'] ?? '') as String)
+              : avatarUrl(avatar),
+          name: name,
+          size: 48,
+          verified:
+              verifiedOf(peer['verified']) ||
+              (peer['verifiedLabel'] ?? '').toString().trim().isNotEmpty,
+          isAi:
+              boolOf(peer['isAi']) ||
+              (peer['verifiedLabel'] ?? '').toString().trim().toUpperCase() ==
+                  'AI',
+          frameUrl: frameUrlOf((peer['frameId'] ?? '') as String),
+        ),
+        if (unread > 0)
+          Positioned(
+            right: -5,
+            top: -5,
+            child: CountBadge(count: unread, large: true),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Color(AppTheme.textPrimary),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                    Text(timeAgo(lastTime),
-                        style: const TextStyle(
-                            color: Color(AppTheme.textTertiary),
-                            fontSize: 11)),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  lastMsg,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: unread > 0
-                        ? const Color(AppTheme.textPrimary)
-                        : const Color(AppTheme.textSecondary),
-                    fontSize: 13,
-                    fontWeight:
-                        unread > 0 ? FontWeight.w500 : FontWeight.normal,
-                  ),
-                ),
-              ],
+      ],
+    ),
+    title: name.isEmpty ? '用户' : name,
+    titleStyle: AppType.body.copyWith(
+      fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+      color: const Color(AppColors.textPrimary),
+    ),
+    subtitle: lastMsg.isEmpty ? '还没有消息' : lastMsg,
+    subtitleWidget: lastMsg.isEmpty
+        ? null
+        : TextEmojiText(
+            lastMsg,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.caption.copyWith(
+              color: hasUnread
+                  ? const Color(AppColors.textSecondary)
+                  : const Color(AppColors.textTertiary),
+              fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
+            ),
+          ),
+    subtitleStyle: AppType.caption.copyWith(
+      color: hasUnread
+          ? const Color(AppColors.textSecondary)
+          : const Color(AppColors.textTertiary),
+      fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
+    ),
+    trailing: Padding(
+      padding: const EdgeInsets.only(left: AppSpace.x2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            timeAgo(lastTime),
+            style: AppType.micro.copyWith(
+              color: hasUnread
+                  ? const Color(AppColors.textSecondary)
+                  : const Color(AppColors.textTertiary),
+              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            hasUnread ? '未读' : (lastMsg.isEmpty ? '尚无消息' : '已读'),
+            style: AppType.micro.copyWith(
+              fontSize: 10,
+              height: 1.1,
+              color: hasUnread
+                  ? const Color(AppColors.heart)
+                  : const Color(AppColors.textTertiary),
+              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
         ],

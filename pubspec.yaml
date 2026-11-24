@@ -1,7 +1,7 @@
 name: community_app
 description: "流萤社区 · 短视频+图文混合社区（Android/iOS 单代码库，与流萤音乐账号互通）"
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.9.59+130
 
 environment:
   sdk: ^3.13.5
@@ -9,41 +9,59 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # HTTP 客户端
   http: ^1.2.2
-  # 视频播放（Android ExoPlayer / iOS AVPlayer）
+  crypto: ^3.0.6
   video_player: ^2.9.2
-  # 本地 token/偏好存储
   shared_preferences: ^2.3.2
-  # 头像/封面/表情包图片缓存
+  flutter_secure_storage: ^9.2.4
   cached_network_image: ^3.4.1
-  # 选图/选视频（发帖、视频封面）
   image_picker: ^1.1.2
-  # WebSocket 实时通知
+  file_picker: ^10.3.3
   web_socket_channel: ^3.0.1
   flutter_staggered_grid_view: ^0.7.0
-  # 配乐播放（BGM，图文详情/短视频自动播）
   just_audio: ^0.9.42
-  # 地图选点（配乐外：发送定位）—— flutter_map + OSM/高德瓦片
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  # 跳转外部地图 App
   url_launcher: ^6.3.1
   flutter_svg: ^2.3.0
   photo_view: ^0.15.0
+  share_plus: ^10.1.4
+  # 流萤航线：内嵌 WebGL 小游戏（本地 HTTP 服务 + WebView）
+  webview_flutter: ^4.10.0
+  archive: ^3.6.1
+  path_provider: ^2.1.5
+  speech_to_text: ^7.5.0
+  flutter_image_compress: ^2.5.1
+  open_filex: ^5.0.0
+  video_thumbnail: ^0.5.6
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  url_launcher_platform_interface: ^2.3.2
 
 # video_player_avfoundation 2.12+ 使用 Swift 6 语法，GitHub Actions macos-14
 # runner 的 Xcode 编译不过；锁 2.11.1（Swift 5）保证 iOS 打包稳定
 dependency_overrides:
   video_player_avfoundation: 2.11.1
+  video_thumbnail:
+    path: third_party/video_thumbnail
 
 flutter:
   uses-material-design: true
+  fonts:
+    # 工坊内置中文字体：避免手机系统/第三方字体自带的装饰线（黄线）
+    - family: NotoSansSC
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Regular.otf
   assets:
     - assets/logo.png
     - assets/icons/
+    - assets/ai/
+    - assets/deco/
+    - assets/characters_v2/
+    - assets/frames/
+    - assets/emoji_text/
+    - shorebird.yaml

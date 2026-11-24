@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>应用市场已并入社区管理后台</title>
+<style>
+html,body{margin:0;min-height:100%;background:#05080f;color:#e9eefc;font:14px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+.card{max-width:420px;width:100%;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:linear-gradient(180deg,#0f1626,#0b1120);padding:26px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.mark{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#7b6cff,#3ee0ff);font-size:19px;font-weight:600;margin-bottom:14px}
+h1{font-size:20px;margin:0 0 7px;letter-spacing:-.01em}
+p{color:#8fa0c2;font-size:12.5px;margin:0 0 18px;line-height:1.75}
+a{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border-radius:10px;color:#fff;text-decoration:none;font-weight:600;background:linear-gradient(135deg,#7b6cff,#39c8ff)}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <div class="mark">萤</div>
+  <h1>应用市场已并入社区管理后台</h1>
+  <p>应用审核、分类、评论和举报现在统一在「流萤社区管理后台 → 应用市场」中管理，不再使用独立页面。</p>
+  <a id="go" href="/community/admin.html#apps">打开社区管理后台</a>
+</div></div>
+<script>
+location.replace("/community/admin.html#apps");
+</script>
+</body>
+</html>

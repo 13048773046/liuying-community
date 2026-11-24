@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5eedf">
+<title>流萤社区 · 邀请好友赚现金</title>
+<meta name="description" content="邀请新朋友加入流萤社区，注册并验证手机号得 ¥1，好友开通会员再返 20%。满 ¥10 可提现。">
+<meta property="og:title" content="流萤社区 · 邀请好友赚现金">
+<meta property="og:description" content="每邀 1 位新朋友得 ¥1，好友会员首单再返 20%。">
+<meta property="og:image" content="https://www.dbmt999.asia/invite/assets/poster.webp?v=20261122c">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23141318'/%3E%3Cpath d='M32 10l5 14 15 5-15 5-5 15-5-15-15-5 15-5z' fill='%2375f0d0'/%3E%3C/svg%3E">
+<style>
+:root{--ink:#17151c;--paper:#f5eedf;--paper2:#fffaf0;--mint:#75f0d0;--mint-deep:#22a886;--pink:#ff7ba8;--yellow:#ffd65a;--blue:#8ed1ff;--muted:#6d6861;--line:#17151c;--shadow:6px 6px 0 var(--ink)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;line-height:1.5;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.18;background-image:radial-gradient(circle at 1px 1px,rgba(23,21,28,.55) 1px,transparent 1.2px);background-size:4px 4px;mix-blend-mode:multiply}
+.page{max-width:1060px;margin:0 auto;position:relative;background:var(--paper);min-height:100vh;box-shadow:0 0 0 1px rgba(23,21,28,.08)}
+.paper-grain{position:absolute;inset:0;pointer-events:none;opacity:.35;background:
+ radial-gradient(ellipse at 10% 0%,rgba(255,255,255,.8),transparent 45%),
+ radial-gradient(ellipse at 95% 15%,rgba(117,240,208,.16),transparent 40%),
+ radial-gradient(ellipse at 0% 70%,rgba(255,123,168,.1),transparent 35%)}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:rgba(245,238,223,.88);backdrop-filter:blur(14px);border-bottom:2px solid var(--ink)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:.4px;font-size:15px}
+.brand-mark{width:34px;height:34px;border:2px solid var(--ink);border-radius:50%;display:grid;place-items:center;background:var(--mint);font-size:17px;box-shadow:3px 3px 0 var(--ink);transform:rotate(-7deg)}
+.brand small{display:block;font-size:9px;font-weight:600;letter-spacing:2.2px;color:var(--muted);line-height:1.2}
+.top-actions{display:flex;gap:8px;align-items:center}
+.ghost-btn{border:1.5px solid var(--ink);background:var(--paper2);color:var(--ink);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:2px 2px 0 var(--ink)}
+.ghost-btn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+.user-chip{display:none;align-items:center;gap:7px;font-size:12px;font-weight:700;max-width:130px;overflow:hidden;white-space:nowrap}
+.user-chip i{width:26px;height:26px;border-radius:50%;background:var(--pink);border:1.5px solid var(--ink);display:grid;place-items:center;font-style:normal;font-size:12px}
+main{position:relative;z-index:1;padding:0 20px 150px}
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:10px;align-items:center;min-height:560px;padding:34px 0 10px;position:relative}
+.hero-copy{position:relative;z-index:2}
+.kicker{display:inline-flex;align-items:center;gap:8px;border:2px solid var(--ink);background:var(--yellow);padding:6px 11px;border-radius:4px;font-size:11px;font-weight:800;letter-spacing:1.6px;transform:rotate(-2deg);box-shadow:3px 3px 0 var(--ink);margin-bottom:18px}
+h1{font-family:"Arial Black","PingFang SC","Microsoft YaHei",sans-serif;font-size:clamp(48px,8.6vw,82px);line-height:1.02;margin:0;letter-spacing:-4px;text-shadow:4px 5px 0 var(--pink)}
+h1 .cash{color:var(--mint);display:inline-block;position:relative;text-shadow:4px 5px 0 var(--ink);transform:rotate(-1.5deg)}
+h1 .cash:after{content:"";position:absolute;left:0;right:-6px;bottom:2px;height:10px;background:var(--yellow);z-index:-1;transform:rotate(-1deg)}
+.lede{font-size:14px;line-height:1.85;color:#39343a;margin:20px 0 0;max-width:350px;font-weight:600}
+.lede b{font-size:18px;color:var(--ink);background:linear-gradient(transparent 58%,var(--yellow) 58%,var(--yellow) 92%,transparent 92%);padding:0 2px}
+.handwrite{font-family:"Kaiti SC","STKaiti","KaiTi",serif;font-size:12px;color:var(--muted);margin-top:14px;transform:rotate(-2deg)}
+.inviter-chip{display:none;align-items:center;gap:9px;margin-top:18px;padding:9px 12px;border:1.5px dashed var(--ink);border-radius:8px;background:rgba(255,255,255,.45);width:fit-content;max-width:100%}
+.inviter-chip .dot{width:9px;height:9px;border-radius:50%;background:var(--pink);border:1.5px solid var(--ink);flex:none}
+.inviter-chip span{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inviter-chip em{font-style:normal;color:var(--mint-deep)}
+.hero-art{position:relative;height:520px;display:flex;align-items:flex-end;justify-content:center}
+.art-halo{position:absolute;width:390px;height:390px;border-radius:50%;background:var(--mint);top:32px;left:50%;transform:translateX(-50%) rotate(-4deg);border:2.5px solid var(--ink)}
+.art-halo:after{content:"";position:absolute;inset:22px;border:1.5px dashed rgba(23,21,28,.35);border-radius:50%}
+.speed{position:absolute;width:430px;height:430px;top:10px;left:50%;transform:translateX(-50%);opacity:.28;background:repeating-conic-gradient(from 0deg,var(--ink) 0 1.5deg,transparent 1.5deg 9deg);border-radius:50%;mask-image:radial-gradient(circle,transparent 0 42%,#000 43% 100%);-webkit-mask-image:radial-gradient(circle,transparent 0 42%,#000 43% 100%)}
+.hero-art img{position:relative;z-index:3;height:500px;width:auto;max-width:100%;object-fit:contain;filter:drop-shadow(8px 12px 0 rgba(23,21,28,.18));animation:float 5s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-12px) rotate(1deg)}}
+.sticker{position:absolute;z-index:5;border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);font-weight:900;display:grid;place-items:center;line-height:1}
+.sticker.yen{width:74px;height:74px;border-radius:50%;background:var(--yellow);font-size:34px;top:60px;right:18px;transform:rotate(10deg)}
+.sticker.yen{font-family:"Arial Black",sans-serif;text-shadow:2px 2px 0 #fff}
+.sticker.pct{background:var(--pink);color:#fff;padding:9px 13px;font-size:13px;top:210px;left:0;transform:rotate(-8deg)}
+.speech{position:absolute;z-index:4;right:6px;top:126px;background:#fff;border:2px solid var(--ink);border-radius:14px 14px 14px 2px;padding:9px 12px;font-size:12px;font-weight:800;box-shadow:4px 4px 0 var(--ink);transform:rotate(3deg)}
+.speech:after{content:"";position:absolute;left:-8px;bottom:-2px;width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);background:#fff;transform:skewY(-30deg)}
+.hero-cta{margin-top:26px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.primary-btn{appearance:none;border:2.5px solid var(--ink);background:var(--mint);color:var(--ink);font-family:inherit;font-weight:900;font-size:15px;padding:15px 22px;border-radius:10px;cursor:pointer;box-shadow:5px 5px 0 var(--ink);transition:.14s;position:relative;overflow:hidden}
+.primary-btn:hover{transform:translate(-1px,-1px);box-shadow:6px 6px 0 var(--ink)}
+.primary-btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink)}
+.primary-btn:disabled{opacity:.45;cursor:default;transform:none;box-shadow:3px 3px 0 var(--ink)}
+.primary-btn:disabled:hover{transform:none;box-shadow:3px 3px 0 var(--ink)}
+.primary-btn.pink{background:var(--pink);color:#fff}
+.primary-btn.wide{width:100%}
+.link-btn{border:0;background:none;font-family:inherit;color:var(--muted);font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:4px;cursor:pointer;padding:8px 0}
+.trust-row{display:flex;gap:16px;margin-top:17px;color:var(--muted);font-size:10.5px;font-weight:600;flex-wrap:wrap}
+.trust-row span{display:flex;align-items:center;gap:5px}
+.trust-row i{width:5px;height:5px;border-radius:50%;background:var(--mint-deep);display:inline-block}
+.section{padding:34px 0 8px;position:relative}
+.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+.section-head h2{font-size:clamp(24px,4.4vw,34px);line-height:1.1;margin:0;letter-spacing:-1.5px;font-weight:900}
+.section-head h2 span{color:var(--mint-deep)}
+.section-head p{margin:0;color:var(--muted);font-size:11px;text-align:right;line-height:1.5;max-width:180px}
+.divider{height:2px;background:var(--ink);margin:10px 0 22px;position:relative}
+.divider:after{content:"";position:absolute;right:0;top:-4px;width:70px;height:10px;background:repeating-linear-gradient(90deg,var(--pink) 0 8px,transparent 8px 14px)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.step{position:relative;border:2px solid var(--ink);background:var(--paper2);border-radius:12px;padding:18px 15px 16px;box-shadow:var(--shadow);min-height:170px;overflow:hidden}
+.step:nth-child(2){transform:translateY(8px) rotate(.7deg)}
+.step:nth-child(3){transform:translateY(2px) rotate(-.6deg)}
+.step-num{position:absolute;right:10px;top:5px;font-family:"Arial Black",sans-serif;font-size:45px;line-height:1;opacity:.09}
+.step .ico{width:42px;height:42px;border:2px solid var(--ink);border-radius:10px;display:grid;place-items:center;background:var(--yellow);margin-bottom:14px;font-size:20px;transform:rotate(-4deg)}
+.step h3{font-size:15px;margin:0 0 7px;font-weight:900}
+.step p{font-size:11.5px;color:var(--muted);line-height:1.65;margin:0}
+.step .tag{display:inline-block;margin-top:10px;font-size:9px;font-weight:800;background:var(--mint);border:1px solid var(--ink);border-radius:3px;padding:2px 6px;letter-spacing:1px}
+.reward-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px}
+.reward-card{border:2px solid var(--ink);border-radius:14px;padding:20px;position:relative;overflow:hidden;box-shadow:var(--shadow);background:var(--paper2)}
+.reward-card.dark{background:var(--ink);color:#fff}
+.reward-card.dark .small{color:#c9c2b6}
+.reward-card.mint{background:var(--mint)}
+.reward-card.pink{background:#ffd7e3}
+.reward-card .small{font-size:10px;letter-spacing:1.8px;font-weight:800;opacity:.65}
+.reward-card .big{font-family:"Arial Black","PingFang SC",sans-serif;font-size:44px;line-height:1.1;margin:12px 0 5px;letter-spacing:-2px}
+.reward-card .big small{font-size:16px;letter-spacing:0}
+.reward-card .desc{font-size:11.5px;line-height:1.6;opacity:.8;margin:0}
+.reward-card .corner{position:absolute;right:-18px;bottom:-20px;font-size:68px;opacity:.09;font-weight:900;transform:rotate(-12deg)}
+.dashboard{display:none;margin-top:10px;border:2.5px solid var(--ink);background:#fffdf5;border-radius:16px;box-shadow:8px 8px 0 var(--ink);overflow:hidden}
+.dash-top{background:var(--ink);color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;overflow:hidden}
+.dash-top:before{content:"";position:absolute;right:-40px;top:-50px;width:180px;height:180px;border:2px solid rgba(117,240,208,.25);border-radius:50%}
+.dash-top h3{margin:0;font-size:18px;letter-spacing:.5px;position:relative}
+.dash-top p{margin:3px 0 0;font-size:10.5px;color:#a9b7b2;position:relative}
+.dash-balance{font-family:"Arial Black",sans-serif;font-size:29px;color:var(--mint);letter-spacing:-1px}
+.dash-balance small{font-size:12px;color:#fff;letter-spacing:0}
+.dash-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:0}
+.dash-left{padding:20px;border-right:1.5px dashed rgba(23,21,28,.3)}
+.dash-right{padding:20px}
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.stat{border:1.5px solid var(--ink);border-radius:8px;padding:9px 8px;text-align:center;background:var(--paper)}
+.stat b{display:block;font-family:"Arial Black",sans-serif;font-size:20px;line-height:1.2}
+.stat span{font-size:9.5px;color:var(--muted);font-weight:700}
+.invite-card{border:1.5px dashed var(--ink);border-radius:10px;padding:13px;display:flex;gap:12px;align-items:center;background:#fff}
+.invite-card .qr{width:84px;height:84px;border:1.5px solid var(--ink);border-radius:8px;background:var(--paper);display:grid;place-items:center;overflow:hidden;flex:none}
+.invite-card .qr img{width:100%;height:100%;object-fit:contain}
+.invite-card .qr .fallback{font-size:9px;color:var(--muted);text-align:center;padding:5px}
+.invite-code{font-family:"Arial Black",sans-serif;font-size:24px;letter-spacing:2px;line-height:1.1}
+.invite-code small{font-family:inherit;font-size:9px;letter-spacing:1.6px;color:var(--muted);display:block;margin-bottom:2px;font-weight:700}
+.invite-link{font-size:9px;color:var(--muted);word-break:break-all;margin-top:5px;line-height:1.45;-webkit-user-select:text;user-select:text}
+.mini-actions{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+.mini-btn{border:1.5px solid var(--ink);border-radius:6px;background:var(--mint);padding:7px 10px;font-family:inherit;font-size:10.5px;font-weight:800;cursor:pointer;box-shadow:2px 2px 0 var(--ink)}
+.mini-btn.alt{background:var(--yellow)}
+.mini-btn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+.balance-box{border:2px solid var(--ink);border-radius:10px;padding:15px;background:var(--mint);box-shadow:4px 4px 0 var(--ink);margin-bottom:13px}
+.balance-box .label{font-size:10px;font-weight:800;letter-spacing:1.2px}
+.balance-box .amount{font-family:"Arial Black",sans-serif;font-size:34px;line-height:1.2;letter-spacing:-1px}
+.balance-box .sub{font-size:10.5px;line-height:1.5;color:#245c4e;font-weight:600}
+.balance-box .sub b{color:var(--ink)}
+.list-head{display:flex;align-items:center;justify-content:space-between;margin:15px 0 8px}
+.list-head h4{font-size:12px;margin:0;letter-spacing:.5px}
+.list-head span{font-size:9.5px;color:var(--muted)}
+.invitee-list{max-height:205px;overflow:auto;border-top:1px solid rgba(23,21,28,.18)}
+.invitee{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid rgba(23,21,28,.1);font-size:10.5px}
+.invitee .av{width:27px;height:27px;border-radius:50%;background:var(--pink);border:1.5px solid var(--ink);display:grid;place-items:center;font-weight:900;font-size:11px;flex:none}
+.invitee .nm{flex:1;min-width:0}
+.invitee .nm b{display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.invitee .nm small{color:var(--muted);font-size:9px}
+.invitee .amt{text-align:right;font-weight:800;font-size:11px;white-space:nowrap}
+.invitee .amt small{display:block;font-weight:600;font-size:8.5px;color:var(--muted)}
+.status-pill{font-size:8.5px;padding:2px 6px;border-radius:999px;border:1px solid var(--ink);background:var(--yellow);font-weight:800;white-space:nowrap}
+.status-pill.valid{background:var(--mint)}
+.status-pill.rejected{background:#eee}
+.empty{text-align:center;padding:22px 8px;color:var(--muted);font-size:10.5px}
+.empty b{display:block;color:var(--ink);font-size:12px;margin-bottom:4px}
+.rule-list{border-top:2px solid var(--ink)}
+.rule-item{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:14px 2px;border-bottom:1px solid rgba(23,21,28,.18);font-size:12px;line-height:1.7}
+.rule-item .n{font-family:"Arial Black",sans-serif;font-size:16px;color:var(--mint-deep)}
+.rule-item b{font-size:12.5px}
+.rule-item p{margin:3px 0 0;color:var(--muted);font-size:10.5px}
+.faq{display:grid;gap:8px;margin-top:16px}
+.faq details{border:1.5px solid var(--ink);border-radius:8px;background:#fffdf5;padding:11px 13px;font-size:11.5px}
+.faq summary{font-weight:800;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+.faq summary:after{content:"+";font-weight:900}
+.faq details[open] summary:after{content:"−"}
+.faq p{color:var(--muted);font-size:10.5px;line-height:1.7;margin:8px 0 0}
+.download{display:flex;align-items:center;justify-content:space-between;gap:10px;border:2px solid var(--ink);background:var(--ink);color:#fff;padding:17px 19px;border-radius:12px;margin-top:20px;box-shadow:5px 5px 0 var(--pink)}
+.download h3{margin:0;font-size:16px}
+.download p{margin:3px 0 0;font-size:10px;color:#b7b1a8}
+.download p .dl-ver{display:inline-block;margin-top:5px;padding:2px 7px;border:1px solid rgba(117,240,208,.45);border-radius:999px;color:var(--mint);font-weight:800;letter-spacing:.5px}
+.download-actions{display:flex;gap:7px}
+.dl-btn{border:1.5px solid var(--mint);color:var(--mint);background:transparent;border-radius:7px;padding:8px 11px;font-size:10.5px;font-weight:800;text-decoration:none;white-space:nowrap}
+.dl-btn.solid{background:var(--mint);color:var(--ink);border-color:var(--mint)}
+footer{position:relative;z-index:1;text-align:center;padding:32px 20px 120px;color:var(--muted);font-size:9.5px;line-height:1.8}
+footer b{color:var(--ink)}
+.sticky{position:fixed;z-index:60;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:1060px;padding:11px 18px calc(11px + env(safe-area-inset-bottom));background:rgba(245,238,223,.94);backdrop-filter:blur(14px);border-top:2px solid var(--ink);display:flex;gap:10px;align-items:center}
+.sticky .safe{flex:1;font-size:10px;color:var(--muted);line-height:1.45}
+.sticky .safe b{color:var(--ink)}
+.sticky button{white-space:nowrap}
+.sheet-wrap{position:fixed;inset:0;z-index:100;display:none;align-items:flex-end;justify-content:center;background:rgba(15,13,18,.58);backdrop-filter:blur(5px);padding:0}
+.sheet-wrap.open{display:flex}
+.sheet{width:100%;max-width:520px;max-height:92vh;overflow:auto;background:var(--paper2);border:2.5px solid var(--ink);border-bottom:0;border-radius:20px 20px 0 0;padding:20px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -8px 0 rgba(23,21,28,.18);animation:up .25s ease-out;position:relative}
+@keyframes up{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+.sheet-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:5px}
+.sheet-head h3{margin:0;font-size:23px;letter-spacing:-.8px}
+.sheet-head .sub{font-size:11px;color:var(--muted);margin:4px 0 0;line-height:1.6}
+.close{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--ink);background:var(--paper);font-size:18px;font-weight:900;cursor:pointer;flex:none;line-height:1}
+.notice{border:1.5px dashed var(--ink);background:var(--yellow);border-radius:7px;padding:9px 11px;font-size:10.5px;line-height:1.6;margin:13px 0}
+.notice.mint{background:rgba(117,240,208,.35)}
+.field{margin:12px 0}
+.field label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.5px;margin-bottom:6px}
+.field input,.field textarea{width:100%;border:1.5px solid var(--ink);background:#fff;border-radius:8px;padding:12px 12px;font-size:14px;font-family:inherit;color:var(--ink);outline:none;box-shadow:2px 2px 0 rgba(23,21,28,.16)}
+.field input:focus{border-color:var(--mint-deep);box-shadow:2px 2px 0 var(--mint)}
+.field-row{display:flex;gap:8px}
+.field-row input{flex:1}
+.code-btn{border:1.5px solid var(--ink);background:var(--mint);border-radius:8px;padding:0 12px;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:2px 2px 0 var(--ink)}
+.code-btn:disabled{opacity:.5;cursor:default}
+.form-note{font-size:9.5px;color:var(--muted);line-height:1.6;margin:10px 0 0}
+.form-err{display:none;color:#c82f55;font-size:11px;font-weight:700;background:rgba(255,123,168,.16);border:1px solid #ff7ba8;border-radius:6px;padding:8px 10px;margin:10px 0}
+.form-err.show{display:block}
+.slider-wrap{margin:10px 0 4px}
+.slider-stage{position:relative;width:100%;aspect-ratio:300/220;background:#fff;border:1.5px solid var(--ink);border-radius:10px;box-shadow:2px 2px 0 rgba(23,21,28,.16);overflow:hidden;touch-action:none;user-select:none}
+.slider-bg{width:100%;height:100%;display:block;object-fit:fill;pointer-events:none}
+.slider-piece{position:absolute;left:0;top:0;display:block;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.28));will-change:left,top,width,height}
+.slider-bar{position:relative;height:42px;margin-top:12px;background:#ece7da;border:1.5px solid var(--ink);border-radius:22px;box-shadow:inset 0 2px 0 rgba(23,21,28,.06);overflow:hidden}
+.slider-progress{position:absolute;left:0;top:0;bottom:0;width:48px;background:linear-gradient(90deg,#bfe9d9,#8fddc1);border-radius:21px 0 0 21px}
+.slider-knob{position:absolute;left:0;top:0;width:48px;height:42px;border:1.5px solid var(--ink);border-radius:21px;background:var(--mint);cursor:grab;touch-action:none;display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:18px;font-weight:900;user-select:none;box-shadow:2px 2px 0 var(--ink);z-index:2}
+.slider-knob:active{cursor:grabbing}
+.slider-knob::after{display:none}
+.slider-hint{font-size:10.5px;color:var(--muted);line-height:1.6;margin:2px 0 4px;text-align:center}
+.slider-hint b{color:var(--ink)}
+.cap-box{display:flex;justify-content:center;margin:12px 0 6px;
+  min-height:58px;--cap-widget-width:100%;--cap-widget-height:58px;--cap-background:#fff;--cap-border-color:#17b887;--cap-color:var(--ink);--cap-border-radius:12px}
+.cap-box cap-widget{display:block;width:100%;min-width:0;flex:1 1 auto}
+.cap-status{min-height:20px;text-align:center;font-size:11px;line-height:1.5;color:var(--muted);margin:4px 0 10px}
+.cap-status.ok{color:#0f9f74}
+.cap-status.bad{color:#d64545}
+.check-row{display:flex;gap:8px;align-items:flex-start;font-size:10px;color:var(--muted);line-height:1.5;margin:12px 0}
+.check-row input{width:15px;height:15px;accent-color:var(--mint-deep);margin-top:1px}
+.qr-upload{border:1.5px dashed var(--ink);border-radius:9px;padding:16px;text-align:center;background:var(--paper);cursor:pointer;position:relative;overflow:hidden}
+.qr-upload input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.qr-upload b{display:block;font-size:12px}
+.qr-upload small{color:var(--muted);font-size:9.5px}
+.qr-preview{display:none;max-width:100%;max-height:180px;margin:8px auto 0;border:1px solid var(--ink);border-radius:6px}
+.qr-preview.show{display:block}
+.poster-modal{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(15,13,18,.78);padding:18px}
+.poster-modal.open{display:flex;flex-direction:column;gap:12px}
+.poster-modal img{max-width:88vw;max-height:78vh;border:2px solid #fff;border-radius:4px;box-shadow:0 10px 40px #000}
+.poster-modal p{color:#fff;font-size:11px;text-align:center;margin:0}
+.toast{position:fixed;left:50%;top:78px;transform:translate(-50%,-16px);z-index:200;background:var(--ink);color:#fff;border:1.5px solid var(--mint);border-radius:999px;padding:10px 16px;font-size:11.5px;font-weight:700;opacity:0;pointer-events:none;transition:.22s;max-width:88vw;text-align:center;line-height:1.45}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{border-color:var(--pink)}
+.success-burst{text-align:center;padding:8px 0 4px}
+.success-burst .seal{width:78px;height:78px;margin:0 auto 10px;border:2.5px solid var(--ink);border-radius:50%;background:var(--mint);display:grid;place-items:center;font-size:34px;box-shadow:5px 5px 0 var(--pink);transform:rotate(-7deg)}
+.success-burst h3{margin:0;font-size:20px}
+.success-burst p{font-size:11px;color:var(--muted);margin:6px 0 0}
+@media(max-width:820px){
+ .hero{grid-template-columns:1fr;min-height:auto;padding-top:24px}
+ .hero-copy{order:2;padding-top:0}
+ .hero-art{order:1;height:390px;margin:-5px 0 0}
+ .hero-art img{height:370px}
+ .art-halo{width:300px;height:300px;top:20px}
+ .speed{width:330px;height:330px}
+ .sticker.yen{width:61px;height:61px;font-size:28px;top:35px;right:8%}
+ .sticker.pct{top:150px;left:3%}
+ .speech{top:118px;right:2%;font-size:11px}
+ h1{font-size:clamp(44px,13vw,64px);letter-spacing:-3px}
+ .lede{max-width:none}
+ .steps{grid-template-columns:1fr;gap:10px}
+ .step{min-height:auto;display:grid;grid-template-columns:48px 1fr;column-gap:12px;padding:14px}
+ .step .ico{grid-row:1/4;margin:0}
+ .step h3{margin-top:2px}
+ .step .tag{margin-top:6px;width:fit-content}
+ .reward-grid{grid-template-columns:1fr 1fr}
+ .reward-card:first-child{grid-column:1/-1}
+ .reward-card .big{font-size:38px}
+ .dash-grid{grid-template-columns:1fr}
+ .dash-left{border-right:0;border-bottom:1.5px dashed rgba(23,21,28,.3)}
+ main{padding-left:14px;padding-right:14px}
+ .topbar{padding:11px 14px}
+ .sticky .safe{display:none}
+ .sticky button{width:100%}
+ .download{display:block}
+ .download-actions{margin-top:12px}
+}
+@media(min-width:821px){.sticky{display:none}main{padding-bottom:50px}footer{padding-bottom:50px}}
+</style>
+</head>
+<body>
+<div class="page">
+<div class="paper-grain"></div>
+<header class="topbar">
+  <div class="brand"><div class="brand-mark">蛍</div><div>流萤社区<small>FIREFLY COMMUNITY</small></div></div>
+  <div class="top-actions">
+    <button class="ghost-btn" id="rulesBtn">活动规则</button>
+    <div class="user-chip" id="userChip"><i id="userAv">流</i><span id="userName"></span></div>
+    <button class="ghost-btn" id="loginBtn">登录</button>
+  </div>
+</header>
+<main>
+  <!-- ===== 首屏 ===== -->
+  <section class="hero">
+    <div class="hero-copy">
+      <div class="kicker">FIREFLY INVITE · 好友邀请计划</div>
+      <h1>邀请好友<br><span class="cash">赚现金</span></h1>
+      <p class="lede">每邀 1 位新朋友注册并验证手机号，得 <b>¥<span id="rFixed">1</span></b>；好友开通会员，再返首单实付 <b><span id="rPct">20</span>%</b>。</p>
+      <div class="handwrite">“把喜欢的地方，介绍给喜欢的人。”</div>
+      <div class="inviter-chip" id="inviterChip"><span class="dot"></span><span>来自 <em id="inviterName">好友</em> 的邀请</span></div>
+      <div class="hero-cta">
+        <button class="primary-btn pink" id="ctaMain">立即参与，领 ¥<span id="ctaFixed">1</span></button>
+        <button class="link-btn" id="ctaSecond">先看看规则 →</button>
+      </div>
+      <div class="trust-row"><span><i></i>手机号验证防刷</span><span><i></i>满 ¥<span id="rMin">10</span> 可提现</span><span><i></i>人工审核 1–3 天</span></div>
+    </div>
+    <div class="hero-art">
+      <div class="speed"></div><div class="art-halo"></div>
+      <div class="sticker yen">¥</div>
+      <div class="sticker pct">会员返 20%</div>
+      <div class="speech">一起玩流萤吧！</div>
+      <img src="assets/liuying.webp" alt="流萤社区邀请官" fetchpriority="high">
+    </div>
+  </section>
+
+  <!-- ===== 我的邀请 ===== -->
+  <section id="dashboard" class="dashboard">
+    <div class="dash-top">
+      <div><h3>我的邀请卡</h3><p>FIREFLY INVITE CARD · 专属归因链接</p></div>
+      <div class="dash-balance"><small>可提现 </small>¥<span id="dAvailable">0.00</span></div>
+    </div>
+    <div class="dash-grid">
+      <div class="dash-left">
+        <div class="stat-row">
+          <div class="stat"><b id="dValid">0</b><span>有效邀请</span></div>
+          <div class="stat"><b id="dClicks">0</b><span>链接打开</span></div>
+          <div class="stat"><b id="dShares">0</b><span>复制/分享</span></div>
+          <div class="stat"><b id="dEarned">0</b><span>累计收益</span></div>
+        </div>
+        <div class="invite-card">
+          <div class="qr"><img id="qrImg" alt="邀请二维码"><div class="fallback" id="qrFallback">二维码<br>生成中</div></div>
+          <div style="flex:1;min-width:0">
+            <div class="invite-code"><small>MY CODE</small><span id="dCode">--------</span></div>
+            <div class="invite-link" id="dLink"></div>
+            <div class="mini-actions">
+              <button class="mini-btn" id="copyBtn">复制链接</button>
+              <button class="mini-btn alt" id="shareBtn">分享给好友</button>
+              <button class="mini-btn" id="posterBtn">生成海报</button>
+            </div>
+          </div>
+        </div>
+        <div class="list-head"><h4>邀请记录</h4><span id="dPending">0 人待验证</span></div>
+        <div class="invitee-list" id="inviteeList"><div class="empty"><b>还没有邀请记录</b>把链接发给第一个朋友吧</div></div>
+      </div>
+      <div class="dash-right">
+        <div class="balance-box">
+          <div class="label">AVAILABLE BALANCE</div>
+          <div class="amount">¥<span id="dAvail2">0.00</span></div>
+          <div class="sub">冻结中 <b>¥<span id="dFrozen">0.00</span></b> · 已提现 <b>¥<span id="dWithdrawn">0.00</span></b><br><span id="settleTip">奖励冻结 7 天，到期后可提现</span></div>
+        </div>
+        <button class="primary-btn wide" id="withdrawBtn">申请提现</button>
+        <div class="form-note" style="text-align:center">最低提现 ¥<span id="dMin">10</span> · 收款码人工审核</div>
+        <div class="list-head"><h4>提现记录</h4><span>近 20 条</span></div>
+        <div class="invitee-list" id="withdrawList"><div class="empty"><b>暂无提现</b>收益满额后可申请</div></div>
+        <div class="list-head"><h4>本月进度</h4><span id="capText">0 / 30</span></div>
+        <div class="form-note" id="budgetText">活动预算使用中</div>
+        <div class="form-note" id="phoneState" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 三步 ===== -->
+  <section class="section" id="how">
+    <div class="section-head"><h2>三步，<span>一起赚</span></h2><p>像翻开一本漫画，<br>每一格都有奖励。</p></div>
+    <div class="divider"></div>
+    <div class="steps">
+      <div class="step"><div class="step-num">01</div><div class="ico">↗</div><h3>分享专属链接</h3><p>登录后生成你的邀请码，复制链接或保存海报，发给朋友。</p><span class="tag">COPY & SHARE</span></div>
+      <div class="step"><div class="step-num">02</div><div class="ico">✳</div><h3>好友注册并验证</h3><p>朋友打开链接，注册并完成手机号验证；下载 App 后用同一账号登录。</p><span class="tag">JOIN &amp; VERIFY</span></div>
+      <div class="step"><div class="step-num">03</div><div class="ico">¥</div><h3>奖励到账</h3><p>¥<span class="rFixed">1</span> 立即入账；好友开通会员，再返首单实付 20%。</p><span class="tag">GET CASH</span></div>
+    </div>
+  </section>
+
+  <!-- ===== 奖励 ===== -->
+  <section class="section" id="rewards">
+    <div class="section-head"><h2>奖励，<span>明明白白</span></h2><p>不玩虚的，<br>每一笔都进台账。</p></div>
+    <div class="divider"></div>
+    <div class="reward-grid">
+      <div class="reward-card dark"><div class="small">FIXED REWARD</div><div class="big">¥<span class="rFixed">1</span><small> / 人</small></div><p class="desc">新用户通过你的链接注册，并完成手机号验证，即算 1 个有效邀请。</p><div class="corner">01</div></div>
+      <div class="reward-card mint"><div class="small">MEMBERSHIP</div><div class="big"><span class="rPct">20</span><small>%</small></div><p class="desc">好友首次开通 VIP / SVIP，按实付金额返 20%，退款会扣回。</p><div class="corner">%</div></div>
+      <div class="reward-card pink"><div class="small">WITHDRAW</div><div class="big">¥<span class="rMin">10</span></div><p class="desc">满额可提现，提交姓名、手机号和收款码，人工审核 1–3 天。</p><div class="corner">¥</div></div>
+    </div>
+  </section>
+
+  <!-- ===== 规则 ===== -->
+  <section class="section" id="rules">
+    <div class="section-head"><h2>活动<span>规则</span></h2><p>先读清楚，<br>再开始邀请。</p></div>
+    <div class="divider"></div>
+    <div class="rule-list">
+      <div class="rule-item"><div class="n">01</div><div><b>什么算有效邀请？</b><p>好友通过你的专属链接进入，新注册流萤社区账号，并完成手机号验证。三个条件同时满足，邀请关系才从“待验证”变为“有效”。</p></div></div>
+      <div class="rule-item"><div class="n">02</div><div><b>奖励怎么发？</b><p>有效邀请 ¥1 固定奖励；好友首次开通会员，按实付金额 20% 返佣。奖励进入冻结台账，冻结期满后可提现。</p></div></div>
+      <div class="rule-item"><div class="n">03</div><div><b>为什么一定要验证手机号？</b><p>邮箱可以批量注册，手机号短信验证能确认是真人，也能防止同一个人反复刷邀请。前台只展示打码手机号，后台审核提现时才核验。</p></div></div>
+      <div class="rule-item"><div class="n">04</div><div><b>提现怎么操作？</b><p>满 ¥<span class="rMin">10</span> 可提交：真实姓名、手机号、支付宝/微信收款码。管理员人工审核 1–3 天，线下转账后标记“已打款”。</p></div></div>
+      <div class="rule-item"><div class="n">05</div><div><b>哪些情况不算？</b><p>自己邀请自己、同一手机号/账号/设备/收款码重复参与、老账号补绑、退款订单、作弊或批量注册，都不计入；已发奖励会扣回。</p></div></div>
+      <div class="rule-item"><div class="n">06</div><div><b>预算与上限</b><p>每位邀请人每月最多 <span class="rCap">30</span> 个有效邀请；全站固定奖励有月预算，预算用尽后仍可邀请，但固定奖励暂停发放。</p></div></div>
+    </div>
+    <div class="faq">
+      <details><summary>好友一定要下载 App 吗？</summary><p>要。H5 负责说明规则、记录邀请来源和完成手机号验证；App 用同一个账号登录后，账号数据与邀请关系是同一套。下载入口在页面底部。</p></details>
+      <details><summary>好友已经在 App 里注册了，还能补绑吗？</summary><p>不能。邀请关系只对“点击邀请链接之后新注册”的账号生效，老账号不能补绑，这是防刷规则的一部分。</p></details>
+      <details><summary>奖励为什么显示“冻结中”？</summary><p>为了防止退款和作弊，奖励会冻结 <span class="rSettle">7</span> 天。冻结期结束后自动转为可提现余额，不需要手动操作。</p></details>
+      <details><summary>提现审核要多久？</summary><p>一般 1–3 天。审核通过后由管理员线下转账，并在提现记录里标记“已打款”。如果被驳回，会写明原因，金额退回可提现余额。</p></details>
+    </div>
+  </section>
+
+  <div class="download">
+    <div><h3>还没装流萤社区？</h3><p>下载 App，用同一个账号登录，邀请关系自动跟着账号走。<br><span class="dl-ver">0.9.58 · 修复版</span></p></div>
+    <div class="download-actions">
+      <a class="dl-btn" id="iosDl" href="#">iOS 下载</a>
+      <a class="dl-btn solid" id="androidDl" href="#">Android 下载</a>
+    </div>
+  </div>
+</main>
+<footer><b>流萤社区 · 好友邀请计划</b><br>奖励以实际审核结果为准 · 作弊必究 · 活动规则版本 <span id="ruleVer">2026-11-23</span></footer>
+<div class="sticky"><div class="safe"><b>邀请 1 位新朋友</b><br>注册 + 手机号验证 = ¥<span class="rFixed">1</span></div><button class="primary-btn pink" id="stickyBtn">立即参与</button></div>
+</div>
+
+<!-- ===== 登录 / 注册 ===== -->
+<div class="sheet-wrap" id="authSheet">
+  <div class="sheet">
+    <div class="sheet-head"><div><h3>登录 / 注册</h3><p class="sub">手机号或邮箱验证码登录，第一次登录会自动创建账号。</p></div><button class="close" data-close>×</button></div>
+    <div class="notice" id="authRefNotice" style="display:none">登录后将自动绑定 <b id="authInviter">好友</b> 的邀请关系，仅限新注册账号。</div>
+    <div class="form-err" id="authErr"></div>
+    <div class="field"><label>手机号 / 邮箱</label><input id="identifierInput" type="text" inputmode="email" autocomplete="username" placeholder="输入手机号或邮箱"><div class="form-note" id="idTypeHint" style="margin-top:5px">自动识别：手机号发短信，邮箱发邮件</div></div>
+    <div class="field"><label>验证码</label><div class="field-row"><input id="codeInput" type="tel" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位验证码"><button class="code-btn" id="sendCodeBtn">获取验证码</button></div></div>
+    <div class="check-row"><input id="agree" type="checkbox"><label for="agree">我已阅读并同意活动规则，知悉奖励需审核、作弊不计入。</label></div>
+    <button class="primary-btn wide" id="loginSubmit">登录并继续</button>
+    <p class="form-note">登录即表示你同意流萤社区账号使用条款。手机号只存加密哈希，邮箱和手机号都不会公开展示。</p>
+  </div>
+</div>
+
+<!-- ===== 手机验证 ===== -->
+<div class="sheet-wrap" id="phoneSheet">
+  <div class="sheet">
+    <div class="sheet-head"><div><h3>验证手机号</h3><p class="sub">验证后邀请关系生效，¥<span class="rFixed">1</span> 固定奖励进入冻结台账。</p></div><button class="close" data-close>×</button></div>
+    <div class="notice mint"><b>为什么需要手机号？</b><br>邮箱可批量注册，手机号短信验证能确认真人、防止同号刷单；前台只显示打码号码，后台审核提现时才核验。我们只存加密哈希，不存明文。</div>
+    <div class="form-err" id="phoneErr"></div>
+    <div class="field"><label>手机号</label><input id="phoneInput" type="tel" inputmode="tel" maxlength="11" placeholder="11 位手机号"></div>
+    <div class="field"><label>短信验证码</label><div class="field-row"><input id="smsInput" type="tel" inputmode="numeric" maxlength="6" placeholder="6 位验证码"><button class="code-btn" id="sendSmsBtn">发送验证码</button></div></div>
+    <button class="primary-btn wide" id="phoneSubmit">验证并领取奖励</button>
+    <p class="form-note">短信通道由第三方短信服务商提供。若提示“未配置”，请联系管理员；配置完成后即可正常发送。</p>
+  </div>
+</div>
+
+<!-- ===== 人机验证 ===== -->
+<div class="sheet-wrap" id="captchaSheet">
+  <div class="sheet">
+    <div class="sheet-head"><div><h3>安全验证</h3><p class="sub">发送短信/邮件验证码前，先确认你是真人。</p></div><button class="close" data-close>×</button></div>
+    <div class="form-err" id="captchaErr"></div>
+    <p class="slider-hint">点击下方按钮完成安全验证。<b>验证通过后才能发送验证码</b></p>
+    <div class="cap-box">
+      <cap-widget id="capWidget" data-cap-api-endpoint="/community/api/captcha/cap" data-cap-lang="zh-cn" data-cap-worker-count="2"></cap-widget>
+    </div>
+    <div class="cap-status" id="capStatus">正在准备安全验证…</div>
+    <button class="primary-btn wide" id="captchaSubmit" disabled>验证并发送</button>
+  </div>
+</div>
+
+<!-- ===== 提现 ===== -->
+<div class="sheet-wrap" id="withdrawSheet">
+  <div class="sheet">
+    <div class="sheet-head"><div><h3>申请提现</h3><p class="sub">收款码仅用于线下转账，审核通过后 1–3 天到账。</p></div><button class="close" data-close>×</button></div>
+    <div class="notice">可提现 <b>¥<span id="wAvail">0.00</span></b> · 最低 ¥<span id="wMin">10</span><br>请填写真实姓名与收款手机号，信息仅管理员可见。</div>
+    <div class="form-err" id="wdErr"></div>
+    <div class="field"><label>真实姓名</label><input id="wdName" maxlength="30" placeholder="用于核对收款人"></div>
+    <div class="field"><label>手机号</label><input id="wdPhone" type="tel" inputmode="tel" maxlength="11" placeholder="接收转账的手机号"></div>
+    <div class="field"><label>提现金额（元）</label><input id="wdAmount" type="number" inputmode="decimal" step="0.01" placeholder="最低 ¥10"></div>
+    <div class="field"><label>支付宝 / 微信收款码</label><div class="qr-upload"><b>点击上传收款码</b><small>支持 JPG / PNG，自动压缩到 3MB 内</small><input id="wdQr" type="file" accept="image/*"></div><img class="qr-preview" id="qrPreview" alt="收款码预览"></div>
+    <button class="primary-btn wide" id="wdSubmit">提交审核</button>
+    <p class="form-note">提交后不可修改。审核通过会标记“已打款”；被驳回会退回可提现余额并写明原因。</p>
+  </div>
+</div>
+
+<!-- ===== 海报 ===== -->
+<div class="poster-modal" id="posterModal"><img id="posterImg" alt="专属邀请海报"><p>长按图片保存，发给好友</p><button class="primary-btn" id="posterClose">关闭</button></div>
+
+<!-- ===== 复制兜底 ===== -->
+<div class="sheet-wrap" id="copySheet">
+  <div class="sheet">
+    <div class="sheet-head"><div><h3>复制邀请链接</h3><p class="sub">自动复制没有成功时，长按下面的链接手动复制即可。</p></div><button class="close" data-close>×</button></div>
+    <div class="field"><label>你的专属邀请链接</label><input id="copyLinkInput" readonly></div>
+    <div class="notice mint">复制后发给好友。好友注册并验证手机号，邀请奖励才会生效。</div>
+    <button class="primary-btn wide" id="copyAgain">再试一次</button>
+    <p class="form-note">如果仍然无法复制，请长按上面的链接，选择“全选 → 复制”。</p>
+  </div>
+</div>
+
+<!-- ===== 成功 ===== -->
+<div class="sheet-wrap" id="successSheet">
+  <div class="sheet">
+    <div class="sheet-head"><div><h3>邀请已记录</h3></div><button class="close" data-close>×</button></div>
+    <div class="success-burst"><div class="seal">✓</div><h3>欢迎加入流萤</h3><p id="successText">邀请关系已绑定。完成手机号验证后，奖励会自动进入台账。</p></div>
+    <button class="primary-btn wide" id="successPhoneBtn">去验证手机号</button>
+    <p class="form-note" style="text-align:center">奖励冻结 <span class="rSettle">7</span> 天，满 ¥<span class="rMin">10</span> 可提现</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  window.CAP_SILENT = true;
+  window.CAP_CUSTOM_WASM_URL = '/invite/cap/cap_wasm_disabled.wasm';
+  window.CAP_PAKO_URL = '/invite/cap/pako_inflate.min.js';
+</script>
+<script src="/invite/cap/cap.min.js" defer></script>
+<script>
+(function(){
+'use strict';
+var API_BASE = location.protocol === 'file:' ? 'http://127.0.0.1:8790/community/api' : '/community/api';
+var $ = function(id){ return document.getElementById(id); };
+var S = { ref:'', clickId:'', token:'', me:null, info:null, inviter:null, phoneTimer:null, codeTimer:null, qrOk:false, authBusy:false, binding:false, captchaId:'', captchaAfter:null, captchaBusy:false, captchaCfg:null, captchaCfgPromise:null, tencentScriptPromise:null, tencentBusy:false, capToken:'' };
+var DEFAULT_INFO = { enabled:true, fixed_reward_yuan:1, commission_percent:20, min_withdraw_yuan:10, settle_days:7, monthly_invite_cap:30,
+  download_ios:'https://www.dbmt999.asia/community/files/community_ipa_0.9.58_unsigned.ipa',
+  download_android:'https://www.dbmt999.asia/community/files/community_apk_0.9.58.apk', rule_version:'2026-11-24' };
+S.token = localStorage.getItem('ly_token') || '';
+try { S.ref = (new URLSearchParams(location.search).get('ref') || '').trim().toUpperCase(); } catch(e) {}
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+function money(n){ var v = Number(n || 0); return v.toFixed(2); }
+function api(path, opt){
+  opt = opt || {};
+  var headers = { 'Content-Type': 'application/json' };
+  if (S.token) headers.Authorization = 'Bearer ' + S.token;
+  return fetch(API_BASE + path, { method: opt.method || 'GET', headers: headers, body: opt.body ? JSON.stringify(opt.body) : undefined })
+    .then(function(r){ return r.json().catch(function(){ return {ok:false,error:'网络响应异常'}; }).then(function(d){ if(!r.ok || d.ok === false) throw new Error(d.error || ('请求失败 ' + r.status)); return d; }); });
+}
+function toast(msg, bad){ var t=$('toast'); t.textContent=msg; t.className='toast show'+(bad?' bad':''); clearTimeout(t._t); t._t=setTimeout(function(){ t.className='toast'; },2600); }
+function openSheet(id){ $(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function closeSheet(id){ $(id).classList.remove('open'); if(!document.querySelector('.sheet-wrap.open')) document.body.style.overflow=''; }
+function closeAll(){ document.querySelectorAll('.sheet-wrap.open').forEach(function(x){x.classList.remove('open');}); document.body.style.overflow=''; }
+document.querySelectorAll('[data-close]').forEach(function(b){ b.addEventListener('click', function(){ closeSheet(b.closest('.sheet-wrap').id); }); });
+document.querySelectorAll('.sheet-wrap').forEach(function(w){ w.addEventListener('click', function(e){ if(e.target===w) closeSheet(w.id); }); });
+$('captchaSubmit').addEventListener('click', submitCaptcha);
+
+function fillInfo(info){
+  S.info = Object.assign({}, DEFAULT_INFO, info || {});
+  var f = S.info.fixed_reward_yuan, p = S.info.commission_percent, m = S.info.min_withdraw_yuan, s = S.info.settle_days, cap = S.info.monthly_invite_cap;
+  $('rFixed').textContent = f; $('rPct').textContent = p; $('rMin').textContent = m; $('dMin').textContent = m; $('wMin').textContent = m;
+  document.querySelectorAll('.rFixed').forEach(function(x){ x.textContent=f; });
+  document.querySelectorAll('.rPct').forEach(function(x){ x.textContent=p; });
+  document.querySelectorAll('.rMin').forEach(function(x){ x.textContent=m; });
+  document.querySelectorAll('.rSettle').forEach(function(x){ x.textContent=s; });
+  document.querySelectorAll('.rCap').forEach(function(x){ x.textContent=cap; });
+  $('ruleVer').textContent = S.info.rule_version || '2026-11-21';
+  $('iosDl').href = S.info.download_ios || '#';
+  $('androidDl').href = S.info.download_android || '#';
+  if(!S.info.download_android){ $('androidDl').classList.remove('solid'); $('androidDl').textContent='Android 准备中'; $('androidDl').removeAttribute('href'); }
+  if(!S.info.enabled){ $('ctaMain').textContent='活动暂未开启'; $('ctaMain').disabled=true; $('stickyBtn').disabled=true; }
+}
+function renderInviter(){
+  if(!S.inviter){ $('inviterChip').style.display='none'; return; }
+  $('inviterName').textContent = S.inviter.name || '好友';
+  $('authInviter').textContent = S.inviter.name || '好友';
+  $('inviterChip').style.display='flex';
+  if(!S.token) $('authRefNotice').style.display='block';
+}
+function renderMe(){
+  var me = S.me;
+  if(!me){ $('dashboard').style.display='none'; $('userChip').style.display='none'; $('loginBtn').style.display='inline-block'; $('userChip').dataset.uid=''; return; }
+  $('dashboard').style.display='block';
+  $('userChip').style.display='flex'; $('loginBtn').style.display='none';
+  $('userName').textContent = (me.nickname || me.name || '流萤用户');
+  $('dAvailable').textContent = money(me.available_yuan); $('dAvail2').textContent = money(me.available_yuan);
+  $('dValid').textContent = me.valid_count || 0; $('dClicks').textContent = me.clicks || 0; $('dShares').textContent = me.share_count || 0; $('dEarned').textContent = money(me.earned_yuan);
+  $('dFrozen').textContent = money(me.frozen_yuan); $('dWithdrawn').textContent = money(me.withdrawn_yuan);
+  $('dCode').textContent = me.code || '--------'; $('dLink').textContent = me.link || '';
+  $('dPending').textContent = (me.pending_count || 0) + ' 人待验证';
+  $('capText').textContent = (me.cap_used || 0) + ' / ' + (me.cap || 30);
+  $('budgetText').textContent = '本月全站固定奖励预算已用 ¥' + money(me.budget_used) + ' / ¥' + money(me.budget) + '，预算用尽后固定奖励暂停。';
+  $('phoneState').innerHTML = me.phone_verified ? '手机号 <b>' + esc(me.phone_mask || '已验证') + '</b> 已验证，可提现。' : '手机号未验证，<b>奖励不会生效</b>。请先验证。';
+  $('settleTip').textContent = '奖励冻结 ' + (S.info ? S.info.settle_days : 7) + ' 天，到期后可提现';
+  $('dMin').textContent = money(me.min_withdraw_yuan || 10);
+  // 邀请记录
+  var list = me.invitees || [];
+  $('inviteeList').innerHTML = list.length ? list.map(function(it){
+    var st = it.status === 'valid' ? '<span class="status-pill valid">已到账</span>' : it.status === 'pending' ? '<span class="status-pill">待验证</span>' : '<span class="status-pill rejected">已驳回</span>';
+    var amt = (it.reward_yuan + it.commission_yuan);
+    return '<div class="invitee"><div class="av">' + esc((it.name || '新').slice(0,1)) + '</div><div class="nm"><b>' + esc(it.name || '新朋友') + '</b><small>' + esc(it.phone || it.email || '') + ' · ' + st + '</small></div><div class="amt">' + (amt ? '+¥' + money(amt) : '—') + '<small>' + (it.commission_yuan ? '含返佣 ¥' + money(it.commission_yuan) : '') + '</small></div></div>';
+  }).join('') : '<div class="empty"><b>还没有邀请记录</b>把链接发给第一个朋友吧</div>';
+  // 提现记录
+  var ws = me.withdrawals || [];
+  $('withdrawList').innerHTML = ws.length ? ws.map(function(w){
+    var map = {pending:'审核中',approved:'待打款',paid:'已打款',rejected:'已驳回'};
+    return '<div class="invitee"><div class="av" style="background:var(--yellow)">¥</div><div class="nm"><b>¥' + money(w.amount_yuan) + '</b><small>' + (map[w.status] || w.status) + ' · ' + dateShort(w.created) + '</small></div><div class="amt"><span class="status-pill ' + (w.status==='paid'?'valid':w.status==='rejected'?'rejected':'') + '">' + (map[w.status]||w.status) + '</span></div></div>';
+  }).join('') : '<div class="empty"><b>暂无提现</b>收益满额后可申请</div>';
+  // QR
+  var qr = $('qrImg'); S.qrOk = false;
+  qr.onload = function(){ S.qrOk=true; qr.style.display='block'; $('qrFallback').style.display='none'; };
+  qr.onerror = function(){ S.qrOk=false; qr.style.display='none'; $('qrFallback').style.display='block'; $('qrFallback').innerHTML='二维码<br>生成失败'; };
+  qr.src = API_BASE + '/invite/qr?ref=' + encodeURIComponent(me.code || '') + '&t=' + Date.now();
+  // 主按钮
+  updateCta();
+}
+function dateShort(ts){ if(!ts) return ''; var d=new Date(ts*1000); return (d.getMonth()+1)+'月'+d.getDate()+'日'; }
+function updateCta(){
+  var label='立即参与，领 ¥' + (S.info ? S.info.fixed_reward_yuan : 1);
+  if(S.token && S.me){
+    if(S.ref && !S.me.binding){ label = '绑定邀请，领 ¥' + S.info.fixed_reward_yuan; }
+    else if(S.me.binding && S.me.binding.status === 'pending'){ label = '验证手机号，激活奖励'; }
+    else if(S.me.binding && S.me.binding.status === 'valid'){ label = '查看我的邀请卡'; }
+    else if(!S.me.phone_verified){ label = '验证手机号，开始提现'; }
+    else { label = '复制我的邀请链接'; }
+  }
+  $('ctaMain').textContent = label; $('stickyBtn').textContent = label;
+}
+
+function loadInfo(){
+  return api('/invite/info' + (S.ref ? '?ref=' + encodeURIComponent(S.ref) : '')).then(function(d){
+    fillInfo(d); S.inviter = d.inviter || null; renderInviter();
+  }).catch(function(e){ fillInfo(DEFAULT_INFO); });
+}
+function loadMe(){
+  if(!S.token) return Promise.resolve(null);
+  return api('/invite/me').then(function(d){ S.me = d; renderMe(); return d; })
+    .catch(function(e){ if(String(e.message).indexOf('401')>=0 || String(e.message).indexOf('登录')>=0){ S.token=''; localStorage.removeItem('ly_token'); S.me=null; renderMe(); } return null; });
+}
+function recordClick(){
+  if(!S.ref) return;
+  api('/invite/click', {method:'POST', body:{ref:S.ref}}).then(function(d){ S.clickId=d.click_id; sessionStorage.setItem('ly_click', d.click_id); })
+    .catch(function(e){ if(String(e.message).indexOf('邀请码')>=0) toast('这个邀请链接已失效，请让好友重新分享', true); });
+}
+function recordShare(action){
+  if(!S.me || !S.me.code) return;
+  api('/invite/share', {method:'POST', body:{ref:S.me.code, action:action}}).catch(function(){});
+}
+function copyText(text){
+  text = String(text || '').trim();
+  if(!text){ toast('邀请链接还没加载好，请稍后再试', true); return Promise.resolve(false); }
+  function done(){
+    toast('链接已复制，发给好友吧');
+    recordShare('copy');
+    return true;
+  }
+  if(navigator.clipboard && typeof navigator.clipboard.writeText === 'function'){
+    try{
+      var p = navigator.clipboard.writeText(text);
+      if(p && typeof p.then === 'function'){
+        return p.then(done).catch(function(){ return fallbackCopy(text); });
+      }
+    }catch(e){}
+  }
+  return Promise.resolve(fallbackCopy(text));
+}
+function fallbackCopy(text){
+  var ta=document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; ta.style.top='0'; ta.style.opacity='0';
+  document.body.appendChild(ta);
+  var ok=false;
+  try{
+    ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
+    ok = document.execCommand('copy');
+  }catch(e){ ok=false; }
+  document.body.removeChild(ta);
+  if(ok){
+    toast('链接已复制，发给好友吧');
+    recordShare('copy');
+    return true;
+  }
+  showCopySheet(text);
+  toast('自动复制失败，请长按链接手动复制', true);
+  return false;
+}
+function showCopySheet(text){
+  var input=$('copyLinkInput'); if(!input) return;
+  input.value=text;
+  openSheet('copySheet');
+  setTimeout(function(){ try{ input.focus(); input.select(); input.setSelectionRange(0, input.value.length); }catch(e){} }, 260);
+}
+function copyMyLink(){
+  if(!S.me){
+    if(S.token){ return loadMe().then(function(){ if(S.me) copyMyLink(); else { toast('邀请卡加载失败，请刷新后重试', true); } }); }
+    toast('请先登录，再复制邀请链接', true); openSheet('authSheet'); return;
+  }
+  return copyText(S.me.link || (location.origin + '/invite/?ref=' + encodeURIComponent(S.me.code || '')));
+}
+function shareLink(){
+  if(!S.me) return openSheet('authSheet');
+  var url = S.me.link || (location.origin + '/invite/?ref=' + encodeURIComponent(S.me.code || ''));
+  if(navigator.share){
+    navigator.share({title:'流萤社区 · 邀请好友赚现金', text:'一起玩流萤社区，注册验证手机号领现金！', url:url}).then(function(){ recordShare('native'); }).catch(function(){});
+  } else { copyText(url); }
+}
+
+function primary(){
+  if(!S.token){ openSheet('authSheet'); return; }
+  if(!S.me) return loadMe().then(function(){ primary(); });
+  if(S.ref && !S.me.binding){
+    if(S.binding) return;
+    S.binding=true;
+    api('/invite/bind', {method:'POST', body:{ref:S.ref, click_id:S.clickId || sessionStorage.getItem('ly_click') || ''}})
+      .then(function(d){ return loadMe().then(function(){ S.binding=false; openSheet('successSheet'); var valid = d.status === 'valid'; $('successText').textContent = valid ? '邀请关系已绑定，¥1 奖励已进入冻结台账。' : '邀请关系已绑定。完成手机号验证后，奖励会自动进入台账。'; $('successPhoneBtn').style.display = valid ? 'none' : 'block'; }); })
+      .catch(function(e){ S.binding=false; var msg=String(e.message||''); toast(msg, true); if(msg.indexOf('老账号')>=0 || msg.indexOf('新注册')>=0){ openSheet('successSheet'); $('successText').textContent=msg; $('successPhoneBtn').style.display='none'; } });
+    return;
+  }
+  if(S.me.binding && S.me.binding.status === 'pending'){ openSheet('phoneSheet'); return; }
+  if(!S.me.phone_verified){ openSheet('phoneSheet'); return; }
+  document.getElementById('dashboard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function detectIdentifier(raw){
+  var s=String(raw||'').trim().replace(/[\s\-()]/g,'');
+  s=s.replace(/[０-９]/g,function(ch){ return String.fromCharCode(ch.charCodeAt(0)-65248); });
+  if(s.indexOf('+86')===0) s=s.slice(3);
+  if(/^1[3-9]\d{9}$/.test(s)) return {kind:'phone', value:s};
+  if(/^[A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9-.]+$/.test(s)) return {kind:'email', value:s.toLowerCase()};
+  return {kind:'', value:s};
+}
+function updateIdHint(){
+  var d=detectIdentifier($('identifierInput').value);
+  $('idTypeHint').textContent = d.kind==='phone' ? '识别为手机号 · 将发送短信验证码' : d.kind==='email' ? '识别为邮箱 · 将发送邮件验证码' : '自动识别：手机号发短信，邮箱发邮件';
+}
+function sendLoginCode(){
+  var d=detectIdentifier($('identifierInput').value), btn=$('sendCodeBtn');
+  if(!d.kind){ showErr('authErr','请输入正确的手机号或邮箱'); return; }
+  clearErr('authErr');
+  askHuman(function(captcha){
+    var body={identifier:d.value};
+    if(captcha.cap_token){ body.cap_token=captcha.cap_token; }
+    else if(captcha.captcha_ticket){ body.captcha_ticket=captcha.captcha_ticket; body.captcha_randstr=captcha.captcha_randstr; }
+    else { body.captcha_id=captcha.captcha_id; body.captcha_x=captcha.captcha_x; body.captcha_y=captcha.captcha_y; }
+    btn.disabled=true; btn.textContent='发送中…';
+    return api('/auth/send-code',{method:'POST',body:body})
+      .then(function(){
+        toast(d.kind==='phone'?'验证码已发送到手机':'验证码已发送到邮箱');
+        startCodeCountdown(btn,'获取验证码');
+      }).catch(function(e){
+        btn.disabled=false; btn.textContent='获取验证码';
+        if(!isSliderError(e && e.message)) showErr('authErr', (e && e.message) || '发送失败，请重试');
+        throw e;
+      });
+  }, function(e){
+    showErr('authErr', (e && e.message) || '人机验证失败，请重试');
+  });
+}
+function doLogin(){
+  var d=detectIdentifier($('identifierInput').value), code=$('codeInput').value.trim();
+  if(!S.info || !S.info.enabled){ showErr('authErr','活动暂未开启'); return; }
+  if(!d.kind || !code){ showErr('authErr','请填写手机号/邮箱和验证码'); return; }
+  if(!$('agree').checked){ showErr('authErr','请先阅读并勾选活动规则'); return; }
+  $('loginSubmit').disabled=true; $('loginSubmit').textContent='登录中…';
+  api('/auth/login-code',{method:'POST',body:{identifier:d.value, code:code}}).then(function(res){
+    if(!res || !res.token) throw new Error('登录失败，请重试');
+    S.token=res.token; localStorage.setItem('ly_token', res.token); closeSheet('authSheet');
+    return loadMe().then(function(){ toast('登录成功'); primary(); });
+  }).catch(function(e){ showErr('authErr', e.message); }).then(function(){ $('loginSubmit').disabled=false; $('loginSubmit').textContent='登录并继续'; });
+}
+function showErr(id,msg){ var e=$(id); e.textContent=msg; e.classList.add('show'); }
+function clearErr(id){ var e=$(id); e.classList.remove('show'); e.textContent=''; }
+
+/* ---------- 人机验证（发送验证码前强制） ---------- */
+function ensureCaptchaConfig(){
+  if(S.captchaCfg) return Promise.resolve(S.captchaCfg);
+  if(S.captchaCfgPromise) return S.captchaCfgPromise;
+  S.captchaCfgPromise = api('/captcha/config').then(function(d){
+    S.captchaCfg = { provider:(d && d.provider) || 'cap', app_id:(d && d.app_id) || '', mode:(d && d.mode) === '1' ? '1' : '2' };
+    return S.captchaCfg;
+  }).catch(function(){
+    S.captchaCfg = { provider:'cap', app_id:'', mode:'2' };
+    return S.captchaCfg;
+  });
+  return S.captchaCfgPromise;
+}
+function loadTencentScript(mode){
+  if(window.TencentCaptcha) return Promise.resolve();
+  if(S.tencentScriptPromise) return S.tencentScriptPromise;
+  S.tencentScriptPromise = new Promise(function(resolve,reject){
+    var s=document.createElement('script');
+    s.src = mode==='1' ? 'https://turing.captcha.qcloud.com/TCaptcha.js' : 'https://turing.captcha.qcloud.com/TJCaptcha.js';
+    s.async=true;
+    s.onload=function(){ if(window.TencentCaptcha) resolve(); else { S.tencentScriptPromise=null; reject(new Error('人机验证加载失败，请稍后再试')); } };
+    s.onerror=function(){ S.tencentScriptPromise=null; reject(new Error('人机验证加载失败，请检查网络后重试')); };
+    document.head.appendChild(s);
+  });
+  return S.tencentScriptPromise;
+}
+function askTencent(appId, mode){
+  var aid=String(appId||'').trim();
+  if(!/^\d+$/.test(aid)) return Promise.reject(new Error('人机验证配置异常，请联系管理员'));
+  if(S.tencentBusy) return Promise.reject({cancelled:true});
+  mode = mode==='1' ? '1' : '2';
+  return loadTencentScript(mode).then(function(){
+    return new Promise(function(resolve,reject){
+      S.tencentBusy=true;
+      var host=null;
+      if(mode==='2'){
+        host=document.createElement('div');
+        host.id='tencentCaptchaHost';
+        host.style.cssText='position:fixed;inset:0;z-index:2147483000';
+        document.body.appendChild(host);
+      }
+      function cleanup(){
+        if(host && host.parentNode) host.parentNode.removeChild(host);
+        host=null;
+      }
+      try{
+        var cb=function(res){
+          S.tencentBusy=false;
+          setTimeout(cleanup,0);
+          if(res && Number(res.ret)===0 && res.ticket && res.randstr){
+            resolve({captcha_ticket:res.ticket, captcha_randstr:res.randstr});
+          }else if(res && Number(res.ret)===2){
+            reject({cancelled:true});
+          }else{
+            reject(new Error((res && res.errorMessage) || '人机验证未通过，请重试'));
+          }
+        };
+        var opts={type:'popup'};
+        var cap = mode==='2' ? new TencentCaptcha(host, aid, cb, opts) : new TencentCaptcha(aid, cb, opts);
+        cap.show();
+      }catch(e){
+        S.tencentBusy=false;
+        cleanup();
+        reject(new Error('人机验证加载失败，请稍后再试'));
+      }
+    });
+  });
+}
+function askHuman(after,onError){
+  ensureCaptchaConfig().then(function(cfg){
+    if(cfg.provider==='tencent' && cfg.app_id) return askTencent(cfg.app_id, cfg.mode).then(after);
+    return askCap(after);
+  }).catch(function(e){
+    if(e && e.cancelled) return;
+    if(onError) onError(e); else toast((e && e.message) || '人机验证失败，请重试', true);
+  });
+}
+function capStatus(msg, cls){
+  var el=$('capStatus');
+  if(!el) return;
+  el.textContent=msg || '';
+  el.className='cap-status'+(cls ? ' '+cls : '');
+}
+function askCap(after){
+  S.captchaAfter=after;
+  S.captchaBusy=false;
+  clearErr('captchaErr');
+  openSheet('captchaSheet');
+  if(S.capToken){
+    capStatus('安全验证已完成，可以发送验证码', 'ok');
+    $('captchaSubmit').disabled=false;
+    $('captchaSubmit').textContent='验证并发送';
+  }else{
+    capStatus('点击上方按钮完成安全验证');
+    $('captchaSubmit').disabled=true;
+    $('captchaSubmit').textContent='验证并发送';
+  }
+}
+function onCapSolve(e){
+  var token=(e && e.detail && e.detail.token) || '';
+  if(!token) return;
+  S.capToken=token;
+  capStatus('安全验证已完成，可以发送验证码', 'ok');
+  $('captchaSubmit').disabled=false;
+  if(S.captchaAfter) $('captchaSubmit').textContent='验证并发送';
+}
+function onCapError(e){
+  S.capToken='';
+  var raw=(e && e.detail && (e.detail.message||e.detail.reason||e.detail.code)) || '';
+  var msg='安全验证未通过，请重试';
+  if(/automated|instr_|agent/i.test(String(raw))) msg='检测到自动化环境，请使用正常浏览器';
+  else if(/expired|timeout|超时/i.test(String(raw))) msg='安全验证已超时，请重新验证';
+  else if(/已失效|already/i.test(String(raw))) msg='安全验证已失效，请重新验证';
+  capStatus(msg, 'bad');
+  showErr('captchaErr', msg);
+  $('captchaSubmit').disabled=true;
+  $('captchaSubmit').textContent='验证并发送';
+}
+var capWidget=$('capWidget');
+if(capWidget){
+  capWidget.addEventListener('solve', onCapSolve);
+  capWidget.addEventListener('error', onCapError);
+  capWidget.addEventListener('progress', function(e){
+    if(S.capToken) return;
+    var p=(e && e.detail && e.detail.progress) || 0;
+    capStatus('安全校验中… '+Math.max(0,Math.min(100,p))+'%');
+  });
+}
+function isSliderError(msg){ return /安全验证|人机验证|自动化|验证已失效|滑块|拼图|验证未通过/.test(String(msg||'')); }
+function submitCaptcha(){
+  var after=S.captchaAfter;
+  if(!S.capToken){ showErr('captchaErr','请先完成安全验证'); return; }
+  if(S.captchaBusy) return;
+  if(!after){ closeSheet('captchaSheet'); return; }
+  S.captchaBusy=true;
+  clearErr('captchaErr');
+  $('captchaSubmit').disabled=true;
+  $('captchaSubmit').textContent='验证中…';
+  Promise.resolve(after({ cap_token:S.capToken })).then(function(){
+    S.captchaAfter=null;
+    S.captchaBusy=false;
+    S.capToken='';
+    closeSheet('captchaSheet');
+    try{ if(capWidget && capWidget.reset) capWidget.reset(); }catch(err){}
+  }).catch(function(e){
+    S.captchaBusy=false;
+    $('captchaSubmit').disabled=!!S.capToken;
+    $('captchaSubmit').textContent='验证并发送';
+    var msg=e && e.message ? e.message : '验证失败，请重试';
+    if(isSliderError(msg)){
+      S.capToken='';
+      showErr('captchaErr', msg);
+      capStatus(msg, 'bad');
+      $('captchaSubmit').disabled=true;
+      try{ if(capWidget && capWidget.reset) capWidget.reset(); }catch(err){}
+      return;
+    }
+    S.captchaAfter=null;
+    closeSheet('captchaSheet');
+  });
+}
+function startCodeCountdown(btn, idleLabel){
+  btn.disabled=true;
+  var n=60;
+  btn.textContent=n+'s';
+  var timer = idleLabel==='发送验证码' ? 'phoneTimer' : 'codeTimer';
+  clearInterval(S[timer]);
+  S[timer]=setInterval(function(){
+    n--;
+    btn.textContent=n+'s';
+    if(n<=0){ clearInterval(S[timer]); btn.disabled=false; btn.textContent=idleLabel; }
+  },1000);
+}
+
+function sendSms(){
+  var phone=$('phoneInput').value.trim(); var btn=$('sendSmsBtn');
+  if(!/^1[3-9]\d{9}$/.test(phone)){ showErr('phoneErr','请输入 11 位大陆手机号'); return; }
+  clearErr('phoneErr');
+  askHuman(function(captcha){
+    var body={phone:phone};
+    if(captcha.cap_token){ body.cap_token=captcha.cap_token; }
+    else if(captcha.captcha_ticket){ body.captcha_ticket=captcha.captcha_ticket; body.captcha_randstr=captcha.captcha_randstr; }
+    else { body.captcha_id=captcha.captcha_id; body.captcha_x=captcha.captcha_x; body.captcha_y=captcha.captcha_y; }
+    btn.disabled=true; btn.textContent='发送中…';
+    return api('/invite/phone/send',{method:'POST',body:body})
+      .then(function(){
+        toast('验证码已发送');
+        startCodeCountdown(btn,'发送验证码');
+      }).catch(function(e){
+        btn.disabled=false; btn.textContent='发送验证码';
+        if(!isSliderError(e && e.message)) showErr('phoneErr', (e && e.message) || '发送失败，请重试');
+        throw e;
+      });
+  }, function(e){
+    showErr('phoneErr', (e && e.message) || '人机验证失败，请重试');
+  });
+}
+function confirmPhone(){
+  var phone=$('phoneInput').value.trim(), code=$('smsInput').value.trim();
+  if(!/^1[3-9]\d{9}$/.test(phone) || code.length!==6){ showErr('phoneErr','请填写手机号和 6 位验证码'); return; }
+  $('phoneSubmit').disabled=true; $('phoneSubmit').textContent='验证中…';
+  api('/invite/phone/confirm',{method:'POST',body:{phone:phone,code:code}}).then(function(){
+    return loadMe().then(function(){ closeSheet('phoneSheet'); toast('手机号验证成功，奖励已进入台账'); });
+  }).catch(function(e){ showErr('phoneErr', e.message); }).then(function(){ $('phoneSubmit').disabled=false; $('phoneSubmit').textContent='验证并领取奖励'; });
+}
+function openWithdraw(){
+  if(!S.me) return openSheet('authSheet');
+  if(!S.me.phone_verified){ toast('请先验证手机号'); openSheet('phoneSheet'); return; }
+  if(Number(S.me.available_yuan) < Number(S.me.min_withdraw_yuan || 10)){ toast('可提现余额不足 ¥' + (S.me.min_withdraw_yuan || 10) + '，继续邀请吧', true); return; }
+  $('wAvail').textContent=money(S.me.available_yuan); $('wMin').textContent=money(S.me.min_withdraw_yuan||10);
+  $('wdAmount').value=money(S.me.available_yuan); $('wdName').value=''; $('wdPhone').value=''; $('qrPreview').classList.remove('show'); $('wdQr').value=''; clearErr('wdErr'); openSheet('withdrawSheet');
+}
+var QR_DATA='';
+function compressQr(file){
+  return new Promise(function(resolve,reject){
+    var r=new FileReader(); r.onload=function(){ var img=new Image(); img.onload=function(){
+      var max=1200, w=img.width, h=img.height; if(w>max||h>max){ var k=Math.min(max/w,max/h); w=Math.round(w*k); h=Math.round(h*k); }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h; var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,w,h); cx.drawImage(img,0,0,w,h);
+      var data=cv.toDataURL('image/jpeg',.82); QR_DATA=data; $('qrPreview').src=data; $('qrPreview').classList.add('show'); resolve();
+    }; img.onerror=reject; img.src=r.result; }; r.onerror=reject; r.readAsDataURL(file);
+  });
+}
+function submitWithdraw(){
+  if(!QR_DATA){ showErr('wdErr','请上传支付宝或微信收款码'); return; }
+  var name=$('wdName').value.trim(), phone=$('wdPhone').value.trim(), amount=$('wdAmount').value;
+  if(name.length<2){ showErr('wdErr','请填写真实姓名'); return; }
+  if(!/^1[3-9]\d{9}$/.test(phone)){ showErr('wdErr','请填写正确的手机号'); return; }
+  if(Number(amount) < Number(S.me.min_withdraw_yuan||10)){ showErr('wdErr','未达到最低提现金额'); return; }
+  $('wdSubmit').disabled=true; $('wdSubmit').textContent='提交中…';
+  api('/invite/withdraw',{method:'POST',body:{amount_yuan:Number(amount),name:name,phone:phone,qr:QR_DATA}}).then(function(d){
+    closeSheet('withdrawSheet'); toast('提现申请已提交，等待审核'); return loadMe();
+  }).catch(function(e){ showErr('wdErr', e.message); }).then(function(){ $('wdSubmit').disabled=false; $('wdSubmit').textContent='提交审核'; });
+}
+
+function makePoster(){
+  if(!S.me) return openSheet('authSheet');
+  var canvas=document.createElement('canvas'); canvas.width=1080; canvas.height=1920; var ctx=canvas.getContext('2d');
+  var poster=new Image(); poster.src='assets/poster.webp?v=20261122c';
+  poster.onload=function(){
+    ctx.drawImage(poster,0,0,1080,1920);
+    var qr=new Image();
+    qr.onload=function(){
+      var size=260, x=706, y=1488;
+      ctx.save(); ctx.strokeStyle='#17151c'; ctx.lineWidth=5; ctx.strokeRect(x-6,y-6,size+12,size+12);
+      ctx.drawImage(qr,x,y,size,size); ctx.fillStyle='#17151c'; ctx.font='700 22px sans-serif'; ctx.textAlign='center'; ctx.fillText('扫码加入 · ' + S.me.code, x+size/2, y+size+40); ctx.restore();
+      $('posterImg').src=canvas.toDataURL('image/jpeg',.92); $('posterModal').classList.add('open'); recordShare('poster');
+    };
+    qr.onerror=function(){ toast('二维码生成失败，请直接复制链接', true); };
+    qr.src=API_BASE+'/invite/qr?ref='+encodeURIComponent(S.me.code||'');
+  };
+  poster.onerror=function(){ toast('海报素材加载失败', true); };
+}
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// 事件
+$('loginBtn').addEventListener('click',function(){ openSheet('authSheet'); });
+$('rulesBtn').addEventListener('click',function(){ document.getElementById('rules').scrollIntoView({behavior:'smooth'}); });
+$('ctaSecond').addEventListener('click',function(){ document.getElementById('how').scrollIntoView({behavior:'smooth'}); });
+$('ctaMain').addEventListener('click',primary); $('stickyBtn').addEventListener('click',primary);
+$('copyBtn').addEventListener('click',copyMyLink);
+$('copyAgain').addEventListener('click',function(){ copyText($('copyLinkInput').value); });
+$('shareBtn').addEventListener('click',shareLink);
+$('posterBtn').addEventListener('click',makePoster);
+$('posterClose').addEventListener('click',function(){ $('posterModal').classList.remove('open'); });
+$('posterModal').addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
+$('withdrawBtn').addEventListener('click',openWithdraw);
+$('sendCodeBtn').addEventListener('click',sendLoginCode);
+$('identifierInput').addEventListener('input',updateIdHint);
+$('loginSubmit').addEventListener('click',doLogin);
+$('sendSmsBtn').addEventListener('click',sendSms);
+$('phoneSubmit').addEventListener('click',confirmPhone);
+$('successPhoneBtn').addEventListener('click',function(){ closeSheet('successSheet'); openSheet('phoneSheet'); });
+$('wdQr').addEventListener('change',function(){ var f=this.files && this.files[0]; if(f){ compressQr(f).catch(function(){ showErr('wdErr','图片读取失败，请重试'); }); } });
+$('wdSubmit').addEventListener('click',submitWithdraw);
+$('userChip').addEventListener('click',function(){ if(confirm('退出当前账号？')){ S.token=''; localStorage.removeItem('ly_token'); S.me=null; renderMe(); toast('已退出'); } });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeAll(); });
+
+// 启动
+fillInfo(DEFAULT_INFO);
+ensureCaptchaConfig();
+loadInfo().then(function(){
+  renderInviter();
+  if(S.token) return loadMe();
+}).then(function(){ updateCta(); });
+recordClick();
+})();
+</script>
+</body>
+</html>

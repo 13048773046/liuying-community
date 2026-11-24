@@ -1,31 +1,40 @@
 /// 瀑布流卡片（首页/收藏页复用）：视频 / 图文 / 纯文 / 投票 四类
+///
+/// 沉浸黑：黑底无边框 + 14 圆角 + 白色文字；字段、构造参数与回调语义保持不变。
 library;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'user_avatar.dart';
-import 'poll_card.dart';
 
 import '../config.dart';
+import '../design/components.dart';
+import '../features/emoji/text_emoji.dart';
 import '../models/feed_item.dart';
+import 'image_box.dart';
+import 'poll_card.dart';
+import 'user_avatar.dart';
 
 class WaterfallCard extends StatelessWidget {
   final FeedItem item;
   final VoidCallback onTap;
   final VoidCallback? onAuthorTap;
-  const WaterfallCard(
-      {super.key, required this.item, required this.onTap, this.onAuthorTap});
+  const WaterfallCard({
+    super.key,
+    required this.item,
+    required this.onTap,
+    this.onAuthorTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isVideo = item.type == 'video';
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+      scale: 0.97,
+      haptic: false,
       child: Container(
-        decoration: BoxDecoration(
-          color: const Color(AppTheme.card),
-          borderRadius: BorderRadius.circular(14),
+        decoration: const BoxDecoration(
+          color: Color(AppColors.card),
+          borderRadius: BorderRadius.all(Radius.circular(14)),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -33,29 +42,40 @@ class WaterfallCard extends StatelessWidget {
           children: [
             // 概念稿卡片结构：图 → 正文 → 底部作者+互动数据行
             if (isVideo)
-              _videoCover()
+              StaggerReveal(index: 0, child: _videoCover())
             else if (item.images.isNotEmpty)
-              _images(item.images),
+              StaggerReveal(index: 0, child: _images(item.images)),
             if (!isVideo && item.content.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: _content(item.content, item.topic, item.type == 'text'),
-              ),
-            ],
-            if (item.poll != null) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: PollCard(
-                  postId: item.id,
-                  poll: item.poll!,
+              const SizedBox(height: AppSpace.x2),
+              StaggerReveal(
+                index: 1,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
+                  child: _content(item.content, item.type == 'text'),
                 ),
               ),
             ],
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: _footerRow(isVideo),
+            if (item.poll != null) ...[
+              const SizedBox(height: AppSpace.x2),
+              StaggerReveal(
+                index: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.x3),
+                  child: PollCard(postId: item.id, poll: item.poll!),
+                ),
+              ),
+            ],
+            StaggerReveal(
+              index: 3,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.x3,
+                  AppSpace.x2,
+                  AppSpace.x3,
+                  AppSpace.x3,
+                ),
+                child: _footerRow(),
+              ),
             ),
           ],
         ),
@@ -63,7 +83,7 @@ class WaterfallCard extends StatelessWidget {
     );
   }
 
-  /// 视频卡：封面 3:4 + 播放角标 + 时长 + 作者条 + 互动
+  /// 视频卡：封面 3:4 + 时长 + 底部作者条 + 互动
   Widget _videoCover() {
     final cover = item.cover == 'auto' ? '${item.video}.jpg' : item.cover;
     final dur = item.duration;
@@ -72,155 +92,176 @@ class WaterfallCard extends StatelessWidget {
         AspectRatio(
           aspectRatio: 3 / 4,
           child: cover.isNotEmpty
-              ? CachedNetworkImage(
-                  imageUrl: mediaUrl(cover),
+              ? BlurUpImage(
+                  url: mediaUrl(cover),
                   fit: BoxFit.cover,
-                  placeholder: (_, _) =>
-                      Container(color: const Color(0xFF1C1C24)),
-                  errorWidget: (_, _, _) => Container(
-                    color: const Color(0xFF1C1C24),
-                    child: const Icon(Icons.movie_outlined,
-                        color: Color(AppTheme.textSecondary)),
+                  placeholder: const ImagePlaceholder(
+                    icon: Icons.movie_outlined,
+                    radius: 0,
                   ),
                 )
-              : Container(
-                  color: const Color(0xFF1C1C24),
-                  child: const Icon(Icons.movie_outlined,
-                      color: Color(AppTheme.textSecondary)),
-                ),
+              : const ImagePlaceholder(icon: Icons.movie_outlined, radius: 0),
         ),
-        // 时长角标（对齐抖音/小红书瀑布流：封面无播放按钮，仅右下角时长）
+        // 时长角标（封面无播放按钮，仅右下角时长）
         if (dur > 0)
           Positioned(
-            right: 6,
-            bottom: 6,
+            right: AppSpace.x2,
+            bottom: AppSpace.x2,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: AppRadius.rXs,
               ),
-              child: Text(_fmtDur(dur),
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 10.5)),
+              child: Text(
+                _fmtDur(dur),
+                style: AppType.micro.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
             ),
           ),
       ],
     );
   }
 
-  /// 图文卡底部数据行：作者（左）+ 点赞/评论（右），对齐概念稿
-  Widget _footerRow(bool isVideo) {
+  /// 底部数据行：作者（左）+ 点赞/评论（右）
+  Widget _footerRow() {
     final a = item.author;
+    final avatar = _miniAvatar(a);
     return Row(
       children: [
         if (onAuthorTap != null)
-          GestureDetector(onTap: onAuthorTap, child: _miniAvatar(a.avatar, a.name))
+          GestureDetector(onTap: onAuthorTap, child: avatar)
         else
-          _miniAvatar(a.avatar, a.name),
-        const SizedBox(width: 6),
+          avatar,
+        const SizedBox(width: AppSpace.x2),
         Expanded(
           child: Row(
             children: [
               Flexible(
                 child: Text(
-                  a.name,
+                  a.name.isEmpty ? '匿名用户' : a.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
+                  style: AppType.label.copyWith(
+                    color: Colors.white,
+                    shadows: const [
+                      Shadow(color: Color(0x99000000), blurRadius: 4),
+                    ],
+                  ),
                 ),
               ),
               if (a.isAdmin) ...[
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpace.x1),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [
-                          Color(AppTheme.accent),
-                          Color(AppTheme.sky)
-                        ]),
-                    borderRadius: BorderRadius.circular(5),
+                    horizontal: 4,
+                    vertical: 1,
                   ),
-                  child: const Text(
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.accent)
+                        .withValues(alpha: 0.22),
+                    borderRadius: AppRadius.rXs,
+                    border: Border.all(
+                      color: const Color(AppColors.accent)
+                          .withValues(alpha: 0.55),
+                    ),
+                  ),
+                  child: Text(
                     '管',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        height: 1.3,
-                        fontWeight: FontWeight.w600),
+                    style: AppType.micro.copyWith(
+                      color: const Color(AppColors.accent),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
               if (item.featured) ...[
-                const SizedBox(width: 4),
-                const Text('★',
-                    style: TextStyle(
-                        color: Color(0xFFFFB84D),
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold)),
+                const SizedBox(width: AppSpace.x1),
+                const Icon(
+                  Icons.star_rounded,
+                  size: 12,
+                  color: Color(AppColors.warning),
+                ),
               ],
               if (item.sticky) ...[
-                const SizedBox(width: 4),
-                const Text('📌', style: TextStyle(fontSize: 10)),
+                const SizedBox(width: AppSpace.x1),
+                const Icon(
+                  Icons.push_pin_rounded,
+                  size: 11,
+                  color: Color(AppColors.textTertiary),
+                ),
               ],
               if (item.type == 'poll') ...[
-                const SizedBox(width: 4),
-                const Icon(Icons.how_to_vote_outlined,
-                    size: 13, color: Color(AppTheme.lilac)),
+                const SizedBox(width: AppSpace.x1),
+                const Icon(
+                  Icons.how_to_vote_outlined,
+                  size: 12,
+                  color: Color(AppColors.textTertiary),
+                ),
               ],
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.x2),
         _miniAction(Icons.favorite_rounded, item.likeCount, item.liked),
-        const SizedBox(width: 10),
+        const SizedBox(width: AppSpace.x2),
         _miniAction(
-            Icons.chat_bubble_outline_rounded, item.commentCount, false),
+          Icons.chat_bubble_outline_rounded,
+          item.commentCount,
+          false,
+        ),
       ],
     );
   }
 
-  Widget _miniAvatar(String url, String name) {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.25)),
-      ),
-      child: UserAvatar(url: url, name: name, size: 28),
+  Widget _miniAvatar(Author a) {
+    return UserAvatar(
+      url: a.avatar,
+      uid: a.id,
+      name: a.name,
+      size: 26,
+      verified: a.verified,
+      verifiedLabel: a.verifiedLabel,
+      isAi: a.isAi,
+      frameUrl: frameUrlOf(a.frameId),
+      borderColor: Colors.white.withValues(alpha: 0.18),
     );
   }
 
-  Widget _content(String text, List<String> topics, bool isText) {
-    final spans = <TextSpan>[];
+  Widget _content(String text, bool isText) {
+    final base = AppType.body.copyWith(
+      fontSize: isText ? 14 : 13.5,
+      height: 1.45,
+      color: Colors.white,
+    );
+    final spans = <InlineSpan>[];
     final kw = RegExp('(#[^\\s#]+)');
     var last = 0;
     for (final m in kw.allMatches(text)) {
       if (m.start > last) {
-        spans.add(TextSpan(text: text.substring(last, m.start)));
+        spans.addAll(textEmojiSpans(text.substring(last, m.start), base));
       }
-      spans.add(TextSpan(
-        text: m.group(0),
-        style: const TextStyle(
-            color: Color(AppTheme.lilac), fontWeight: FontWeight.w600),
-      ));
+      spans.add(
+        TextSpan(
+          text: m.group(0),
+          style: const TextStyle(
+            color: Color(AppColors.accent),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
       last = m.end;
     }
-    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+    if (last < text.length) {
+      spans.addAll(textEmojiSpans(text.substring(last), base));
+    }
     return Text.rich(
-      TextSpan(
-        style: TextStyle(
-            color: Colors.white,
-            fontSize: isText ? 14 : 13.5,
-            height: 1.45),
-        children: spans,
-      ),
+      TextSpan(style: base, children: spans),
       maxLines: isText ? 6 : 3,
       overflow: TextOverflow.ellipsis,
     );
@@ -231,15 +272,10 @@ class WaterfallCard extends StatelessWidget {
     if (images.isEmpty) return const SizedBox.shrink();
     return AspectRatio(
       aspectRatio: 4 / 3,
-      child: CachedNetworkImage(
-        imageUrl: mediaUrl(images.first),
+      child: BlurUpImage(
+        url: mediaUrl(images.first),
         fit: BoxFit.cover,
-        placeholder: (_, _) => Container(color: const Color(0xFF1C1C24)),
-        errorWidget: (_, _, _) => Container(
-          color: const Color(0xFF1C1C24),
-          child: const Icon(Icons.broken_image,
-              color: Color(AppTheme.textSecondary)),
-        ),
+        placeholder: const ImagePlaceholder(radius: 0),
       ),
     );
   }
@@ -248,16 +284,20 @@ class WaterfallCard extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon,
-            size: 15,
-            color: active
-                ? const Color(AppTheme.heart)
-                : const Color(AppTheme.textSecondary)),
-        const SizedBox(width: 2.5),
+        Icon(
+          icon,
+          size: 14,
+          color: active
+              ? const Color(AppColors.heart)
+              : const Color(AppColors.textTertiary),
+        ),
+        const SizedBox(width: 3),
         Text(
-          countText(count),
-          style: const TextStyle(
-              color: Color(AppTheme.textSecondary), fontSize: 11),
+          formatCount(count),
+          style: AppType.micro.copyWith(
+            color: const Color(AppColors.textSecondary),
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ],
     );

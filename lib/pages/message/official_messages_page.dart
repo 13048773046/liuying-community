@@ -1,11 +1,15 @@
-/// 官方通知聊天记录页：与流萤音乐官方通知界面一致
+/// 官方通知聊天记录页（沉浸黑）：与流萤音乐官方通知界面一致
 /// 聊天气泡样式，官方消息靠左，只读不可回复
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../../api/client.dart';
-import '../../config.dart';
+import '../../features/message/data/message_repository.dart';
+import '../../features/message/widgets/official_rich_bubble.dart';
+import '../../design/components.dart';
+import '../../services/notify_bus.dart';
 
 class OfficialMessagesPage extends StatefulWidget {
   const OfficialMessagesPage({super.key});
@@ -18,11 +22,38 @@ class _OfficialMessagesPageState extends State<OfficialMessagesPage> {
   List<Map<String, dynamic>> _messages = [];
   bool _loading = true;
   bool _failed = false;
+  StreamSubscription? _officialSub;
 
   @override
   void initState() {
     super.initState();
+    _officialSub = NotifyBus.shared.onOfficial.stream.listen(_onOfficial);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _officialSub?.cancel();
+    super.dispose();
+  }
+
+  void _onOfficial(Map<String, dynamic> m) {
+    if (!mounted) return;
+    final id = (m['id'] ?? '').toString();
+    if (id.isNotEmpty && _messages.any((e) => (e['id'] ?? '') == id)) return;
+    setState(() {
+      _messages = [..._messages, m];
+      _loading = false;
+      _failed = false;
+    });
+    unawaited(_markOfficialRead());
+  }
+
+  Future<void> _markOfficialRead() async {
+    try {
+      await MessageRepository.instance.markOfficialRead();
+      NotifyBus.shared.clearOfficialUnread();
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -30,7 +61,9 @@ class _OfficialMessagesPageState extends State<OfficialMessagesPage> {
       var after = 0.0;
       final all = <Map<String, dynamic>>[];
       while (true) {
-        final j = await ApiClient.officialMessages(after: after);
+        final j = await MessageRepository.instance.officialMessages(
+          after: after,
+        );
         final list = ((j['list'] ?? []) as List)
             .whereType<Map<String, dynamic>>()
             .toList();
@@ -45,6 +78,8 @@ class _OfficialMessagesPageState extends State<OfficialMessagesPage> {
         _loading = false;
         _failed = false;
       });
+      // 打开即视为已读：消息页系统通知角标 / 底部总红点同步清零
+      unawaited(_markOfficialRead());
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -54,101 +89,72 @@ class _OfficialMessagesPageState extends State<OfficialMessagesPage> {
     }
   }
 
+  void _retry() {
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(AppTheme.bg),
-      appBar: AppBar(
-        backgroundColor: const Color(AppTheme.bg),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('官方通知',
-            style: TextStyle(
-                color: Color(AppTheme.textPrimary),
-                fontSize: 16,
-                fontWeight: FontWeight.w600)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 18),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
+    return ImmersivePage(
+      child: Column(
+        children: [
+          const GlassTopBar(title: '官方通知', solid: true),
+          // 常驻提示（对齐音乐项目官方通知界面）
+          Padding(
+            padding: const EdgeInsets.only(
+              top: AppSpace.x1,
+              bottom: AppSpace.x2,
+            ),
+            child: Center(child: Text('仅流萤社区官方可发送，无法回复', style: AppType.micro)),
+          ),
+          Expanded(child: _body()),
+        ],
       ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(AppTheme.accent), strokeWidth: 2.5))
-          : _failed
-              ? _retry()
-              : RefreshIndicator(
-                  color: const Color(AppTheme.accent),
-                  backgroundColor: const Color(AppTheme.card),
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    children: [
-                      // 顶部提示（对齐音乐项目官方通知界面）
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Center(
-                          child: Text('仅流萤社区官方可发送，无法回复',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textTertiary),
-                                  fontSize: 11)),
-                        ),
-                      ),
-                      if (_messages.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 80),
-                          child: Center(
-                            child: Text('暂无官方通知',
-                                style: TextStyle(
-                                    color: Color(AppTheme.textTertiary),
-                                    fontSize: 13)),
-                          ),
-                        )
-                      else
-                        ..._bubbles(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Center(
-                          child: Text('— 已显示全部官方通知 —',
-                              style: TextStyle(
-                                  color: Color(AppTheme.textTertiary)
-                                      .withValues(alpha: 0.7),
-                                  fontSize: 10)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
     );
   }
 
-  Widget _retry() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget _body() {
+    if (_loading) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
+        ),
+      );
+    }
+    if (_failed) {
+      return Center(
+        child: ErrorState(message: '加载失败，下拉重试', onRetry: _retry),
+      );
+    }
+    return RefreshIndicator(
+      color: const Color(AppColors.accent),
+      backgroundColor: const Color(AppColors.elevated),
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          AppSpace.gutter,
+          AppSpace.x2,
+          AppSpace.gutter,
+          MediaQuery.paddingOf(context).bottom + AppSpace.x4,
+        ),
         children: [
-          const Text('加载失败，下拉重试',
-              style: TextStyle(
-                  color: Color(AppTheme.textTertiary), fontSize: 13)),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(AppTheme.accent),
-              side: const BorderSide(color: Color(AppTheme.accent)),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-            ),
-            onPressed: () {
-              setState(() {
-                _loading = true;
-                _failed = false;
-              });
-              _load();
-            },
-            child: const Text('重新加载'),
-          ),
+          if (_messages.isEmpty)
+            const EmptyState(
+              icon: Icons.campaign_outlined,
+              title: '暂无官方通知',
+              message: '官方公告与活动提醒会出现在这里',
+            )
+          else
+            ..._bubbles(),
+          if (_messages.isNotEmpty)
+            const LoadMoreFooter(hasMore: false, endLabel: '— 已显示全部官方通知 —'),
         ],
       ),
     );
@@ -160,62 +166,79 @@ class _OfficialMessagesPageState extends State<OfficialMessagesPage> {
     for (var i = 0; i < _messages.length; i++) {
       final m = _messages[i];
       final content = (m['content'] ?? '') as String;
+      final plainText = (m['plainText'] ?? '') as String;
+      final richRaw = m['rich'];
+      final rich = richRaw is Map
+          ? richRaw.map((k, v) => MapEntry(k.toString(), v))
+          : null;
       final sender = (m['senderName'] ?? '') as String;
       final showHeader =
-          i == 0 || (m['senderName'] ?? '') != (_messages[i - 1]['senderName'] ?? '');
-      out.add(Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (showHeader) ...[
-              Row(children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(AppTheme.accent)
-                        .withValues(alpha: 0.15),
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/logo.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox(),
+          i == 0 ||
+          (m['senderName'] ?? '') != (_messages[i - 1]['senderName'] ?? '');
+      out.add(
+        Padding(
+          padding: EdgeInsets.only(
+            top: showHeader && i > 0 ? AppSpace.x3 : 0,
+            bottom: AppSpace.x1,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showHeader) ...[
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/logo.png',
+                          width: 26,
+                          height: 26,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Color(AppColors.accentSoft),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
+                    const SizedBox(width: AppSpace.x2),
+                    Text(
+                      sender.isEmpty ? '流萤社区官方' : sender,
+                      style: AppType.caption,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.x1 + 2),
+              ],
+              // 消息气泡（无描边、左上小圆角，贴近原生 IM）
+              Container(
+                key: ValueKey('official-bubble-${m['id']}'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.x4,
+                  vertical: AppSpace.x2 + 2,
+                ),
+                decoration: const BoxDecoration(
+                  color: Color(AppColors.card),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(AppRadius.xs),
+                    topRight: Radius.circular(AppRadius.md),
+                    bottomLeft: Radius.circular(AppRadius.md),
+                    bottomRight: Radius.circular(AppRadius.md),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(sender.isEmpty ? '流萤社区官方' : sender,
-                    style: const TextStyle(
-                        color: Color(AppTheme.textTertiary),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500)),
-              ]),
-              const SizedBox(height: 4),
-            ],
-            // 消息气泡（无描边、左小右大圆角，贴近原生 IM）
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: const BoxDecoration(
-                color: Color(AppTheme.card),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(4),
-                  topRight: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
+                child: OfficialRichBubble(
+                  messageId: (m['id'] ?? '').toString(),
+                  rich: rich,
+                  fallback: plainText.isNotEmpty ? plainText : content,
                 ),
               ),
-              child: Text(content,
-                  style: const TextStyle(
-                      color: Color(AppTheme.textPrimary), fontSize: 14)),
-            ),
-          ],
+            ],
+          ),
         ),
-      ));
+      );
     }
     return out;
   }
