@@ -1,0 +1,83 @@
+# build 2026-11-26: 0.9.65 二楼 2T2B 社区入口
+name: build-community-0.9.65-ios
+
+on:
+  push:
+    branches: [build-0.9.50-both]
+    paths: ['.github/workflows/build-0.9.65-ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch 0.9.65 source
+        run: |
+          set -euo pipefail
+          rm -rf lib assets ios third_party pubspec.yaml pubspec.lock shorebird.yaml analysis_options.yaml .metadata
+          curl -fL --retry 3 --retry-delay 5 --max-time 600 \
+            'https://aka.doubaocdn.com/s/5HB7EDzOdJ' -o /tmp/src.tgz
+          test "$(stat -f%z /tmp/src.tgz)" -gt 50000000
+          tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
+          grep '^version:' pubspec.yaml
+          grep "kAppVersion" lib/config.dart | head -1
+          test -f shorebird.yaml
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Build iOS unsigned IPA
+        run: |
+          set -o pipefail
+          flutter pub get
+          flutter build ios --release --no-codesign
+          APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' | head -1)
+          test -n "$APP"
+          echo "APP=$APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry community-ipa-0.9.65-unsigned.ipa Payload
+          shasum -a 256 community-ipa-0.9.65-unsigned.ipa | tee SHA256.txt
+          unzip -l community-ipa-0.9.65-unsigned.ipa | grep 'Payload/.*\.app/Info.plist'
+          ls -lh community-ipa-0.9.65-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-ios-0.9.65-unsigned-ipa
+          path: |
+            build/ios/ipa/community-ipa-0.9.65-unsigned.ipa
+            build/ios/ipa/SHA256.txt
+          if-no-files-found: error
+
+      - name: Publish IPA to release and dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          IPA="$GITHUB_WORKSPACE/build/ios/ipa/community-ipa-0.9.65-unsigned.ipa"
+          SHA="$GITHUB_WORKSPACE/build/ios/ipa/SHA256.txt"
+          gh release create 'ios-0.9.65' "$IPA" "$SHA" \
+            --title '流萤社区 0.9.65 iOS 未签名 IPA' \
+            --notes '二楼新增 2T2B 社区入口：服务器状态、在线玩家与只读玩家档案。' \
+            --repo "$GITHUB_REPOSITORY" || true
+          gh release upload 'ios-0.9.65' "$IPA" "$SHA" --clobber --repo "$GITHUB_REPOSITORY"
+          mkdir -p /tmp/pubios && cd /tmp/pubios
+          cp "$IPA" .
+          cp "$SHA" .
+          git init -q -b dist-ios-0.9.65
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A
+          git commit -q -m "publish ios 0.9.65 unsigned"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-0.9.65
