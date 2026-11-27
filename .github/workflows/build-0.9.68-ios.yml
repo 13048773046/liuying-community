@@ -1,0 +1,83 @@
+# build 2026-11-27: 0.9.68 社区主域切换 yosar.cloud
+name: build-community-0.9.68-ios
+
+on:
+  push:
+    branches: [build-0.9.50-both]
+    paths: ['.github/workflows/build-0.9.68-ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch 0.9.68 source
+        run: |
+          set -euo pipefail
+          rm -rf lib assets ios third_party pubspec.yaml pubspec.lock shorebird.yaml analysis_options.yaml .metadata
+          curl -fL --retry 3 --retry-delay 5 --max-time 900 \
+            'https://www.yosar.cloud/community/files/community-0.9.68-src.tgz' -o /tmp/src.tgz
+          test "$(stat -f%z /tmp/src.tgz)" -gt 50000000
+          tar -xzf /tmp/src.tgz -C "$GITHUB_WORKSPACE"
+          grep '^version: 0.9.68+139' pubspec.yaml
+          grep "defaultValue: 'https://www.yosar.cloud'" lib/config.dart
+          test -f shorebird.yaml
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Build iOS unsigned IPA
+        run: |
+          set -o pipefail
+          flutter pub get
+          flutter build ios --release --no-codesign
+          APP=$(find build/ios/iphoneos -maxdepth 1 -name '*.app' | head -1)
+          test -n "$APP"
+          echo "APP=$APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry community-ipa-0.9.68-unsigned.ipa Payload
+          shasum -a 256 community-ipa-0.9.68-unsigned.ipa | tee SHA256.txt
+          unzip -l community-ipa-0.9.68-unsigned.ipa | grep 'Payload/.*\.app/Info.plist'
+          ls -lh community-ipa-0.9.68-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-ios-0.9.68-unsigned-ipa
+          path: |
+            build/ios/ipa/community-ipa-0.9.68-unsigned.ipa
+            build/ios/ipa/SHA256.txt
+          if-no-files-found: error
+
+      - name: Publish IPA to release and dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          IPA="$GITHUB_WORKSPACE/build/ios/ipa/community-ipa-0.9.68-unsigned.ipa"
+          SHA="$GITHUB_WORKSPACE/build/ios/ipa/SHA256.txt"
+          gh release create 'ios-0.9.68' "$IPA" "$SHA" \
+            --title '流萤社区 0.9.68 iOS 未签名 IPA' \
+            --notes '社区主域切换至 www.yosar.cloud，登录、帖子、分享与安装包下载统一走新域名；旧域 dbmt999.asia 继续兼容。' \
+            --repo "$GITHUB_REPOSITORY" || true
+          gh release upload 'ios-0.9.68' "$IPA" "$SHA" --clobber --repo "$GITHUB_REPOSITORY"
+          mkdir -p /tmp/pubios && cd /tmp/pubios
+          cp "$IPA" .
+          cp "$SHA" .
+          git init -q -b dist-ios-0.9.68
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A
+          git commit -q -m "publish ios 0.9.68 unsigned"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist-ios-0.9.68
